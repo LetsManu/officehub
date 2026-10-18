@@ -1,0 +1,6 @@
+fastapi==0.115.12
+uvicorn==0.34.2
+sqlalchemy==2.0.41
+bcrypt==4.3.0
+python-multipart==0.0.20
+pypdf==5.4.0
