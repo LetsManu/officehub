@@ -126,7 +126,10 @@ onMounted(load)
               <li v-for="item in upcomingEvents" :key="item.id" class="event">
                 <AppIcon name="calendar" />
                 <span class="stack-sm">
-                  <span class="news-title">{{ item.title }}</span>
+                  <span class="news-title">
+                    {{ item.title }}
+                    <span v-if="item.event_date === todayIso()" class="today-badge">{{ t('dashboard.today') }}</span>
+                  </span>
                   <span class="muted small">{{ formatDateLong(item.event_date) }}</span>
                 </span>
               </li>
@@ -224,6 +227,16 @@ onMounted(load)
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   color: var(--color-text);
+}
+
+.today-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .event > .icon {
