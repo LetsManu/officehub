@@ -71,6 +71,7 @@ const en: Messages = {
     allNews: 'All announcements',
     noNews: 'There are no announcements right now.',
     events: 'Upcoming events',
+    today: 'Today',
     pendingApprovals: '{count} requests are waiting for your decision.',
     pendingApprovalsOne: '1 request is waiting for your decision.',
     reviewNow: 'Review now',

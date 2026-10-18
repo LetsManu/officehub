@@ -69,6 +69,7 @@ const de = {
     allNews: 'Alle Neuigkeiten',
     noNews: 'Aktuell gibt es keine Neuigkeiten.',
     events: 'Anstehende Termine',
+    today: 'Heute',
     pendingApprovals: '{count} Anträge warten auf deine Entscheidung.',
     pendingApprovalsOne: '1 Antrag wartet auf deine Entscheidung.',
     reviewNow: 'Jetzt prüfen',
