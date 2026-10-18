@@ -2,10 +2,11 @@
 #
 # Mention @claude in an issue, an issue comment, a pull request comment or a review
 # to ask Claude to answer a question or implement a change. For issues, Claude works
-# on a new branch and posts a link to open a pull request.
+# on a new branch and a pull request is opened automatically (see the last step).
 #
 # Setup (once): install the Claude GitHub App on this repository and add the
-# repository secret ANTHROPIC_API_KEY (Settings → Secrets and variables → Actions).
+# repository secret CLAUDE_CODE_OAUTH_TOKEN, created with `claude setup-token`
+# (Settings → Secrets and variables → Actions).
 # No secrets are stored in this file.
 
 name: Claude Code
@@ -42,9 +43,37 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude Code
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Let Claude run the project's checks before it proposes a change.
           claude_args: |
-            --allowedTools "Bash(cd backend && *),Bash(cd frontend && *),Bash(pip install *),Bash(python -m pytest*),Bash(npm ci*),Bash(npm run *),Bash(npx vitest*)"
+            --allowedTools "Bash(cd backend && *),Bash(cd frontend && *),Bash(pip install *),Bash(python -m pytest*),Bash(npm ci*),Bash(npm run *),Bash(npm test*),Bash(npx vitest*)"
+
+      # Claude pushes its work to a branch. Open the pull request for it automatically.
+      # Uses the Claude app token (not GITHUB_TOKEN) so the CI workflow runs on the new PR.
+      - name: Open pull request
+        if: steps.claude.outputs.branch_name != '' && github.event.issue.pull_request == null && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          BASE: ${{ github.event.repository.default_branch }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git fetch --quiet --depth=50 origin "$BASE" "$BRANCH" || { echo "Branch $BRANCH was not pushed – nothing to do."; exit 0; }
+          if [ "$(git rev-list --count "origin/$BASE..origin/$BRANCH")" = "0" ]; then
+            echo "No new commits on $BRANCH – nothing to do."
+            exit 0
+          fi
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            echo "A pull request for $BRANCH already exists."
+            exit 0
+          fi
+          gh pr create \
+            --base "$BASE" \
+            --head "$BRANCH" \
+            --title "$ISSUE_TITLE" \
+            --body "$(printf 'Closes #%s\n\nImplemented by Claude Code from issue #%s ([workflow run](%s)).\nPlease review the changes and the CI result before merging.' "$ISSUE_NUMBER" "$ISSUE_NUMBER" "$RUN_URL")"
