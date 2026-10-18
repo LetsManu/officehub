@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Started by the Claude Code workflow for pull requests it opens.
+  workflow_dispatch:
 
 permissions:
   contents: read

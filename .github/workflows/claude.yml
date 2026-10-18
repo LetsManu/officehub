@@ -35,7 +35,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: read
+      actions: write # to start CI on the new pull request
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -52,11 +52,14 @@ jobs:
             --allowedTools "Bash(cd backend && *),Bash(cd frontend && *),Bash(pip install *),Bash(python -m pytest*),Bash(npm ci*),Bash(npm run *),Bash(npm test*),Bash(npx vitest*)"
 
       # Claude pushes its work to a branch. Open the pull request for it automatically.
-      # Uses the Claude app token (not GITHUB_TOKEN) so the CI workflow runs on the new PR.
+      # The Claude app token is revoked when the action finishes, so the workflow token is used.
+      # Pull requests opened with that token do not start other workflows, so CI is started
+      # explicitly; its checks appear on the pull request.
+      # Requires: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
       - name: Open pull request
         if: steps.claude.outputs.branch_name != '' && github.event.issue.pull_request == null && github.event_name != 'pull_request_review' && github.event_name != 'pull_request_review_comment'
         env:
-          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.claude.outputs.branch_name }}
           BASE: ${{ github.event.repository.default_branch }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -77,3 +80,4 @@ jobs:
             --head "$BRANCH" \
             --title "$ISSUE_TITLE" \
             --body "$(printf 'Closes #%s\n\nImplemented by Claude Code from issue #%s ([workflow run](%s)).\nPlease review the changes and the CI result before merging.' "$ISSUE_NUMBER" "$ISSUE_NUMBER" "$RUN_URL")"
+          gh workflow run ci.yml --ref "$BRANCH"
