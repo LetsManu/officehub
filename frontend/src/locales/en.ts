@@ -296,6 +296,7 @@ const en: Messages = {
     phone: 'Phone',
     furniture: 'Furniture',
     accessories: 'Accessories',
+    parking: 'Parking space',
     other: 'Other',
   },
   accessLevels: { view: 'View', edit: 'Edit', admin: 'Manage' },

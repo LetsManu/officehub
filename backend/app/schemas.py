@@ -32,7 +32,7 @@ Currency = Literal["EUR", "USD", "GBP", "CHF"]
 AccessLevel = Literal["view", "edit", "admin"]
 
 EXPENSE_CATEGORIES = ("travel", "meals", "office_supplies", "training", "software", "other")
-EQUIPMENT_CATEGORIES = ("laptop", "monitor", "phone", "furniture", "accessories", "other")
+EQUIPMENT_CATEGORIES = ("laptop", "monitor", "phone", "furniture", "accessories", "parking", "other")
 ANNOUNCEMENT_CATEGORIES = ("general", "event", "it", "hr", "office")
 DOCUMENT_CATEGORIES = ("handbook", "policy", "it", "onboarding", "template", "other")
 
