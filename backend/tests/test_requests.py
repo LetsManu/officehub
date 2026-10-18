@@ -46,6 +46,16 @@ def test_expense_validation(anna):
     assert anna.post("/api/requests", json=body | {"amount": "-5"}).status_code == 422
 
 
+def test_equipment_parking_category(anna):
+    body = {"type": "equipment", "title": "Parking space", "item": "Parking space", "category": "parking", "submit": True}
+    response = anna.post("/api/requests", json=body)
+    assert response.status_code == 201, response.text
+    assert response.json()["category"] == "parking"
+    unknown = anna.post("/api/requests", json=body | {"category": "yacht"})
+    assert unknown.status_code == 422
+    assert unknown.json()["code"] == "category_required"
+
+
 def test_irrelevant_fields_are_dropped(anna):
     body = {"type": "general", "title": "Parking", "description": "Need a parking spot", "amount": "10", "currency": "EUR"}
     data = anna.post("/api/requests", json=body).json()

@@ -294,6 +294,7 @@ const de = {
     phone: 'Telefon',
     furniture: 'Möbel',
     accessories: 'Zubehör',
+    parking: 'Parkplatz',
     other: 'Sonstiges',
   },
   accessLevels: { view: 'Lesen', edit: 'Bearbeiten', admin: 'Verwalten' },

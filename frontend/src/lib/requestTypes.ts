@@ -6,7 +6,7 @@ export const OPEN_STATUSES: RequestStatus[] = ['submitted', 'in_review']
 export const DONE_STATUSES: RequestStatus[] = ['approved', 'rejected', 'cancelled']
 
 export const EXPENSE_CATEGORIES = ['travel', 'meals', 'office_supplies', 'training', 'software', 'other'] as const
-export const EQUIPMENT_CATEGORIES = ['laptop', 'monitor', 'phone', 'furniture', 'accessories', 'other'] as const
+export const EQUIPMENT_CATEGORIES = ['laptop', 'monitor', 'phone', 'furniture', 'accessories', 'parking', 'other'] as const
 export const ACCESS_LEVELS = ['view', 'edit', 'admin'] as const
 export const CURRENCIES = ['EUR', 'CHF', 'USD', 'GBP'] as const
 export const DOCUMENT_CATEGORIES = ['handbook', 'policy', 'it', 'onboarding', 'template', 'other'] as const
