@@ -11,6 +11,7 @@ from ..errors import ApiError, forbidden, not_found
 from ..files import INLINE_TYPES, MIME_TYPES, RECEIPT_TYPES, delete_quietly, resolve, save_upload
 from ..models import PENDING_STATUSES, REQUEST_STATUSES, REQUEST_TYPES, Request, RequestComment, User, utcnow
 from ..schemas import CommentIn, DecisionIn, RequestCreate, RequestDetail, RequestList, RequestUpdate
+from ..services import notifications
 from ..services import requests as service
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
@@ -26,6 +27,17 @@ def _load(db: Session, request_id: int, user: User) -> Request:
         # Same answer for "missing" and "not yours", so ids cannot be probed.
         raise not_found("Request")
     return req
+
+
+def _notify_submitted(db: Session, req: Request, user: User) -> None:
+    notifications.notify_many(
+        db,
+        notifications.request_approvers(db, req),
+        user,
+        "request_submitted",
+        notifications.request_params(req, user),
+        f"/requests/{req.id}",
+    )
 
 
 def _split(value: str | None, allowed: tuple[str, ...]) -> list[str]:
@@ -95,6 +107,8 @@ def create_request(body: RequestCreate, user: CurrentUser, db: DB) -> RequestDet
     service.add_event(db, req, user, "created")
     if body.submit:
         service.add_event(db, req, user, "submitted")
+        db.flush()
+        _notify_submitted(db, req, user)
     db.commit()
     return service.to_detail(_load(db, req.id, user), user)
 
@@ -126,6 +140,7 @@ def update_request(request_id: int, body: RequestUpdate, user: CurrentUser, db: 
         req.status = "submitted"
         req.submitted_at = utcnow()
         service.add_event(db, req, user, "submitted")
+        _notify_submitted(db, req, user)
     elif body.status == "cancelled":
         if not perms.can_cancel:
             raise ApiError(409, "invalid_status", "This request can no longer be cancelled.")
@@ -136,6 +151,9 @@ def update_request(request_id: int, body: RequestUpdate, user: CurrentUser, db: 
             raise forbidden("This request cannot be moved to review.")
         req.status = "in_review"
         service.add_event(db, req, user, "in_review")
+        notifications.notify_many(
+            db, [req.requester_id], user, "request_in_review", notifications.request_params(req, user), f"/requests/{req.id}"
+        )
 
     req.updated_at = utcnow()
     db.commit()
@@ -149,6 +167,15 @@ def add_comment(request_id: int, body: CommentIn, user: CurrentUser, db: DB) -> 
     if not service.permissions(user, req).can_comment:
         raise forbidden("Comments are closed for this request.")
     db.add(RequestComment(request_id=req.id, author_id=user.id, body=body.body))
+    # Everyone who took part so far hears about the new comment.
+    participants = {req.requester_id} | {c.author_id for c in req.comments}
+    if req.decided_by_id:
+        participants.add(req.decided_by_id)
+    if user.id == req.requester_id and len(participants) == 1:
+        participants |= set(notifications.request_approvers(db, req))
+    notifications.notify_many(
+        db, participants, user, "request_comment", notifications.request_params(req, user), f"/requests/{req.id}"
+    )
     req.updated_at = utcnow()
     db.commit()
     db.expire_all()
@@ -176,6 +203,9 @@ def _decide(request_id: int, body: DecisionIn, user: User, db: Session, outcome:
     req.decided_at = utcnow()
     req.updated_at = req.decided_at
     service.add_event(db, req, user, outcome)
+    notifications.notify_many(
+        db, [req.requester_id], user, f"request_{outcome}", notifications.request_params(req, user), f"/requests/{req.id}"
+    )
     db.commit()
     db.expire_all()
     return service.to_detail(_load(db, request_id, user), user)

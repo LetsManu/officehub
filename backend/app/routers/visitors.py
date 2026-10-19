@@ -14,6 +14,7 @@ from ..deps import DB, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import User, Visitor, utcnow
 from ..schemas import UtcDateTime
+from ..services import notifications
 
 router = APIRouter(prefix="/api/visitors", tags=["visitors"])
 
@@ -124,6 +125,9 @@ def change_status(visitor_id: int, body: VisitorAction, user: CurrentUser, db: D
         if not _is_reception(user) or visitor.status != "expected":
             raise ApiError(409, "invalid_status", "This visitor cannot be checked in.")
         visitor.status, visitor.checked_in_at = "checked_in", utcnow()
+        notifications.notify_many(
+            db, [visitor.host_id], user, "visitor_arrived", {"name": visitor.name, "company": visitor.company}, "/visitors"
+        )
     else:
         if not _is_reception(user) or visitor.status != "checked_in":
             raise ApiError(409, "invalid_status", "This visitor cannot be checked out.")

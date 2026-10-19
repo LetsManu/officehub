@@ -16,6 +16,7 @@ from .files import write_file
 from .models import (
     Announcement,
     Document,
+    Notification,
     OnboardingTask,
     QuickLink,
     Request,
@@ -330,7 +331,7 @@ def seed_demo(db: Session) -> None:
         return req
 
     vacation_start = _next_weekday(today + timedelta(days=21), 0)
-    add_request(
+    vacation = add_request(
         anna, "submitted", 1, type="vacation", title=t["vacation_title"], description=t["vacation_reason"],
         start_date=vacation_start, end_date=vacation_start + timedelta(days=4),
     )
@@ -394,6 +395,25 @@ def seed_demo(db: Session) -> None:
         )
 
     _seed_workplace(db, t, today, anna, lukas, sara, tom, julia, max_)
+    db.flush()
+
+    def note(user: User, kind: str, params: dict, link: str, hours_ago: int, read: bool = False) -> None:
+        created = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours_ago)
+        db.add(Notification(user_id=user.id, kind=kind, params=json.dumps(params), link=link,
+                            created_at=created, read_at=created if read else None))
+
+    note(tom, "request_submitted", {"name": anna.full_name, "title": vacation.title, "type": "vacation"},
+         f"/requests/{vacation.id}", 20)
+    note(lukas, "request_in_review", {"name": tom.full_name, "title": laptop.title, "type": "equipment"},
+         f"/requests/{laptop.id}", 72, read=True)
+    note(lukas, "request_comment", {"name": tom.full_name, "title": laptop.title, "type": "equipment"},
+         f"/requests/{laptop.id}", 70)
+    note(lukas, "request_rejected", {"name": tom.full_name, "title": home.title, "type": "home_office"},
+         f"/requests/{home.id}", 48)
+    note(sara, "request_approved", {"name": tom.full_name, "title": expense.title, "type": "expense"},
+         f"/requests/{expense.id}", 190, read=True)
+    for person in (anna, lukas, sara, tom, julia, max_):
+        note(person, "welcome", {}, "/whats-new", 200, read=person is not max_)
     db.commit()
 
 
