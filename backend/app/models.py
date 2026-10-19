@@ -45,6 +45,13 @@ class User(Base):
     manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     # Up to two dashboard tiles the person pinned, comma-separated keys
     pinned_tiles: Mapped[str] = mapped_column(String(100), default="", server_default=text("''"))
+    # Celebrations: first working day (anniversaries, "new colleagues") and an opt-in birthday without year
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    birthday_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    birthday_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    show_birthday: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    # Vacation days per calendar year
+    vacation_days: Mapped[int] = mapped_column(Integer, default=25, server_default=text("25"))
 
     manager: Mapped["User | None"] = relationship(remote_side=[id])
 
@@ -159,6 +166,11 @@ class Announcement(Base):
     event_date: Mapped[date | None] = mapped_column(Date)
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Everyone must confirm they have read it
+    must_read: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    # Optional poll: a question and 2–6 options (JSON list)
+    poll_question: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    poll_options: Mapped[str | None] = mapped_column(Text, nullable=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -189,10 +201,16 @@ class Document(Base):
 # ---------- Meeting rooms ----------
 
 
+RESOURCE_KINDS = ("room", "desk", "parking")
+
+
 class Room(Base):
+    """Something that can be booked: a meeting room, a desk or a parking space."""
+
     __tablename__ = "rooms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), default="room", server_default=text("'room'"))
     name: Mapped[str] = mapped_column(String(80))
     seats: Mapped[int] = mapped_column(Integer, default=4)
     equipment: Mapped[str] = mapped_column(String(200), default="")
@@ -329,3 +347,63 @@ class Notification(Base):
     link: Mapped[str] = mapped_column(String(200), default="")
     read_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
+class AnnouncementRead(Base):
+    """Confirmation that a person has read a must-read announcement."""
+
+    __tablename__ = "announcement_reads"
+
+    announcement_id: Mapped[int] = mapped_column(ForeignKey("announcements.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    read_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship()
+
+
+class PollVote(Base):
+    __tablename__ = "poll_votes"
+
+    announcement_id: Mapped[int] = mapped_column(ForeignKey("announcements.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    option: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------- Personal documents ----------
+
+
+class PersonalDocument(Base):
+    """A file HR shares with exactly one person (payslip, contract, certificate …)."""
+
+    __tablename__ = "personal_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(150))
+    file_name: Mapped[str] = mapped_column(String(200))
+    file_path: Mapped[str] = mapped_column(String(200))
+    file_type: Mapped[str] = mapped_column(String(10))
+    file_size: Mapped[int] = mapped_column(Integer)
+    uploaded_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    uploaded_by: Mapped[User] = relationship(foreign_keys=[uploaded_by_id])
+
+
+# ---------- Help / FAQ ----------
+
+
+class HelpArticle(Base):
+    __tablename__ = "help_articles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    section: Mapped[str] = mapped_column(String(20), default="general")  # same keys as section contacts
+    question: Mapped[str] = mapped_column(String(200))
+    answer: Mapped[str] = mapped_column(Text)  # Markdown
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    helpful_yes: Mapped[int] = mapped_column(Integer, default=0)
+    helpful_no: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
