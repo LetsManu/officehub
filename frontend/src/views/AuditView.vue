@@ -23,6 +23,7 @@ const ACTIONS = [
   'personal_document_sent', 'personal_document_deleted', 'settings_updated', 'branding_updated', 'holidays_updated',
   'asset_created', 'asset_updated', 'asset_assigned', 'asset_returned', 'training_created', 'training_updated',
   'training_confirmed', 'survey_created', 'survey_closed', 'idea_status', 'offboarding_started',
+  'project_created', 'project_updated', 'project_deleted', 'time_month_approved', 'time_month_returned',
 ]
 const PAGE = 50
 

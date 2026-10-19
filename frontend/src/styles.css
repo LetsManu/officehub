@@ -35,6 +35,8 @@
   --color-highlight: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
 
   --color-focus: #1d4ed8;
+  --chart-planned: #0d9488;
+  --chart-booked: #4f46e5;
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
   --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 8px rgb(15 23 42 / 0.04);
   --shadow-hover: 0 4px 14px rgb(15 23 42 / 0.08);
@@ -107,6 +109,7 @@
   --color-highlight: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #2f5fe0 100%);
 
   --color-focus: #9db8ff;
+  --chart-booked: #6366f1;
   --shadow-sm: none;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.02);
   --shadow-hover: 0 6px 18px rgb(0 0 0 / 0.35);
@@ -695,4 +698,23 @@ kbd {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/* Project colours (planning board, time tracking). White text keeps at least 4.5:1 contrast. */
+.pc-blue { --pc: #1d4ed8; }
+.pc-teal { --pc: #0f766e; }
+.pc-green { --pc: #15803d; }
+.pc-amber { --pc: #a16207; }
+.pc-orange { --pc: #c2410c; }
+.pc-purple { --pc: #7e22ce; }
+.pc-pink { --pc: #be185d; }
+.pc-slate { --pc: #475569; }
+
+.project-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--pc, var(--color-primary));
 }

@@ -20,6 +20,7 @@ from ..models import (
     Review,
     Survey,
     SurveyParticipation,
+    TimeMonth,
     User,
     Visitor,
     utcnow,
@@ -28,6 +29,7 @@ from ..schemas import UtcDateTime
 from ..services.requests import deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
+from .time_tracking import team_ids
 from .trainings import open_trainings
 
 router = APIRouter(prefix="/api", tags=["notifications"])
@@ -59,6 +61,7 @@ class Summary(BaseModel):
     acting_deputy: bool
     trainings_due: int
     surveys_open: int
+    time_months_pending: int = 0
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -136,6 +139,8 @@ def summary(user: CurrentUser, db: DB) -> Summary:
     visitors = select(Visitor.id).where(Visitor.visit_date == date.today(), Visitor.status == "expected")
     if not user.is_approver:
         visitors = visitors.where(Visitor.host_id == user.id)
+    my_team = team_ids(db, user) - {user.id} if (user.is_approver or deputy_managers) else set()
+    months_pending = count(select(TimeMonth.id).where(TimeMonth.status == "submitted", TimeMonth.user_id.in_(my_team))) if my_team else 0
     personal_new = count(select(PersonalDocument.id).where(PersonalDocument.user_id == user.id, PersonalDocument.opened_at.is_(None)))
     return Summary(
         unread=_unread(db, user),
@@ -145,6 +150,7 @@ def summary(user: CurrentUser, db: DB) -> Summary:
         must_read_open=open_must_read(db, user),
         personal_documents_new=personal_new,
         acting_deputy=bool(deputy_managers),
+        time_months_pending=months_pending,
         trainings_due=open_trainings(db, user),
         surveys_open=count(
             select(Survey.id).where(

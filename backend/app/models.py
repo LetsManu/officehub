@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -483,7 +483,74 @@ class TimeEntry(Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime)  # UTC, empty while running
     note: Mapped[str] = mapped_column(String(200), default="")
     edited: Mapped[bool] = mapped_column(Boolean, default=False)  # entered or changed by hand
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    project: Mapped["Project | None"] = relationship()
+
+
+TIME_MONTH_STATUSES = ("submitted", "approved", "returned")
+
+
+class TimeMonth(Base):
+    """A person's timesheet for one month: handed in by the person, approved or sent back by the manager."""
+
+    __tablename__ = "time_months"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    month: Mapped[str] = mapped_column(String(7))  # YYYY-MM
+    status: Mapped[str] = mapped_column(String(20), default="submitted")
+    worked_minutes: Mapped[int] = mapped_column(Integer, default=0)  # totals when handed in
+    target_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    comment: Mapped[str] = mapped_column(String(300), default="")
+
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+    decided_by: Mapped["User | None"] = relationship(foreign_keys=[decided_by_id])
+
+    __table_args__ = (UniqueConstraint("user_id", "month"),)
+
+
+# ---------- Resource planning ----------
+
+PROJECT_COLORS = ("blue", "teal", "green", "amber", "orange", "purple", "pink", "slate")
+
+
+class Project(Base):
+    """Something people are planned for and book their time on."""
+
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    client: Mapped[str] = mapped_column(String(100), default="")
+    color: Mapped[str] = mapped_column(String(20), default="blue")
+    budget_minutes: Mapped[int | None] = mapped_column(Integer)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Allocation(Base):
+    """A person planned for a project: from/to and hours per working day."""
+
+    __tablename__ = "allocations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date] = mapped_column(Date, index=True)
+    minutes_per_day: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    project: Mapped[Project] = relationship()
 
 
 # ---------- Pulse surveys ----------

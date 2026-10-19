@@ -35,8 +35,11 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   "Needs your attention", recent activity, who is away, celebrations, company news and events
 - One search for everything (**Ctrl+K**): pages, quick actions, people, documents, news, requests and tools
 - Notification bell, optionally with e-mail copies through your own mail server
-- **Time tracking**: clock in/out, add or fix times for the last 31 days, weekly timesheet with targets,
-  flexitime balance, break hints, CSV export
+- **Time tracking**: clock in/out on a project, add or fix times for the last 31 days, weekly timesheet with targets,
+  flexitime balance, break hints, CSV export; a month calendar with calendar weeks and hints per day, and handing in
+  the month for the manager's approval
+- **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
+  vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
   home office, equipment, expenses with receipt, IT access, appointments and general requests; comments and history
 - Documents with full-text search, plus a private **For you** tab for payslips and certificates from HR

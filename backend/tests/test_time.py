@@ -86,3 +86,55 @@ def test_balance_starts_with_first_recorded_day(sara):
     balance = sara.get(f"/api/time/week?start={day}").json()["balance_year"]
     # Only the days since the first entry count, not every day since 1 January
     assert abs(balance) < 5 * 8 * 60
+
+
+def _prev_month() -> str:
+    first = local_today().replace(day=1)
+    return f"{first - timedelta(days=1):%Y-%m}"
+
+
+def test_month_overview(anna):
+    month = anna.get("/api/time/month").json()
+    assert month["status"] == "open" and month["can_submit"] is True and month["can_decide"] is False
+    assert len(month["days"]) >= 28 and month["vacation"]["entitlement"] > 0
+    assert anna.get("/api/time/month?month=2026-13").status_code == 422
+
+
+def test_hand_in_approve_and_send_back(sara, tom, anna, julia):
+    month = _prev_month()
+    day = date.fromisoformat(f"{month}-15")
+    assert sara.post(f"/api/time/months/{month}/submit").json()["status"] == "submitted"
+    # handed in: Sara can no longer change that month, HR can
+    late = sara.post("/api/time/entries", json={"day": str(day), "start": "09:00", "end": "10:00"})
+    assert late.status_code in (409, 422)
+    assert sara.post(f"/api/time/months/{month}/submit").status_code == 409
+
+    sara_id = sara.get("/api/time/month").json()["person"]["id"]
+    assert [p["month"] for p in tom.get("/api/time/months/pending").json()] == [month]
+    assert tom.get("/api/me/summary").json()["time_months_pending"] == 1
+    # only the manager (or HR) decides, never the person themself or a colleague
+    assert anna.post(f"/api/time/months/{month}/approve", json={"person_id": sara_id}).status_code == 403
+    assert sara.post(f"/api/time/months/{month}/approve", json={"person_id": sara_id}).status_code == 403
+    view = tom.get(f"/api/time/month?month={month}&person_id={sara_id}").json()
+    assert view["can_decide"] is True
+
+    missing = tom.post(f"/api/time/months/{month}/return", json={"person_id": sara_id})
+    assert missing.status_code == 422 and missing.json()["field"] == "comment"
+    back = tom.post(f"/api/time/months/{month}/return", json={"person_id": sara_id, "comment": "Bitte 15. ergänzen"})
+    assert back.json()["status"] == "returned"
+    kinds = [n["kind"] for n in sara.get("/api/notifications").json()["items"]]
+    assert "time_month_returned" in kinds
+
+    assert sara.post(f"/api/time/months/{month}/submit").json()["status"] == "submitted"
+    done = julia.post(f"/api/time/months/{month}/approve", json={"person_id": sara_id}).json()
+    assert done["status"] == "approved" and done["decided_by"] == "Julia Weber"
+
+
+def test_future_month_cannot_be_handed_in(sara):
+    first = local_today().replace(day=28) + timedelta(days=10)
+    assert sara.post(f"/api/time/months/{first:%Y-%m}/submit").status_code == 409
+
+
+def test_pending_and_home_office_days(anna):
+    days = anna.get("/api/time/month").json()["days"]
+    assert all("pending" in d and "home_office" in d for d in days)

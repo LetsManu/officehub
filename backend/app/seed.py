@@ -579,7 +579,7 @@ def _seed_v3(db: Session, lang: str, today: date, anna, lukas, sara, tom, julia,
 
     from .models import (
         Asset, AssetEvent, AuditEvent, Idea, IdeaVote, Survey, SurveyParticipation, SurveyResponse,
-        TimeEntry, Training, TrainingRecord,
+        Allocation, Project, TimeEntry, Training, TrainingRecord,
     )
 
     de = lang == "de"
@@ -592,16 +592,50 @@ def _seed_v3(db: Session, lang: str, today: date, anna, lukas, sara, tom, julia,
     def utc(day: date, hh: int, mm: int = 0) -> datetime:
         return datetime(day.year, day.month, day.day, hh, mm, tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
 
-    for offset in range(14, 0, -1):
+    # Fictional projects and a plan for the next weeks (resource planning)
+    monday = today - timedelta(days=today.weekday())
+    projects = [
+        Project(name="Website-Relaunch" if de else "Website relaunch", client="Intern" if de else "Internal",
+                color="blue", budget_minutes=320 * 60, start_date=monday - timedelta(days=21), end_date=monday + timedelta(days=55)),
+        Project(name="Frühjahrskampagne" if de else "Spring campaign", client="Beispiel AG" if de else "Sample Inc.",
+                color="green", budget_minutes=160 * 60, start_date=monday - timedelta(days=14), end_date=monday + timedelta(days=27)),
+        Project(name="Kundenportal" if de else "Customer portal", client="Beispiel AG" if de else "Sample Inc.",
+                color="purple", budget_minutes=480 * 60, start_date=monday, end_date=monday + timedelta(days=83)),
+        Project(name="Jahresabschluss" if de else "Year-end closing", client="Intern" if de else "Internal",
+                color="amber", budget_minutes=None, start_date=monday + timedelta(days=14), end_date=monday + timedelta(days=41)),
+        Project(name="Büroumzug" if de else "Office move", client="Intern" if de else "Internal",
+                color="teal", budget_minutes=80 * 60, start_date=monday - timedelta(days=60), end_date=monday - timedelta(days=30),
+                active=False),
+    ]
+    db.add_all(projects)
+    db.flush()
+    web, spring, portal, closing, _move = projects
+    plan = [
+        (anna, web, -14, 13, 240), (anna, spring, -14, 25, 240), (anna, portal, 14, 41, 360),
+        (lukas, spring, -7, 11, 180), (lukas, portal, 0, 34, 300), (lukas, web, 7, 20, 240),
+        (max_, web, -14, 27, 300), (max_, portal, 7, 55, 360),
+        (sara, closing, 14, 41, 420),
+        (tom, portal, 0, 20, 120),
+    ]
+    for person, project, first, last, minutes in plan:
+        db.add(Allocation(project_id=project.id, user_id=person.id, start_date=monday + timedelta(days=first),
+                          end_date=monday + timedelta(days=last), minutes_per_day=minutes, created_by_id=tom.id))
+
+    holidays = {d for y in {today.year, (today - timedelta(days=42)).year} for d, *_ in public_holidays(y, "AT")}
+    for offset in range(42, 0, -1):
         day = today - timedelta(days=offset)
-        if day.weekday() >= 5:
+        if day.weekday() >= 5 or day in holidays:
             continue
-        for person, start_hour, late in ((anna, 8, offset % 3 == 0), (lukas, 9, offset % 4 == 0)):
-            db.add(TimeEntry(user_id=person.id, day=day, start_at=utc(day, start_hour), end_at=utc(day, 12)))
+        for person, start_hour, late, morning, afternoon in (
+            (anna, 8, offset % 3 == 0, web.id, spring.id if offset <= 21 else web.id),
+            (lukas, 9, offset % 4 == 0, spring.id if offset <= 21 else None, web.id if offset < 7 else None),
+        ):
+            db.add(TimeEntry(user_id=person.id, day=day, start_at=utc(day, start_hour), end_at=utc(day, 12),
+                             project_id=morning))
             db.add(TimeEntry(user_id=person.id, day=day, start_at=utc(day, 12, 30),
-                             end_at=utc(day, 17 if late else 16, 45 if late else 30)))
+                             end_at=utc(day, 17 if late else 16, 45 if late else 30), project_id=afternoon))
     if today.weekday() < 5:
-        db.add(TimeEntry(user_id=anna.id, day=today, start_at=utc(today, 8)))
+        db.add(TimeEntry(user_id=anna.id, day=today, start_at=utc(today, 8), project_id=web.id))
 
     # A closed pulse survey with enough answers to show results, and one still open
     questions = [

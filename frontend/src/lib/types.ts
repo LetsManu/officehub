@@ -321,6 +321,7 @@ export interface Summary {
   acting_deputy: boolean
   trainings_due: number
   surveys_open: number
+  time_months_pending: number
 }
 
 export interface SearchHit {
@@ -427,6 +428,8 @@ export interface TimeEntry {
   minutes: number
   note: string
   edited: boolean
+  project_id: number | null
+  project_name: string | null
 }
 
 export interface TimeDay {
@@ -436,6 +439,33 @@ export interface TimeDay {
   target: number
   off: string | null
   warnings: string[]
+  pending: string | null
+  home_office: boolean
+}
+
+export interface TimeMonth {
+  person: UserBrief
+  month: string
+  days: TimeDay[]
+  worked: number
+  target: number
+  balance_year: number
+  vacation: { entitlement: number; taken: number; planned: number; remaining: number }
+  status: 'open' | 'submitted' | 'approved' | 'returned'
+  comment: string
+  decided_by: string | null
+  decided_at: string | null
+  submitted_at: string | null
+  can_submit: boolean
+  can_decide: boolean
+}
+
+export interface PendingMonth {
+  person: UserBrief
+  month: string
+  worked: number
+  target: number
+  submitted_at: string
 }
 
 export interface TimeWeek {
@@ -545,4 +575,61 @@ export interface TrainingStatus {
   valid_until: string | null
   record_id: number | null
   has_certificate: boolean
+}
+
+export interface Project {
+  id: number
+  name: string
+  client: string
+  color: string
+  budget_minutes: number | null
+  start_date: string | null
+  end_date: string | null
+  active: boolean
+  planned_minutes: number | null
+  booked_minutes: number | null
+}
+
+export interface Allocation {
+  id: number
+  project_id: number
+  user_id: number
+  start_date: string
+  end_date: string
+  minutes_per_day: number
+  note: string
+}
+
+export interface PlanningRow {
+  person: UserBrief
+  editable: boolean
+  away: string[]
+  capacity: number
+  planned: number
+  booked: number
+}
+
+export interface PlanningBoard {
+  start: string
+  end: string
+  days: { date: string; off: 'weekend' | 'holiday' | null }[]
+  rows: PlanningRow[]
+  allocations: Allocation[]
+  projects: Project[]
+  can_plan: boolean
+}
+
+export interface ProjectReport {
+  project: Project
+  rows: { person: UserBrief; planned: number; booked: number }[]
+  weeks: { start: string; planned: number; booked: number }[]
+}
+
+export interface MyAllocation {
+  id: number
+  project: Project
+  start_date: string
+  end_date: string
+  minutes_per_day: number
+  note: string
 }
