@@ -26,6 +26,7 @@ from .routers import (
     ideas,
     notifications,
     onboarding,
+    planning,
     personal,
     portal,
     profile,
@@ -152,5 +153,6 @@ for router in (
     ideas.router,
     trainings.router,
     assets.router,
+    planning.router,
 ):
     app.include_router(router)

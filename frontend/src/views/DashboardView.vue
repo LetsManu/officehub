@@ -144,6 +144,13 @@ const attention = computed<AttentionItem[]>(() => {
       text: count === 1 ? t('dashboard.trainingsOne') : t('dashboard.trainings', { count }),
     })
   }
+  if (summary.value.time_months_pending > 0) {
+    const count = summary.value.time_months_pending
+    items.push({
+      key: 'time-months', icon: 'clock', tone: 'warning', to: '/time?tab=team', action: t('dashboard.timeMonthsOpen'),
+      text: count === 1 ? t('dashboard.timeMonthsOne') : t('dashboard.timeMonths', { count }),
+    })
+  }
   if (summary.value.surveys_open > 0) {
     const count = summary.value.surveys_open
     items.push({

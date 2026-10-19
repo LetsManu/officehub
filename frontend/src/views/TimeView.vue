@@ -8,6 +8,7 @@ import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SectionContact from '@/components/SectionContact.vue'
 import SortHeader from '@/components/SortHeader.vue'
+import TimeMonth from '@/components/TimeMonth.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api, query } from '@/lib/api'
 import { errorText, formatDate, locale, t } from '@/lib/i18n'
@@ -16,18 +17,23 @@ import { summary } from '@/lib/summary'
 import { useSort } from '@/lib/sort'
 import { addDays, balance, clock, hours, mondayOf } from '@/lib/time'
 import { showToast } from '@/lib/toast'
-import type { TimeDay, TimeEntry, TimeStatus, TimeTeamRow, TimeWeek } from '@/lib/types'
+import type { MyAllocation, PendingMonth, Project, TimeDay, TimeEntry, TimeStatus, TimeTeamRow, TimeWeek } from '@/lib/types'
 import { todayIso } from '@/lib/workdays'
 
 const route = useRoute()
 const router = useRouter()
 
-const tab = ref<'mine' | 'team'>(route.query.tab === 'team' ? 'team' : 'mine')
+const tab = ref<'mine' | 'month' | 'team'>(route.query.tab === 'team' ? 'team' : route.query.tab === 'month' ? 'month' : 'mine')
+const month = ref(typeof route.query.month === 'string' && /^\d{4}-\d{2}$/.test(route.query.month) ? route.query.month : todayIso().slice(0, 7))
 const personId = ref<number | null>(Number(route.query.person) || null)
 const weekStart = ref(mondayOf(typeof route.query.week === 'string' ? route.query.week : todayIso()))
 const status = ref<TimeStatus | null>(null)
 const week = ref<TimeWeek | null>(null)
 const team = ref<TimeTeamRow[]>([])
+const pendingMonths = ref<PendingMonth[]>([])
+const projects = ref<Project[]>([])
+const plannedToday = ref<MyAllocation[]>([])
+const clockProject = ref<number | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref(false)
@@ -52,7 +58,7 @@ const teamSort = useSort(team, {
   diff: (r) => r.worked - r.target,
 }, 'name')
 
-const editor = reactive({ open: false, entry: null as TimeEntry | null, day: todayIso(), start: '08:00', end: '12:00', note: '' })
+const editor = reactive({ open: false, entry: null as TimeEntry | null, day: todayIso(), start: '08:00', end: '12:00', note: '', project_id: null as number | null })
 const editorErrors = reactive<Record<string, string>>({})
 const deleteTarget = ref<TimeEntry | null>(null)
 
@@ -74,7 +80,36 @@ async function loadWeek() {
 }
 
 async function loadTeam() {
-  team.value = await api.get<TimeTeamRow[]>(`/api/time/team${query({ start: weekStart.value })}`)
+  ;[team.value, pendingMonths.value] = await Promise.all([
+    api.get<TimeTeamRow[]>(`/api/time/team${query({ start: weekStart.value })}`),
+    api.get<PendingMonth[]>('/api/time/months/pending'),
+  ])
+}
+
+async function loadProjects() {
+  const today = todayIso()
+  ;[projects.value, plannedToday.value] = await Promise.all([
+    api.get<Project[]>('/api/planning/projects').catch(() => []),
+    api.get<MyAllocation[]>(`/api/planning/mine${query({ start: today, end: today })}`).catch(() => []),
+  ])
+  if (clockProject.value === null && plannedToday.value.length) clockProject.value = plannedToday.value[0].project.id
+}
+
+const projectColor = (id: number | null) => projects.value.find((p) => p.id === id)?.color ?? 'slate'
+
+function monthLabel(value: string): string {
+  return new Date(`${value}-01T00:00:00Z`).toLocaleDateString(locale.value, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+
+function reviewMonth(item: PendingMonth) {
+  month.value = item.month
+  personId.value = item.person.id
+  tab.value = 'month'
+}
+
+function openDay(date: string) {
+  weekStart.value = mondayOf(date)
+  tab.value = 'mine'
 }
 
 async function load() {
@@ -82,6 +117,7 @@ async function load() {
   error.value = null
   try {
     if (tab.value === 'team') await loadTeam()
+    else if (tab.value === 'month') await (viewingOther.value ? Promise.resolve() : loadStatus())
     else await Promise.all([loadWeek(), viewingOther.value ? Promise.resolve() : loadStatus()])
   } catch (e) {
     error.value = errorText(e)
@@ -93,9 +129,12 @@ async function load() {
 async function clockAction() {
   busy.value = true
   try {
-    status.value = await api.post<TimeStatus>(status.value?.running ? '/api/time/clock-out' : '/api/time/clock-in', {})
+    status.value = await api.post<TimeStatus>(
+      status.value?.running ? '/api/time/clock-out' : '/api/time/clock-in',
+      status.value?.running ? {} : { project_id: clockProject.value },
+    )
     showToast(status.value.running ? t('time.clockedIn') : t('time.clockedOut'))
-    await loadWeek()
+    if (tab.value === 'mine') await loadWeek()
   } catch (e) {
     showToast(errorText(e), 'error')
   } finally {
@@ -110,8 +149,8 @@ function toLocalClock(iso: string | null): string {
 function openEditor(entry: TimeEntry | null, day?: string) {
   for (const key of Object.keys(editorErrors)) delete editorErrors[key]
   Object.assign(editor, entry
-    ? { open: true, entry, day: entry.day, start: toLocalClock(entry.start_at), end: toLocalClock(entry.end_at) || toLocalClock(new Date().toISOString()), note: entry.note }
-    : { open: true, entry: null, day: day ?? todayIso(), start: '08:00', end: '12:00', note: '' })
+    ? { open: true, entry, day: entry.day, start: toLocalClock(entry.start_at), end: toLocalClock(entry.end_at) || toLocalClock(new Date().toISOString()), note: entry.note, project_id: entry.project_id }
+    : { open: true, entry: null, day: day ?? todayIso(), start: '08:00', end: '12:00', note: '', project_id: plannedToday.value[0]?.project.id ?? null })
 }
 
 async function saveEntry() {
@@ -121,7 +160,7 @@ async function saveEntry() {
   if (Object.keys(editorErrors).length) return
   busy.value = true
   try {
-    const body = { start: editor.start, end: editor.end, note: editor.note.trim() }
+    const body = { start: editor.start, end: editor.end, note: editor.note.trim(), project_id: editor.project_id }
     if (editor.entry) await api.put(`/api/time/entries/${editor.entry.id}`, body)
     else await api.post('/api/time/entries', { ...body, day: editor.day })
     editor.open = false
@@ -129,7 +168,7 @@ async function saveEntry() {
     await Promise.all([loadWeek(), loadStatus()])
   } catch (e) {
     const field = (e as { field?: string }).field
-    editorErrors[field && ['day', 'start', 'end'].includes(field) ? field : 'start'] = errorText(e)
+    editorErrors[field && ['day', 'start', 'end', 'project_id'].includes(field) ? field : 'start'] = errorText(e)
   } finally {
     busy.value = false
   }
@@ -155,12 +194,13 @@ function showPerson(id: number) {
   tab.value = 'mine'
 }
 
-watch([tab, personId, weekStart], () => {
+watch([tab, personId, weekStart, month], () => {
   router.replace({
     query: {
-      ...(tab.value === 'team' ? { tab: 'team' } : {}),
-      ...(personId.value && tab.value === 'mine' ? { person: String(personId.value) } : {}),
-      ...(!isCurrentWeek.value ? { week: weekStart.value } : {}),
+      ...(tab.value !== 'mine' ? { tab: tab.value } : {}),
+      ...(personId.value && tab.value !== 'team' ? { person: String(personId.value) } : {}),
+      ...(!isCurrentWeek.value && tab.value === 'mine' ? { week: weekStart.value } : {}),
+      ...(tab.value === 'month' && month.value !== todayIso().slice(0, 7) ? { month: month.value } : {}),
     },
   })
   load()
@@ -168,6 +208,7 @@ watch([tab, personId, weekStart], () => {
 
 onMounted(() => {
   load()
+  loadProjects()
   ticker = window.setInterval(() => (now.value = Date.now()), 30_000)
 })
 onBeforeUnmount(() => window.clearInterval(ticker))
@@ -177,26 +218,46 @@ onBeforeUnmount(() => window.clearInterval(ticker))
   <div class="page">
     <PageHeader :title="t('time.title')" :subtitle="t('time.subtitle')" />
 
-    <div v-if="canSeeTeam" class="segmented" role="group" :aria-label="t('time.title')">
-      <button type="button" :aria-pressed="tab === 'mine'" @click="tab = 'mine'; personId = null">{{ t('time.tabMine') }}</button>
-      <button type="button" :aria-pressed="tab === 'team'" @click="tab = 'team'">{{ t('time.tabTeam') }}</button>
+    <div class="segmented" role="group" :aria-label="t('time.title')">
+      <button type="button" :aria-pressed="tab === 'mine'" @click="tab = 'mine'">{{ t('time.tabWeek') }}</button>
+      <button type="button" :aria-pressed="tab === 'month'" @click="tab = 'month'">{{ t('time.tabMonth') }}</button>
+      <button v-if="canSeeTeam" type="button" :aria-pressed="tab === 'team'" @click="tab = 'team'; personId = null">
+        {{ t('time.tabTeam') }}<span v-if="summary.time_months_pending" class="seg-count">{{ summary.time_months_pending }}</span>
+      </button>
     </div>
 
     <!-- Clock card -->
-    <section v-if="tab === 'mine' && !viewingOther && status" class="clock-card" :class="{ running: status.running }" aria-labelledby="clock-title">
+    <section v-if="tab !== 'team' && !viewingOther && status" class="clock-card" :class="{ running: status.running }" aria-labelledby="clock-title">
       <div class="clock-main">
         <p id="clock-title" class="clock-state">
           <span class="dot" aria-hidden="true" />
           {{ status.running ? t('time.runningSince', { time: clock(status.running.start_at) }) : t('time.notRunning') }}
+          <span v-if="status.running?.project_name" class="proj-chip" :class="`pc-${projectColor(status.running.project_id)}`">
+            <span class="project-dot" aria-hidden="true" />{{ status.running.project_name }}
+          </span>
         </p>
         <p class="clock-total" aria-live="polite">{{ hours(todayTotal) }}<span class="of"> / {{ hours(status.today_target) }} h</span></p>
         <div class="progress" aria-hidden="true"><span :style="{ width: `${todayProgress}%` }" /></div>
         <p class="muted small">{{ t('time.todayHint') }}</p>
       </div>
+      <div class="clock-side">
+      <div v-if="!status.running && projects.length" class="clock-project">
+        <label for="clock-project" class="small muted">{{ t('time.project') }}</label>
+        <select id="clock-project" v-model="clockProject" class="select">
+          <option :value="null">{{ t('time.noProject') }}</option>
+          <optgroup v-if="plannedToday.length" :label="t('time.plannedToday')">
+            <option v-for="a in plannedToday" :key="`p${a.id}`" :value="a.project.id">{{ a.project.name }} · {{ hours(a.minutes_per_day) }} h</option>
+          </optgroup>
+          <optgroup :label="t('time.allProjects')">
+            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </optgroup>
+        </select>
+      </div>
       <button type="button" class="btn clock-btn" :class="status.running ? 'btn-danger' : 'btn-primary'" :disabled="busy" @click="clockAction">
         <AppIcon :name="status.running ? 'stop' : 'play'" :size="22" />
         {{ status.running ? t('time.clockOut') : t('time.clockIn') }}
       </button>
+      </div>
       <dl class="clock-stats">
         <div><dt>{{ t('time.thisWeek') }}</dt><dd>{{ hours(status.week_worked) }} / {{ hours(status.week_target) }} h</dd></div>
         <div>
@@ -206,8 +267,16 @@ onBeforeUnmount(() => window.clearInterval(ticker))
       </dl>
     </section>
 
+    <TimeMonth
+      v-if="tab === 'month'"
+      v-model:month="month"
+      :person-id="personId"
+      @open-day="openDay"
+      @back="tab = 'team'; personId = null"
+    />
+
     <!-- Week navigation -->
-    <div class="week-bar">
+    <div v-if="tab !== 'month'" class="week-bar">
       <div class="row">
         <button type="button" class="btn btn-secondary btn-icon" :aria-label="t('time.prevWeek')" @click="weekStart = addDays(weekStart, -7)"><AppIcon name="chevronLeft" /></button>
         <h2 class="week-title">{{ t('time.weekOf', { from: formatDate(weekStart), to: formatDate(addDays(weekStart, 6)) }) }}</h2>
@@ -222,7 +291,24 @@ onBeforeUnmount(() => window.clearInterval(ticker))
       </div>
     </div>
 
-    <LoadState :loading="loading" :error="error" @retry="load">
+    <LoadState v-if="tab !== 'month'" :loading="loading" :error="error" @retry="load">
+      <!-- Months waiting for approval -->
+      <section v-if="tab === 'team' && pendingMonths.length" class="card card-flush pending-card" aria-labelledby="pending-title">
+        <h2 id="pending-title" class="h3 pending-title"><AppIcon name="checkCircle" :size="20" />{{ t('time.month.toApprove') }}</h2>
+        <ul class="list">
+          <li v-for="item in pendingMonths" :key="`${item.person.id}-${item.month}`" class="pending-row">
+            <span class="person">
+              <UserAvatar :id="item.person.id" :name="item.person.full_name" :photo-version="item.person.photo_version" :size="32" />
+              <span>
+                <strong>{{ item.person.full_name }}</strong>
+                <span class="muted small block">{{ monthLabel(item.month) }} · {{ hours(item.worked) }} / {{ hours(item.target) }} h</span>
+              </span>
+            </span>
+            <button type="button" class="btn btn-secondary" @click="reviewMonth(item)">{{ t('time.month.review') }}</button>
+          </li>
+        </ul>
+      </section>
+
       <!-- Team -->
       <section v-if="tab === 'team'" class="card card-flush">
         <div class="table-wrap">
@@ -269,11 +355,14 @@ onBeforeUnmount(() => window.clearInterval(ticker))
             <div class="day-head">
               <span class="day-name">{{ dayLabel(day) }}</span>
               <span v-if="day.off" class="off-chip">{{ offLabel(day.off) }}</span>
+              <span v-else-if="day.pending" class="off-chip pending-chip">{{ t('time.month.pendingShort') }}</span>
+              <span v-else-if="day.home_office" class="off-chip">{{ t('time.month.homeOffice') }}</span>
             </div>
             <ul v-if="day.entries.length" class="entries">
               <li v-for="entry in day.entries" :key="entry.id" class="entry">
                 <span class="range">{{ clock(entry.start_at) }} – {{ entry.end_at ? clock(entry.end_at) : t('time.now') }}</span>
                 <span class="muted small">{{ hours(entry.minutes) }} h</span>
+                <span v-if="entry.project_name" class="proj-chip small" :class="`pc-${projectColor(entry.project_id)}`"><span class="project-dot" aria-hidden="true" />{{ entry.project_name }}</span>
                 <span v-if="entry.note" class="note small">{{ entry.note }}</span>
                 <span v-if="entry.edited" class="edited small" :title="t('time.editedHint')">{{ t('time.edited') }}</span>
                 <span v-if="!viewingOther && entry.end_at" class="entry-actions">
@@ -314,6 +403,15 @@ onBeforeUnmount(() => window.clearInterval(ticker))
             <template #default="{ attrs }"><input v-bind="attrs" v-model="editor.end" type="time" class="input" step="60" /></template>
           </FormField>
         </div>
+        <FormField v-if="projects.length || editor.project_id" id="te-project" :label="t('time.project')" :error="editorErrors.project_id" optional>
+          <template #default="{ attrs }">
+            <select v-bind="attrs" v-model="editor.project_id" class="select">
+              <option :value="null">{{ t('time.noProject') }}</option>
+              <option v-if="editor.entry?.project_id && !projects.some((p) => p.id === editor.entry?.project_id)" :value="editor.entry.project_id">{{ editor.entry.project_name }}</option>
+              <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </template>
+        </FormField>
         <FormField id="te-note" :label="t('time.note')" optional>
           <template #default="{ attrs }"><input v-bind="attrs" v-model="editor.note" class="input" maxlength="200" :placeholder="t('time.notePlaceholder')" /></template>
         </FormField>
@@ -335,6 +433,69 @@ onBeforeUnmount(() => window.clearInterval(ticker))
 </template>
 
 <style scoped>
+.clock-side {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: stretch;
+}
+
+.clock-project {
+  display: grid;
+  gap: 4px;
+}
+
+.proj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--color-neutral-soft);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.pending-chip {
+  border: 1px dashed var(--color-primary);
+}
+
+.seg-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--color-badge);
+  color: var(--color-on-badge);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.pending-card {
+  margin-bottom: var(--space-4);
+}
+
+.pending-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+}
+
+.pending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+}
+
+.block {
+  display: block;
+}
+
 .clock-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -9,6 +9,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.1.0',
+    date: '2026-10-19',
+    de: [
+      'Planung: Wer arbeitet wann an welchem Projekt? Balken ziehen, verschieben und verlängern – mit Auslastung pro Person.',
+      'Projekte mit Budget: geplante und gebuchte Stunden pro Woche und Person im Vergleich.',
+      'Zeiterfassung: Beim Kommen das Projekt wählen – heute geplante Projekte stehen oben.',
+      'Neue Monatsansicht: Kalender mit Kalenderwochen, Hinweisen pro Tag, Saldo, Sollzeit und Resturlaub.',
+      'Monat abgeben: Die Führungskraft genehmigt den Monat oder gibt ihn mit Kommentar zurück.',
+    ],
+    en: [
+      'Planning: who works on which project and when? Drag, move and stretch bars – with the workload per person.',
+      'Projects with a budget: planned and booked hours per week and per person side by side.',
+      'Time tracking: choose the project when you clock in – projects planned for today come first.',
+      'New month view: a calendar with calendar weeks, hints per day, balance, target time and vacation left.',
+      'Hand in your month: your manager approves it or sends it back with a comment.',
+    ],
+  },
+  {
     version: '3.0.0',
     date: '2026-10-19',
     de: [

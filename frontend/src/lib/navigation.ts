@@ -25,7 +25,8 @@ export const navGroups = computed<NavGroup[]>(() => {
       label: '',
       items: [
         { to: '/', label: t('nav.dashboard'), icon: 'dashboard' },
-        { to: '/time', label: t('nav.time'), icon: 'clock' },
+        { to: '/time', label: t('nav.time'), icon: 'clock', count: summary.value.time_months_pending },
+        { to: '/planning', label: t('nav.planning'), icon: 'planning' },
         { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
         { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone', count: summary.value.must_read_open },
       ],

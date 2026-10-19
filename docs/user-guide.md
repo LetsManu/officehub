@@ -211,6 +211,33 @@ Open **Time tracking** and click **Clock in** when you start and **Clock out** w
 The week overview shows each day, your target time and your flexitime balance. Forgot to clock in?
 Add or correct an entry yourself – changes are noted. Public holidays count as days off.
 
+Before clocking in you can choose the **project** you work on; projects you are planned for today are at the top.
+
+**Month:** the *Month* tab shows the whole month as a calendar, one row per calendar week. Each day shows the
+recorded time against the target time, days off, open requests and hints such as a missing break or a day without
+any time. At the top you see your flexitime balance, the month's target and the vacation days left. Click a day to
+open that week. When the month is complete, click **Hand in month**. Your manager approves it or sends it back with a
+comment; while it is handed in you cannot change it. **Timesheet** downloads the month as a CSV file.
+
+Managers find handed-in months under **Time tracking → Team → Months to approve**.
+
+---
+
+## Planning
+
+**Planning** shows who works on which project and when: one row per person, one column per day, projects as
+coloured bars. Weekends, public holidays and vacation are shaded. Next to each name you see how much of the working
+time is planned (for example *85 %*); days with more planned than working time get an orange line.
+
+Everyone sees their own plan. Managers plan their team, HR everyone:
+
+- Drag on an empty part of a row to plan someone, or click **Plan someone**.
+- Drag a bar to move it, drag its left or right edge to change the dates. Click a bar to change the hours or remove it.
+- **Projects** lists all projects with budget, planned and booked hours. Open a project to compare planned and booked
+  hours per week and per person.
+
+The person gets a notification when they are planned for a project.
+
 ---
 
 ## Surveys
