@@ -274,6 +274,7 @@ const en: Messages = {
     email_taken: 'A person with this email address already exists.',
     self_lockout: 'You cannot remove your own administrator access.',
     validation: 'Some information is missing or not valid.',
+    invalid_sort: 'This sort order is not available.',
     unknown: 'Something went wrong. Please try again.',
   },
   detail: {
@@ -360,6 +361,9 @@ const en: Messages = {
     searchPlaceholder: 'Search by title or content …',
     category: 'Category',
     allCategories: 'All categories',
+    sort: 'Sort by',
+    sortTitle: 'A–Z',
+    sortUpdated: 'Recently updated',
     updated: 'Updated {date}',
     open: 'Open',
     download: 'Download',
