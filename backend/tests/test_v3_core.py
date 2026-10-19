@@ -117,7 +117,7 @@ def test_deputy_receives_and_decides(tom, anna, lukas):
 
 def test_two_factor_flow(anna):
     setup = anna.post("/api/profile/2fa/setup").json()
-    assert setup["qr_svg"].startswith("<svg") and setup["otpauth_url"].startswith("otpauth://totp/")
+    assert setup["qr_image"].startswith("data:image/svg+xml") and setup["otpauth_url"].startswith("otpauth://totp/")
     assert anna.post("/api/profile/2fa/enable", json={"code": "000000"}).status_code in (422,)
     codes = anna.post("/api/profile/2fa/enable", json={"code": totp.current_code(setup["secret"])}).json()["recovery_codes"]
     assert len(codes) == 8

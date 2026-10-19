@@ -13,10 +13,16 @@ You do not need any technical knowledge. If something is unclear, the HR team is
 2. Enter your email address and password, then click **Sign in**.
 3. Forgot your password? Please contact the HR team – they can set a new one for you.
 
+If you switched on two-step sign-in, OfficeHub then asks for the 6-digit code from your authenticator app.
+Lost your phone? Enter one of your recovery codes instead, or ask the admin team to reset two-step sign-in.
+
 You can switch between **Deutsch** and **English** at the bottom of the sign-in page.
 After signing in, OfficeHub uses the language you chose in your profile.
 
 To sign out, click **Sign out** at the bottom of the menu.
+
+**Install as an app:** in Chrome or Edge click **Install as app** in the menu (on phones: *Add to home screen*).
+OfficeHub then opens in its own window like a normal program.
 
 ---
 
@@ -199,10 +205,42 @@ Only you, your reviewer and HR can see your review.
 
 ---
 
-## Onboarding
+## Time tracking
+
+Open **Time tracking** and click **Clock in** when you start and **Clock out** when you finish.
+The week overview shows each day, your target time and your flexitime balance. Forgot to clock in?
+Add or correct an entry yourself – changes are noted. Public holidays count as days off.
+
+---
+
+## Surveys
+
+Under **Surveys** you answer short questionnaires. Answers are anonymous: OfficeHub only stores that you
+took part, not what you answered. Results are shown only once at least five people have answered.
+
+---
+
+## Ideas box
+
+Share an idea under **Ideas**, support ideas of others with **Support** and follow the status
+(New, Under review, Planned, Done or Not possible).
+
+---
+
+## Trainings
+
+**Trainings** lists your trainings and certificates with the date they are due again.
+The home page reminds you when a training is due soon.
+
+---
+
+## Onboarding and leaving
 
 New colleagues see their onboarding checklist on the dashboard. HR, IT and the manager tick off their tasks;
 the progress bar shows how far along everything is.
+
+When someone leaves, HR starts a **Leaving** checklist (tab *Leaving* under Onboarding) with the last working day.
+It includes returning every item of equipment the person still has; ticking it off marks the item as returned.
 
 ---
 
@@ -226,6 +264,13 @@ Under **My quick actions** you can pin up to two quick actions to the front of y
 
 Click **Save**. Your email address and role are managed by the HR team.
 
+Under **Photo** you can upload a profile photo (JPG or PNG) or remove it.
+Under **Deputy** you can choose a colleague who handles your approvals while you are away, until a date you pick.
+Under **Notifications** you can also get notifications by e-mail (if your company has set up e-mail).
+Under **Security** you can switch on two-step sign-in: scan the code with an authenticator app, enter the code
+and keep the recovery codes in a safe place.
+Under **My equipment** you see the devices handed out to you.
+
 Under **Appearance** you can choose a light or dark design.
 Under **Change password** you can set a new password (at least 8 characters).
 
@@ -241,6 +286,7 @@ People with the *Manager* or *HR / Admin* role see an extra **Management** secti
 - Open a request and click **Approve** or **Reject**. You can add a comment for the employee – for rejections, please explain why.
 - **Start review** shows the employee that you are looking at the request.
 - You cannot decide on your own requests; another manager or HR does that.
+- If a colleague made you their deputy, their requests also appear here until the date they set.
 
 ### Administration
 
@@ -257,6 +303,11 @@ equipment handed out. Each list can be downloaded as a CSV file.
 
 Under **Administration**:
 
+- **Branding**: company name, logo and accent colour (OfficeHub checks that text stays readable).
+- **Public holidays**: choose the country and region, and add company holidays such as a closing day.
+- **Security**: require two-step sign-in for managers or HR, reset it for a person, send a test e-mail.
+- **Audit log** (menu): who changed what and when (sign-ins, roles, decisions, settings); download as CSV.
+- **Equipment** (menu): hand out laptops, phones or keys and see who has what.
 - **People**: set each person's manager (this builds the org chart), reset a password, add people (a new person automatically gets an onboarding checklist).
 - **Portal settings**: choose the quick actions on everyone's dashboard and their order, and a contact person for each section.
 - **More tools (links)**: add the external applications shown in the menu.

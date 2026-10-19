@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, StringConstraints
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -58,7 +58,7 @@ class Week(BaseModel):
     days: list[DayOut]
     worked: int
     target: int
-    balance_year: int  # minutes over (+) or under (-) target since 1 January (or the start date)
+    balance_year: int  # minutes over (+) or under (-) target this year, since time was first recorded
 
 
 class Status(BaseModel):
@@ -180,9 +180,11 @@ def _warnings(entries: list[TimeEntry], worked: int) -> list[str]:
 
 
 def _balance(db: Session, person: User, until: date) -> int:
-    start = date(until.year, 1, 1)
-    if person.start_date and person.start_date > start:
-        start = person.start_date
+    """Over/under time this year, counted from the first day the person recorded any time."""
+    first = db.scalar(select(func.min(TimeEntry.day)).where(TimeEntry.user_id == person.id))
+    if first is None:
+        return 0
+    start = max(date(until.year, 1, 1), first, person.start_date or first)
     if start > until:
         return 0
     return sum(d.worked - d.target for d in _days(db, person, start, until))

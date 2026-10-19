@@ -77,3 +77,12 @@ def test_export_csv(sara):
     response = sara.get(f"/api/time/export.csv?month={day:%Y-%m}")
     assert response.status_code == 200 and "'=SUM(A1)" in response.text
     assert make_client().get(f"/api/time/export.csv?month={day:%Y-%m}").status_code == 401
+
+
+def test_balance_starts_with_first_recorded_day(sara):
+    assert sara.get("/api/time/status").json()["balance_year"] == 0
+    day = _last_weekday(local_today())
+    sara.post("/api/time/entries", json={"day": str(day), "start": "08:00", "end": "17:00"})
+    balance = sara.get(f"/api/time/week?start={day}").json()["balance_year"]
+    # Only the days since the first entry count, not every day since 1 January
+    assert abs(balance) < 5 * 8 * 60

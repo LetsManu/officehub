@@ -14,7 +14,7 @@ import type { User } from '@/lib/types'
 interface Setup {
   secret: string
   otpauth_url: string
-  qr_svg: string
+  qr_image: string
 }
 
 const setup = ref<Setup | null>(null)
@@ -27,7 +27,7 @@ const password = ref('')
 const passwordError = ref('')
 
 const required = computed(() => (portalSettings.value.require_2fa_roles ?? []).includes(currentUser.value?.role ?? 'employee'))
-const qrSrc = computed(() => (setup.value ? `data:image/svg+xml;utf8,${encodeURIComponent(setup.value.qr_svg)}` : ''))
+const qrSrc = computed(() => setup.value?.qr_image ?? '')
 const secretGroups = computed(() => setup.value?.secret.match(/.{1,4}/g)?.join(' ') ?? '')
 
 async function start() {

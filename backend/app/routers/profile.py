@@ -114,7 +114,7 @@ def set_deputy(body: DeputyIn, user: CurrentUser, db: DB) -> User:
 class TwoFactorSetup(BaseModel):
     secret: str
     otpauth_url: str
-    qr_svg: str
+    qr_image: str  # data: URI of an SVG QR code
 
 
 class CodeIn(BaseModel):
@@ -144,8 +144,8 @@ def two_factor_setup(user: CurrentUser, db: DB) -> TwoFactorSetup:
     db.commit()
     issuer = current_branding(db).company_name or "OfficeHub"
     uri = totp.provisioning_uri(user.totp_secret, user.email, issuer)
-    svg = segno.make(uri, error="m").svg_inline(scale=5, border=2, dark="#111827", light="#ffffff")
-    return TwoFactorSetup(secret=user.totp_secret, otpauth_url=uri, qr_svg=svg)
+    image = segno.make(uri, error="m").svg_data_uri(scale=5, border=2, dark="#111827", light="#ffffff")
+    return TwoFactorSetup(secret=user.totp_secret, otpauth_url=uri, qr_image=image)
 
 
 @router.post("/2fa/enable", response_model=RecoveryCodes)

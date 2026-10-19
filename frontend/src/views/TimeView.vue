@@ -614,6 +614,17 @@ onBeforeUnmount(() => window.clearInterval(ticker))
     width: 100%;
   }
 
+  .week-bar > .row:first-child {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .week-title {
+    min-width: 0;
+    flex: 1;
+    font-size: var(--text-sm);
+  }
+
   .day {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: 'head sum' 'entries entries' 'warn warn';
