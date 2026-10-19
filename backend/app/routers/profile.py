@@ -18,6 +18,8 @@ def get_profile(user: CurrentUser) -> User:
 def update_profile(body: ProfileUpdate, user: CurrentUser, db: DB) -> User:
     # Only personal fields are accepted; role and email cannot be changed here.
     for field, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
+        if field == "pinned_tiles":
+            value = ",".join(dict.fromkeys(value))
         setattr(user, field, value)
     db.commit()
     return user

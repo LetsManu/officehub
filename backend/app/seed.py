@@ -3,6 +3,7 @@
 All demo people, email addresses (example.com is reserved for examples) and texts are invented.
 """
 
+import json
 import logging
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -12,7 +13,22 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .files import write_file
-from .models import Announcement, Document, Request, RequestComment, RequestEvent, User
+from .models import (
+    Announcement,
+    Document,
+    OnboardingTask,
+    QuickLink,
+    Request,
+    RequestComment,
+    RequestEvent,
+    Review,
+    Room,
+    RoomBooking,
+    Setting,
+    User,
+    Visitor,
+)
+from .services.people import start_onboarding
 from .security import hash_password
 from .workdays import count_working_days
 
@@ -27,7 +43,18 @@ DEMO_USERS = [
     ("sara.novak@example.com", "Sara", "Novak", "Finance", ("Buchhalterin", "Accountant"), "employee"),
     ("tom.huber@example.com", "Tom", "Huber", "Operations", ("Teamleiter Office", "Office Team Lead"), "manager"),
     ("julia.weber@example.com", "Julia", "Weber", "HR", ("Personalleiterin", "HR Manager"), "admin"),
+    ("max.gruber@example.com", "Max", "Gruber", "IT", ("IT-Administrator", "IT Administrator"), "employee"),
 ]
+
+# Fictional numbers from the 555-01xx range reserved for examples
+DEMO_PHONES = {
+    "anna": ("+1 555 0101", "+1 555 0111", True),
+    "lukas": ("+1 555 0102", "+1 555 0112", True),
+    "sara": ("+1 555 0103", "", False),
+    "tom": ("+1 555 0104", "+1 555 0114", True),
+    "julia": ("+1 555 0105", "+1 555 0115", False),
+    "max": ("+1 555 0106", "", False),
+}
 
 TEXT = {
     "de": {
@@ -53,6 +80,19 @@ TEXT = {
         "ann_event_body": "Unser monatliches Team-Meeting findet im großen Besprechungsraum statt. Für Getränke und Snacks ist gesorgt.",
         "ann_it_title": "IT-Wartung am Samstag",
         "ann_it_body": "Am Samstag zwischen 8 und 12 Uhr sind E-Mail und Dateiablage kurzzeitig nicht erreichbar. Bitte speichere deine Arbeit vorher.",
+        "rooms": [("Großer Besprechungsraum", 12, "Bildschirm, Videokonferenz, Whiteboard"), ("Kleiner Besprechungsraum", 4, "Bildschirm"), ("Fokusraum", 2, "")],
+        "booking_team": "Team-Meeting",
+        "booking_interview": "Bewerbungsgespräch",
+        "booking_customer": "Kundentermin Vorbereitung",
+        "visit_note": "Bitte Besucherausweis vorbereiten.",
+        "appointment_title": "Termin mit HR",
+        "appointment_desc": "Ich möchte über eine Weiterbildung sprechen.",
+        "links": [("Wissensdatenbank", "https://wiki.example.com", "book", "Anleitungen und Antworten auf häufige Fragen"),
+                  ("E-Learning", "https://learning.example.com", "graduation", "Online-Schulungen"),
+                  ("Zeiterfassung", "https://time.example.com", "clock", "Arbeitszeiten erfassen"),
+                  ("Servicedesk", "https://servicedesk.example.com", "lifebuoy", "IT-Probleme melden")],
+        "prep_anna": {"achievements": "Neue Website-Kampagne erfolgreich gestartet.", "challenges": "Viele parallele Projekte im Herbst.", "support": "Eine Schulung zu Datenanalyse.", "wishes": "Mehr Verantwortung bei Social Media."},
+        "goals_sara": "1. Monatsabschluss bis zum 5. Arbeitstag\n2. Schulung zur neuen Buchhaltungssoftware\n3. Vertretung im Einkauf übernehmen",
     },
     "en": {
         "office": "Head office, 2nd floor",
@@ -77,6 +117,19 @@ TEXT = {
         "ann_event_body": "Our monthly team meeting takes place in the large meeting room. Drinks and snacks will be provided.",
         "ann_it_title": "IT maintenance on Saturday",
         "ann_it_body": "On Saturday between 8 am and 12 noon, email and file storage will be briefly unavailable. Please save your work beforehand.",
+        "rooms": [("Large meeting room", 12, "Screen, video conferencing, whiteboard"), ("Small meeting room", 4, "Screen"), ("Focus room", 2, "")],
+        "booking_team": "Team meeting",
+        "booking_interview": "Job interview",
+        "booking_customer": "Customer meeting preparation",
+        "visit_note": "Please prepare a visitor badge.",
+        "appointment_title": "Appointment with HR",
+        "appointment_desc": "I would like to talk about a training course.",
+        "links": [("Knowledge base", "https://wiki.example.com", "book", "Guides and answers to common questions"),
+                  ("E-learning", "https://learning.example.com", "graduation", "Online training courses"),
+                  ("Time tracking", "https://time.example.com", "clock", "Record working hours"),
+                  ("Service desk", "https://servicedesk.example.com", "lifebuoy", "Report IT problems")],
+        "prep_anna": {"achievements": "Launched the new website campaign successfully.", "challenges": "Many parallel projects in autumn.", "support": "A training course on data analysis.", "wishes": "More responsibility for social media."},
+        "goals_sara": "1. Month-end closing by the 5th working day\n2. Training for the new accounting software\n3. Act as deputy in purchasing",
     },
 }
 
@@ -257,7 +310,12 @@ def seed_demo(db: Session) -> None:
         db.add(user)
         users[first.lower()] = user
     db.flush()
-    anna, lukas, sara, tom, julia = (users[n] for n in ("anna", "lukas", "sara", "tom", "julia"))
+    anna, lukas, sara, tom, julia, max_ = (users[n] for n in ("anna", "lukas", "sara", "tom", "julia", "max"))
+    for key, (phone, mobile, show_mobile) in DEMO_PHONES.items():
+        users[key].phone, users[key].mobile, users[key].show_mobile = phone, mobile, show_mobile
+    for person in (anna, lukas, sara, max_):
+        person.manager_id = tom.id
+    tom.manager_id = julia.id
 
     def add_request(requester: User, status: str, created_days_ago: int, **fields) -> Request:
         created = _at(-created_days_ago)
@@ -334,5 +392,59 @@ def seed_demo(db: Session) -> None:
                 created_at=_at(-30), updated_at=_at(-5),
             )
         )
+
+    _seed_workplace(db, t, today, anna, lukas, sara, tom, julia, max_)
     db.commit()
+
+
+def _seed_workplace(db: Session, t: dict, today: date, anna, lukas, sara, tom, julia, max_) -> None:
+    """Rooms, visitors, reviews, onboarding, quick links and portal settings for the demo."""
+    rooms = [Room(name=name, seats=seats, equipment=equipment) for name, seats, equipment in t["rooms"]]
+    db.add_all(rooms)
+    db.flush()
+    tomorrow = today + timedelta(days=1)
+    db.add_all([
+        RoomBooking(room_id=rooms[0].id, user_id=tom.id, title=t["booking_team"], day=today, start_time="09:00", end_time="10:00"),
+        RoomBooking(room_id=rooms[1].id, user_id=julia.id, title=t["booking_interview"], day=today, start_time="14:00", end_time="15:00"),
+        RoomBooking(room_id=rooms[1].id, user_id=anna.id, title=t["booking_customer"], day=tomorrow, start_time="10:00", end_time="11:00"),
+    ])
+
+    db.add_all([
+        Visitor(name="Martin Keller", company="Beispiel GmbH", visit_date=today, expected_time="10:30",
+                note=t["visit_note"], host_id=tom.id, created_by_id=tom.id),
+        Visitor(name="Eva Lang", company="Muster AG", visit_date=today, expected_time="14:00",
+                host_id=julia.id, created_by_id=julia.id),
+    ])
+
+    next_week = today + timedelta(days=7 - today.weekday() + 1)  # Tuesday next week
+    appointment = Request(
+        requester_id=lukas.id, type="appointment", status="submitted", title=t["appointment_title"],
+        description=t["appointment_desc"], category="hr", submitted_at=_at(0),
+        proposed_times=json.dumps([f"{next_week}T09:00", f"{next_week}T14:00", f"{next_week + timedelta(days=1)}T10:30"]),
+        created_at=_at(0), updated_at=_at(0),
+    )
+    db.add(appointment)
+    db.add(RequestEvent(request=appointment, actor_id=lukas.id, action="created", created_at=_at(0)))
+    db.add(RequestEvent(request=appointment, actor_id=lukas.id, action="submitted", created_at=_at(0)))
+
+    db.add(Review(employee_id=anna.id, reviewer_id=tom.id, year=today.year, meeting_date=today + timedelta(days=10),
+                  employee_prep=json.dumps(t["prep_anna"]), employee_prep_done=True))
+    db.add(Review(employee_id=sara.id, reviewer_id=tom.id, year=today.year - 1, status="completed",
+                  meeting_date=today - timedelta(days=200), goals=t["goals_sara"],
+                  employee_prep_done=True, reviewer_prep_done=True,
+                  employee_confirmed_at=_at(-199), reviewer_confirmed_at=_at(-199)))
+
+    start_onboarding(db, max_)
+    db.flush()
+    for task in db.query(OnboardingTask).filter(OnboardingTask.user_id == max_.id, OnboardingTask.key.in_(["hr_documents", "it_laptop", "it_accounts"])):
+        task.done_at, task.done_by_id = _at(-1), julia.id
+
+    for order, (title, url, icon, description) in enumerate(t["links"]):
+        db.add(QuickLink(title=title, url=url, icon=icon, description=description, sort_order=order))
+
+    db.add(Setting(key="dashboard_tiles", value=json.dumps(["vacation", "expense", "equipment", "rooms", "directory", "documents"])))
+    db.add(Setting(key="section_contacts", value=json.dumps({
+        "dashboard": julia.id, "requests": julia.id, "documents": julia.id, "announcements": julia.id,
+        "directory": julia.id, "rooms": tom.id, "visitors": tom.id,
+    })))
 

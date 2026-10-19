@@ -32,6 +32,7 @@ class Settings:
     max_upload_mb: int
     admin_email: str | None
     admin_password: str | None
+    app_version: str
 
     @property
     def max_upload_bytes(self) -> int:
@@ -52,6 +53,7 @@ def load_settings() -> Settings:
         max_upload_mb=max(1, _int("MAX_UPLOAD_MB", 15)),
         admin_email=os.getenv("ADMIN_EMAIL") or None,
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
+        app_version=os.getenv("APP_VERSION", "dev"),
     )
 
 

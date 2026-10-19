@@ -163,6 +163,13 @@ def _decide(request_id: int, body: DecisionIn, user: User, db: Session, outcome:
         if req.status not in PENDING_STATUSES and user.is_approver:
             raise ApiError(409, "already_decided", "A decision has already been made for this request.")
         raise forbidden()
+    if req.type == "appointment" and outcome == "approved":
+        proposed = service.current_values(req)["proposed_times"] or []
+        if body.chosen_time not in proposed:
+            error = ApiError(422, "time_choose", "Please choose one of the suggested times.")
+            error.field = "chosen_time"  # type: ignore[attr-defined]
+            raise error
+        req.confirmed_time = body.chosen_time
     req.status = outcome
     req.decision_comment = body.comment or None
     req.decided_by_id = user.id

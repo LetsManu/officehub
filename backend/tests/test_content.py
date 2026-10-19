@@ -64,7 +64,7 @@ def test_archived_documents_hidden(anna, julia):
 def test_stats_and_export(anna, tom):
     assert anna.get("/api/admin/stats").status_code == 403
     stats = tom.get("/api/admin/stats").json()
-    assert stats["pending"] == 2
+    assert stats["pending"] == 3  # vacation, laptop, appointment
     export = tom.get("/api/admin/requests/export.csv")
     assert export.status_code == 200
     assert export.headers["content-type"].startswith("text/csv")
@@ -95,4 +95,5 @@ def test_health_and_config():
     assert client.get("/api/health").json() == {"status": "ok"}
     config = client.get("/api/config").json()
     assert config["demo_mode"] is True
-    assert len(config["demo_accounts"]) == 5
+    assert len(config["demo_accounts"]) == 6
+    assert config["version"]
