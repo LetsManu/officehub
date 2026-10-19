@@ -136,7 +136,7 @@ def update_user(user_id: int, body: UserAdminUpdate, user: Admin, db: DB) -> Use
             raise ApiError(422, "manager_cycle", "A person cannot be their own manager.")
         check_manager(db, target, changes["manager_id"])
     for field, value in changes.items():
-        if value is None and field != "manager_id":
+        if value is None and field not in ("manager_id", "start_date"):
             continue
         setattr(target, field, value)
     if changes.get("is_active") is False:

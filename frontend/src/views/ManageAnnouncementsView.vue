@@ -7,11 +7,12 @@ import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
+import { downloadCsv } from '@/lib/csv'
 import { ANNOUNCEMENT_CATEGORIES } from '@/lib/requestTypes'
-import { errorText, formatDate, t } from '@/lib/i18n'
+import { errorText, formatDate, formatDateTime, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import { todayIso } from '@/lib/workdays'
-import type { Announcement } from '@/lib/types'
+import type { Announcement, Confirmations } from '@/lib/types'
 
 const items = ref<Announcement[]>([])
 const loading = ref(true)
@@ -19,8 +20,49 @@ const error = ref<string | null>(null)
 
 const editorOpen = ref(false)
 const editing = ref<Announcement | null>(null)
-const form = reactive({ title: '', body: '', category: 'general', publish_date: todayIso(), expiry_date: '', event_date: '', pinned: false })
-const errors = reactive({ title: '', body: '', expiry_date: '' })
+const EMPTY_FORM = {
+  title: '', body: '', category: 'general', publish_date: todayIso(), expiry_date: '', event_date: '', pinned: false,
+  must_read: false, poll_question: '', poll_options: ['', ''] as string[],
+}
+const form = reactive({ ...EMPTY_FORM, poll_options: [...EMPTY_FORM.poll_options] })
+const errors = reactive({ title: '', body: '', expiry_date: '', poll_options: '' })
+
+const readsFor = ref<Announcement | null>(null)
+const reads = ref<Confirmations | null>(null)
+const reminding = ref(false)
+
+async function openReads(item: Announcement) {
+  readsFor.value = item
+  reads.value = null
+  try {
+    reads.value = await api.get<Confirmations>(`/api/announcements/${item.id}/confirmations`)
+  } catch (e) {
+    showToast(errorText(e), 'error')
+    readsFor.value = null
+  }
+}
+
+async function remind() {
+  if (!readsFor.value) return
+  reminding.value = true
+  try {
+    const result = await api.post<{ reminded: number }>(`/api/announcements/${readsFor.value.id}/remind`)
+    showToast(t('manageNews.remindedToast', { count: result.reminded }))
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  } finally {
+    reminding.value = false
+  }
+}
+
+function exportReads() {
+  if (!readsFor.value || !reads.value) return
+  const rows = [
+    ...reads.value.confirmed.map((r) => [r.full_name, r.department, t('manageNews.readYes'), formatDateTime(r.read_at)]),
+    ...reads.value.missing.map((r) => [r.full_name, r.department, t('manageNews.readNo'), '']),
+  ]
+  downloadCsv(`confirmations-${readsFor.value.id}.csv`, [t('manageNews.csvName'), t('manageNews.csvDepartment'), t('manageNews.csvRead'), t('manageNews.csvWhen')], rows)
+}
 const formError = ref('')
 const saving = ref(false)
 const archiveTarget = ref<Announcement | null>(null)
@@ -50,10 +92,14 @@ function openEditor(item: Announcement | null) {
   Object.assign(
     form,
     item
-      ? { title: item.title, body: item.body, category: item.category, publish_date: item.publish_date, expiry_date: item.expiry_date ?? '', event_date: item.event_date ?? '', pinned: item.pinned }
-      : { title: '', body: '', category: 'general', publish_date: todayIso(), expiry_date: '', event_date: '', pinned: false },
+      ? {
+          title: item.title, body: item.body, category: item.category, publish_date: item.publish_date, expiry_date: item.expiry_date ?? '',
+          event_date: item.event_date ?? '', pinned: item.pinned, must_read: item.must_read,
+          poll_question: item.poll?.question ?? '', poll_options: item.poll ? [...item.poll.options] : ['', ''],
+        }
+      : { ...EMPTY_FORM, publish_date: todayIso(), poll_options: ['', ''] },
   )
-  errors.title = errors.body = errors.expiry_date = formError.value = ''
+  errors.title = errors.body = errors.expiry_date = errors.poll_options = formError.value = ''
   editorOpen.value = true
 }
 
@@ -61,7 +107,9 @@ async function save() {
   errors.title = form.title.trim() ? '' : t('validation.title_required')
   errors.body = form.body.trim() ? '' : t('validation.body_required')
   errors.expiry_date = form.expiry_date && form.expiry_date < form.publish_date ? t('validation.expiry_before_publish') : ''
-  if (errors.title || errors.body || errors.expiry_date) return
+  const options = form.poll_options.map((o) => o.trim()).filter(Boolean)
+  errors.poll_options = form.poll_question.trim() && options.length < 2 ? t('validation.poll_options_required') : ''
+  if (errors.title || errors.body || errors.expiry_date || errors.poll_options) return
   saving.value = true
   formError.value = ''
   const body = {
@@ -72,6 +120,9 @@ async function save() {
     expiry_date: form.expiry_date || null,
     event_date: form.category === 'event' && form.event_date ? form.event_date : null,
     pinned: form.pinned,
+    must_read: form.must_read,
+    poll_question: form.poll_question.trim() || null,
+    poll_options: form.poll_question.trim() ? options : null,
   }
   try {
     if (editing.value) {
@@ -123,6 +174,8 @@ onMounted(load)
               <p class="item-title">
                 <AppIcon v-if="item.pinned" name="pin" :size="16" :label="t('announcements.pinned')" />
                 {{ item.title }}
+                <span v-if="item.must_read" class="mini-tag">{{ t('announcements.mustRead') }}</span>
+                <span v-if="item.poll" class="mini-tag">{{ t('manageNews.hasPoll') }}</span>
               </p>
               <p class="muted small">
                 <span class="state" :class="`state-${state(item).tone}`">{{ state(item).label }}</span>
@@ -131,6 +184,7 @@ onMounted(load)
               </p>
             </div>
             <div class="row actions">
+              <button v-if="item.must_read" type="button" class="btn btn-ghost" @click="openReads(item)">{{ t('manageNews.reads') }}</button>
               <button type="button" class="btn btn-ghost" @click="openEditor(item)">{{ t('app.edit') }}</button>
               <button v-if="!item.archived" type="button" class="btn btn-ghost" @click="archiveTarget = item">{{ t('manageNews.archive') }}</button>
               <button v-else type="button" class="btn btn-ghost" :disabled="saving" @click="setArchived(item, false)">{{ t('manageNews.restore') }}</button>
@@ -177,6 +231,36 @@ onMounted(load)
             <span id="pinned-hint" class="muted small">{{ t('manageNews.pinnedHint') }}</span>
           </span>
         </label>
+        <label class="checkbox">
+          <input v-model="form.must_read" type="checkbox" aria-describedby="must-read-hint" />
+          <span>
+            <span class="label-text">{{ t('manageNews.mustRead') }}</span><br />
+            <span id="must-read-hint" class="muted small">{{ t('manageNews.mustReadHint') }}</span>
+          </span>
+        </label>
+        <details class="disclosure" :open="Boolean(form.poll_question) || undefined">
+          <summary>{{ t('manageNews.poll') }}</summary>
+          <div class="disclosure-body stack">
+            <FormField id="ann-poll-q" :label="t('manageNews.pollQuestion')" :hint="t('manageNews.pollHint')" optional>
+              <template #default="{ attrs }"><input v-bind="attrs" v-model="form.poll_question" class="input" maxlength="200" /></template>
+            </FormField>
+            <fieldset v-if="form.poll_question.trim()" class="poll-options">
+              <legend class="label-text">{{ t('manageNews.pollOptions') }}</legend>
+              <div v-for="(_, i) in form.poll_options" :key="i" class="row poll-row">
+                <label :for="`ann-opt-${i}`" class="visually-hidden">{{ t('manageNews.pollOption', { number: i + 1 }) }}</label>
+                <input :id="`ann-opt-${i}`" v-model="form.poll_options[i]" class="input" maxlength="100" :placeholder="t('manageNews.pollOption', { number: i + 1 })" />
+                <button v-if="form.poll_options.length > 2" type="button" class="btn btn-ghost btn-icon" :aria-label="t('manageNews.pollRemove', { number: i + 1 })" @click="form.poll_options.splice(i, 1)">
+                  <AppIcon name="trash" :size="18" />
+                </button>
+              </div>
+              <p v-if="errors.poll_options" class="field-error small" role="alert">{{ errors.poll_options }}</p>
+              <button v-if="form.poll_options.length < 6" type="button" class="btn btn-ghost add-option" @click="form.poll_options.push('')">
+                <AppIcon name="plus" :size="18" />{{ t('manageNews.pollAdd') }}
+              </button>
+              <p v-if="editing?.poll" class="muted small">{{ t('manageNews.pollResetHint') }}</p>
+            </fieldset>
+          </div>
+        </details>
         <details class="disclosure" :open="Boolean(form.expiry_date) || form.publish_date !== todayIso() || undefined">
           <summary>{{ t('manageNews.more') }}</summary>
           <div class="disclosure-body grid-2">
@@ -189,6 +273,42 @@ onMounted(load)
           </div>
         </details>
       </form>
+    </BaseModal>
+
+    <BaseModal
+      :open="readsFor !== null"
+      :title="t('manageNews.readsTitle')"
+      :description="readsFor?.title ?? ''"
+      hide-actions
+      wide
+      @close="readsFor = null"
+    >
+      <p v-if="!reads" class="muted">{{ t('app.loading') }}</p>
+      <div v-else class="stack">
+        <p class="reads-summary">
+          {{ t('manageNews.readsCount', { done: reads.confirmed.length, total: reads.confirmed.length + reads.missing.length }) }}
+        </p>
+        <progress :value="reads.confirmed.length" :max="reads.confirmed.length + reads.missing.length" :aria-label="t('manageNews.readsTitle')" />
+        <div class="grid-2 reads">
+          <section>
+            <h3>{{ t('manageNews.readsMissing') }}</h3>
+            <ul class="people">
+              <li v-for="r in reads.missing" :key="r.id">{{ r.full_name }} <span class="muted small">{{ r.department }}</span></li>
+              <li v-if="!reads.missing.length" class="muted">{{ t('manageNews.readsAllDone') }}</li>
+            </ul>
+          </section>
+          <section>
+            <h3>{{ t('manageNews.readsConfirmed') }}</h3>
+            <ul class="people">
+              <li v-for="r in reads.confirmed" :key="r.id">{{ r.full_name }} <span class="muted small">{{ formatDateTime(r.read_at) }}</span></li>
+            </ul>
+          </section>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" @click="exportReads"><AppIcon name="download" />{{ t('manageNews.exportCsv') }}</button>
+          <button v-if="reads.missing.length" type="button" class="btn btn-primary" :disabled="reminding" @click="remind"><AppIcon name="bell" />{{ t('manageNews.remind') }}</button>
+        </div>
+      </div>
     </BaseModal>
 
     <BaseModal
@@ -245,5 +365,60 @@ onMounted(load)
 
 .actions {
   gap: var(--space-1);
+}
+
+.mini-tag {
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.poll-options {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.poll-row {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+.add-option {
+  justify-self: start;
+}
+
+.field-error {
+  color: var(--color-danger);
+}
+
+.reads-summary {
+  font-weight: 600;
+}
+
+.reads progress,
+progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--color-success);
+}
+
+.reads h3 {
+  margin-bottom: var(--space-2);
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 260px;
+  overflow-y: auto;
 }
 </style>

@@ -44,6 +44,25 @@ someone commented, or your visitor arrived. Click a notification to open the mat
 
 On a phone, open the menu with the ☰ button at the top left.
 
+### Who is away and celebrations
+
+**Who is away?** shows colleagues on approved vacation or working from home today and in the next 7 days.
+Reasons are never shown. **Let's celebrate** lists birthdays (only for people who switched this on in their
+profile), work anniversaries and new colleagues.
+
+---
+
+## Team calendar
+
+**Team calendar** shows a month with vacation, working from home, events and birthdays. Choose a department to
+see only your team. **Add to calendar (.ics)** downloads the month for Outlook, Thunderbird or your phone.
+On a phone the calendar is shown as a list.
+
+## Help & FAQ
+
+**Help & FAQ** answers common questions. Search for a word or choose an area, open a question, and tell us
+whether the answer helped. HR adds and edits questions directly on this page.
+
 ---
 
 ## Requests
@@ -107,12 +126,20 @@ Open **Documents** to find policies, handbooks, guides and templates.
 
 Each document shows the date it was last updated.
 
+### Documents for you
+
+The **For you** tab holds files the HR team shared only with you, such as payslips or certificates.
+Nobody else can see them. New files are marked **New** and you get a notification.
+
 ---
 
 ## Announcements
 
 Open **Announcements** to read all current news. Pinned messages are always at the top.
 Events show their date. Old announcements disappear automatically when they expire.
+
+Some announcements are marked **Please read**. Click **I have read this** to confirm – HR can see who has
+confirmed. Polls under an announcement show the results after you have voted; you can change your vote.
 
 ---
 
@@ -128,7 +155,13 @@ You decide in your profile whether your phone and mobile numbers are shown to ot
 
 ---
 
-## Rooms
+## Rooms, desks and parking
+
+Choose **Meeting rooms**, **Desks** or **Parking** at the top.
+Desks and parking spaces are booked with one click for the **morning**, **afternoon** or the **whole day**;
+you can hold one desk and one parking space at a time.
+
+### Meeting rooms
 
 Open **Rooms** to book a meeting room.
 

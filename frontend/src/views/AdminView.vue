@@ -38,7 +38,41 @@ const newPerson = reactive({
   phone: '',
   manager_id: '' as number | '',
   start_onboarding: true,
+  start_date: '',
+  vacation_days: 25,
 })
+
+const workTarget = ref<User | null>(null)
+const workForm = reactive({ start_date: '', vacation_days: 25 })
+const workError = ref('')
+
+function openWork(person: User) {
+  workTarget.value = person
+  Object.assign(workForm, { start_date: person.start_date ?? '', vacation_days: person.vacation_days })
+  workError.value = ''
+}
+
+async function saveWork() {
+  if (!workTarget.value) return
+  if (!Number.isInteger(workForm.vacation_days) || workForm.vacation_days < 0 || workForm.vacation_days > 60) {
+    workError.value = t('validation.vacation_days_invalid')
+    return
+  }
+  saving.value = true
+  try {
+    const updated = await api.patch<User>(`/api/admin/users/${workTarget.value.id}`, {
+      start_date: workForm.start_date || null,
+      vacation_days: workForm.vacation_days,
+    })
+    people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
+    workTarget.value = null
+    showToast(t('admin.personSaved'))
+  } catch (e) {
+    workError.value = errorText(e)
+  } finally {
+    saving.value = false
+  }
+}
 
 const resetTarget = ref<User | null>(null)
 const resetPasswordValue = ref('')
@@ -85,7 +119,7 @@ async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'i
 }
 
 function openAdd() {
-  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee', language: 'de', password: '', phone: '', manager_id: '', start_onboarding: true })
+  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee', language: 'de', password: '', phone: '', manager_id: '', start_onboarding: true, start_date: '', vacation_days: 25 })
   Object.assign(newErrors, { first_name: '', last_name: '', email: '', password: '' })
   addError.value = ''
   addOpen.value = true
@@ -100,7 +134,7 @@ async function addPerson() {
   saving.value = true
   addError.value = ''
   try {
-    await api.post('/api/admin/users', { ...newPerson, email: newPerson.email.trim(), manager_id: newPerson.manager_id || null })
+    await api.post('/api/admin/users', { ...newPerson, email: newPerson.email.trim(), manager_id: newPerson.manager_id || null, start_date: newPerson.start_date || null })
     addOpen.value = false
     showToast(t('admin.personAdded'))
     await load()
@@ -205,7 +239,10 @@ onMounted(load)
                 <tr v-for="person in people" :key="person.id">
                   <td>
                     <span class="person-name">{{ person.full_name }}</span><br />
-                    <span class="muted small">{{ person.email }}</span>
+                    <span class="muted small">{{ person.email }}</span><br />
+                    <button v-if="isAdmin" type="button" class="btn btn-ghost work-btn" @click="openWork(person)">
+                      {{ t('admin.workDetails') }}
+                    </button>
                   </td>
                   <td>{{ person.department }}<br /><span v-if="person.phone" class="muted small">{{ person.phone }}</span></td>
                   <td>
@@ -313,9 +350,36 @@ onMounted(load)
             </template>
           </FormField>
         </div>
+        <div class="grid-2">
+          <FormField id="np-start" :label="t('admin.startDate')" optional>
+            <template #default="{ attrs }"><input v-bind="attrs" v-model="newPerson.start_date" class="input" type="date" /></template>
+          </FormField>
+          <FormField id="np-vacation" :label="t('admin.vacationEntitlement')">
+            <template #default="{ attrs }"><input v-bind="attrs" v-model.number="newPerson.vacation_days" class="input" type="number" min="0" max="60" /></template>
+          </FormField>
+        </div>
         <label class="checkbox"><input v-model="newPerson.start_onboarding" type="checkbox" /><span>{{ t('admin.startOnboarding') }}</span></label>
         <FormField id="np-password" :label="t('admin.initialPassword')" :hint="t('admin.initialPasswordHint')" :error="newErrors.password">
           <template #default="{ attrs }"><input v-bind="attrs" v-model="newPerson.password" class="input" type="text" autocomplete="off" /></template>
+        </FormField>
+      </form>
+    </BaseModal>
+
+    <BaseModal
+      :open="workTarget !== null"
+      :title="t('admin.workDetailsTitle', { name: workTarget?.full_name ?? '' })"
+      :confirm-label="t('app.save')"
+      :busy="saving"
+      @close="workTarget = null"
+      @confirm="saveWork"
+    >
+      <form class="stack" novalidate @submit.prevent="saveWork">
+        <div v-if="workError" class="notice notice-danger small" role="alert">{{ workError }}</div>
+        <FormField id="wd-start" :label="t('admin.startDate')" :hint="t('admin.startDateHint')" optional>
+          <template #default="{ attrs }"><input v-bind="attrs" v-model="workForm.start_date" class="input" type="date" /></template>
+        </FormField>
+        <FormField id="wd-vacation" :label="t('admin.vacationEntitlement')" :hint="t('admin.vacationEntitlementHint')">
+          <template #default="{ attrs }"><input v-bind="attrs" v-model.number="workForm.vacation_days" class="input" type="number" min="0" max="60" /></template>
         </FormField>
       </form>
     </BaseModal>
@@ -339,6 +403,12 @@ onMounted(load)
 </template>
 
 <style scoped>
+.work-btn {
+  min-height: 32px;
+  padding: 0;
+  font-size: var(--text-xs);
+}
+
 .tiles {
   display: grid;
   gap: var(--space-3);

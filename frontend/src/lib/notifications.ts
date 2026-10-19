@@ -12,6 +12,9 @@ export const NOTIFICATION_ICONS: Record<string, string> = {
   visitor_arrived: 'badge',
   review_created: 'users',
   booking_cancelled: 'door',
+  must_read_new: 'megaphone',
+  must_read_reminder: 'megaphone',
+  personal_document: 'file',
   welcome: 'star',
 }
 

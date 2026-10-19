@@ -16,8 +16,10 @@ from .files import write_file
 from .models import (
     Announcement,
     Document,
+    HelpArticle,
     Notification,
     OnboardingTask,
+    PersonalDocument,
     QuickLink,
     Request,
     RequestComment,
@@ -395,6 +397,7 @@ def seed_demo(db: Session) -> None:
         )
 
     _seed_workplace(db, t, today, anna, lukas, sara, tom, julia, max_)
+    _seed_v2(db, lang, today, add_request, anna, lukas, sara, tom, julia, max_)
     db.flush()
 
     def note(user: User, kind: str, params: dict, link: str, hours_ago: int, read: bool = False) -> None:
@@ -468,3 +471,98 @@ def _seed_workplace(db: Session, t: dict, today: date, anna, lukas, sara, tom, j
         "directory": julia.id, "rooms": tom.id, "visitors": tom.id,
     })))
 
+
+
+HELP = {
+    "de": [
+        ("requests", "Wie viele Urlaubstage habe ich noch?",
+         "Unter **Anträge → Neuer Antrag → Urlaub** siehst du oben, wie viele Tage du dieses Jahr noch hast. "
+         "Genehmigte Tage und Tage, über die noch entschieden wird, sind schon abgezogen."),
+        ("requests", "Wer entscheidet über meinen Antrag?",
+         "Deine Führungskraft. Wenn keine eingetragen ist, das HR-Team. Du bekommst eine Benachrichtigung, sobald entschieden wurde."),
+        ("rooms", "Wie buche ich einen Schreibtisch oder Parkplatz?",
+         "Öffne **Räume**, wähle oben *Schreibtische* oder *Parkplätze* und dann Vormittag, Nachmittag oder den ganzen Tag."),
+        ("documents", "Wo finde ich meine Gehaltsabrechnung?",
+         "Unter **Dokumente → Für dich**. Nur du und das HR-Team können diese Dateien sehen."),
+        ("general", "Ich habe mein Passwort vergessen.",
+         "Bitte wende dich an das HR-Team. Es setzt dir ein neues Passwort, das du danach unter **Profil** ändern kannst."),
+    ],
+    "en": [
+        ("requests", "How many vacation days do I have left?",
+         "Open **Requests → New request → Vacation**. The top of the form shows how many days you have left this year. "
+         "Approved days and days still waiting for a decision are already subtracted."),
+        ("requests", "Who decides on my request?",
+         "Your manager. If none is set, the HR team. You get a notification as soon as there is a decision."),
+        ("rooms", "How do I book a desk or a parking space?",
+         "Open **Rooms**, choose *Desks* or *Parking* at the top, then morning, afternoon or the whole day."),
+        ("documents", "Where can I find my payslip?",
+         "Under **Documents → For you**. Only you and the HR team can see these files."),
+        ("general", "I forgot my password.",
+         "Please contact the HR team. They will set a new password, which you can then change under **Profile**."),
+    ],
+}
+
+
+def _seed_v2(db: Session, lang: str, today: date, add_request, anna, lukas, sara, tom, julia, max_) -> None:
+    """Demo data for celebrations, absences, must-read news, polls, desks, personal documents and help."""
+    de = lang == "de"
+    # Start dates (anniversaries, new colleagues) and opt-in birthdays
+    anna.start_date = today.replace(year=today.year - 3) + timedelta(days=5)
+    lukas.start_date = date(today.year - 6, 3, 1)
+    sara.start_date = date(today.year - 2, 9, 15)
+    tom.start_date = date(today.year - 9, 1, 10)
+    julia.start_date = date(today.year - 12, 4, 1)
+    max_.start_date = today - timedelta(days=3)
+    soon = today + timedelta(days=4)
+    lukas.birthday_day, lukas.birthday_month, lukas.show_birthday = soon.day, soon.month, True
+    sara.birthday_day, sara.birthday_month, sara.show_birthday = 12, 6, False  # saved but private
+    sara.vacation_days = 28
+
+    # Approved absences around today, so "Who's away" and the calendar have content
+    monday = today - timedelta(days=today.weekday())
+    away = add_request(
+        sara, "approved", 20, type="vacation", title="Herbsturlaub" if de else "Autumn holiday",
+        start_date=monday, end_date=monday + timedelta(days=4 + 7),
+    )
+    away.decided_by_id, away.decided_at = tom.id, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=19)
+    tomorrow = today + timedelta(days=1)
+    home = add_request(
+        anna, "approved", 2, type="home_office", title="Homeoffice" if de else "Working from home",
+        start_date=tomorrow, end_date=tomorrow,
+    )
+    home.decided_by_id, home.decided_at = tom.id, datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
+
+    db.flush()
+    for item in db.scalars(select(Announcement)):
+        if item.category == "it":
+            item.must_read = True
+        if item.category == "event":
+            item.poll_question = "Was sollen wir zum Team-Meeting mitbringen?" if de else "What should we bring to the team meeting?"
+            item.poll_options = json.dumps(
+                ["Kuchen", "Obst", "Brezeln"] if de else ["Cake", "Fruit", "Pretzels"]
+            )
+
+    # Desks and parking spaces
+    desks = [Room(kind="desk", name=f"{'Schreibtisch' if de else 'Desk'} {n}", seats=1,
+                  equipment="Monitor, Dockingstation" if de else "Monitor, docking station") for n in ("A1", "A2", "A3", "B1")]
+    parking = [Room(kind="parking", name=f"{'Parkplatz' if de else 'Parking'} P{n}", seats=1, equipment="") for n in (1, 2, 3)]
+    db.add_all(desks + parking)
+    db.flush()
+    db.add(RoomBooking(room_id=desks[0].id, user_id=lukas.id, title="Schreibtisch" if de else "Desk", day=today,
+                       start_time="08:00", end_time="17:00"))
+    db.add(RoomBooking(room_id=parking[0].id, user_id=tom.id, title="Parkplatz" if de else "Parking", day=today,
+                       start_time="08:00", end_time="12:00"))
+
+    # A personal document for Anna (fictional)
+    text = ("Gehaltsabrechnung (Demo)\n\nDies ist ein Beispiel. Echte Abrechnungen lädt das HR-Team hoch.\n" if de
+            else "Payslip (demo)\n\nThis is an example. The HR team uploads real payslips here.\n")
+    data = text.encode("utf-8")
+    db.add(PersonalDocument(
+        user_id=anna.id, title="Gehaltsabrechnung September" if de else "Payslip September",
+        file_name="payslip-demo.txt", file_path=write_file("personal", "txt", data), file_type="txt",
+        file_size=len(data), uploaded_by_id=julia.id,
+    ))
+
+    for order, (section, question, answer) in enumerate(HELP[lang]):
+        db.add(HelpArticle(section=section, question=question, answer=answer, sort_order=order,
+                           helpful_yes=3 if order == 0 else 0))

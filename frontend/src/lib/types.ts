@@ -22,6 +22,11 @@ export interface User {
   show_mobile: boolean
   manager_id: number | null
   pinned_tiles: string[]
+  start_date: string | null
+  birthday_day: number | null
+  birthday_month: number | null
+  show_birthday: boolean
+  vacation_days: number
 }
 
 export interface UserBrief {
@@ -103,6 +108,9 @@ export interface Announcement {
   event_date: string | null
   pinned: boolean
   archived: boolean
+  must_read: boolean
+  confirmed_at: string | null
+  poll: Poll | null
   author: UserBrief
   created_at: string
   updated_at: string
@@ -161,8 +169,11 @@ export interface DirectoryEntry {
   manager_id: number | null
 }
 
+export type ResourceKind = 'room' | 'desk' | 'parking'
+
 export interface Room {
   id: number
+  kind: ResourceKind
   name: string
   seats: number
   equipment: string
@@ -173,6 +184,7 @@ export interface Booking {
   id: number
   room_id: number
   room_name: string
+  room_kind: ResourceKind
   day: string
   start_time: string
   end_time: string
@@ -290,6 +302,8 @@ export interface Summary {
   approvals_pending: number
   reviews_todo: number
   visitors_today: number
+  must_read_open: number
+  personal_documents_new: number
 }
 
 export interface SearchHit {
@@ -305,4 +319,85 @@ export interface SearchResults {
   announcements: SearchHit[]
   requests: SearchHit[]
   links: SearchHit[]
+}
+
+export interface Poll {
+  question: string
+  options: string[]
+  my_vote: number | null
+  counts: number[] | null
+  total: number
+}
+
+export interface Reader {
+  id: number
+  full_name: string
+  department: string
+  read_at: string | null
+}
+
+export interface Confirmations {
+  confirmed: Reader[]
+  missing: Reader[]
+}
+
+export interface Absence {
+  person: UserBrief
+  type: 'vacation' | 'home_office'
+  start_date: string
+  end_date: string
+}
+
+export interface Celebration {
+  person: UserBrief
+  kind: 'birthday' | 'anniversary' | 'new'
+  date: string
+  years: number | null
+}
+
+export interface TeamCalendar {
+  month: string
+  absences: Absence[]
+  events: { title: string; date: string; link: string }[]
+  birthdays: Celebration[]
+}
+
+export interface VacationBalance {
+  year: number
+  entitlement: number
+  taken: number
+  planned: number
+  remaining: number
+}
+
+export interface ActivityItem {
+  kind: 'announcement' | 'document' | 'new_colleague' | 'anniversary'
+  title: string
+  date: string
+  link: string
+  years: number | null
+}
+
+export interface PersonalDocument {
+  id: number
+  title: string
+  file_name: string
+  file_type: string
+  file_size: number
+  created_at: string
+  opened_at: string | null
+  person: UserBrief
+  uploaded_by: UserBrief
+}
+
+export interface HelpArticle {
+  id: number
+  section: string
+  question: string
+  answer: string
+  sort_order: number
+  active: boolean
+  helpful_yes: number
+  helpful_no: number
+  updated_at: string
 }

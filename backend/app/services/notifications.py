@@ -16,6 +16,9 @@ NOTIFICATION_KINDS = (
     "visitor_arrived",
     "review_created",
     "booking_cancelled",
+    "must_read_new",
+    "must_read_reminder",
+    "personal_document",
     "welcome",
 )
 

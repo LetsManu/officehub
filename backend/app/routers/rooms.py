@@ -1,7 +1,7 @@
-"""Meeting rooms and bookings."""
+"""Bookable places (meeting rooms, desks, parking spaces) and bookings."""
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field, StringConstraints
@@ -20,7 +20,11 @@ DAY_START, DAY_END, STEP = "07:00", "20:00", 15
 Time = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 
 
+Kind = Literal["room", "desk", "parking"]
+
+
 class RoomIn(BaseModel):
+    kind: Kind = "room"
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
     seats: Annotated[int, Field(ge=1, le=500)] = 4
     equipment: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] = ""
@@ -29,6 +33,7 @@ class RoomIn(BaseModel):
 
 class RoomOut(BaseModel):
     id: int
+    kind: str
     name: str
     seats: int
     equipment: str
@@ -47,6 +52,7 @@ class BookingOut(BaseModel):
     id: int
     room_id: int
     room_name: str
+    room_kind: str
     day: date
     start_time: str
     end_time: str
@@ -61,6 +67,7 @@ def _out(booking: RoomBooking, viewer_id: int, is_admin: bool) -> BookingOut:
         id=booking.id,
         room_id=booking.room_id,
         room_name=booking.room.name,
+        room_kind=booking.room.kind,
         day=booking.day,
         start_time=booking.start_time,
         end_time=booking.end_time,
@@ -78,11 +85,13 @@ def _field_error(field: str, code: str, message: str) -> ApiError:
 
 
 @router.get("", response_model=list[RoomOut])
-def list_rooms(user: CurrentUser, db: DB, include_inactive: bool = False) -> list[Room]:
+def list_rooms(user: CurrentUser, db: DB, include_inactive: bool = False, kind: Kind | None = None) -> list[Room]:
     query = select(Room)
+    if kind:
+        query = query.where(Room.kind == kind)
     if not (include_inactive and user.is_admin):
         query = query.where(Room.active.is_(True))
-    return list(db.scalars(query.order_by(Room.name)))
+    return list(db.scalars(query.order_by(Room.kind, Room.name)))
 
 
 @router.post("", response_model=RoomOut, status_code=201)
@@ -144,6 +153,23 @@ def book(body: BookingIn, user: CurrentUser, db: DB) -> BookingOut:
             RoomBooking.end_time > body.start_time,
         )
     )
+    if clash is None and room.kind != "room":
+        # One desk (or parking space) per person at a time is enough.
+        clash_own = db.scalar(
+            select(RoomBooking)
+            .join(Room, Room.id == RoomBooking.room_id)
+            .where(
+                Room.kind == room.kind,
+                RoomBooking.user_id == user.id,
+                RoomBooking.day == body.day,
+                RoomBooking.start_time < body.end_time,
+                RoomBooking.end_time > body.start_time,
+            )
+        )
+        if clash_own is not None:
+            raise _field_error(
+                "room_id", "already_booked_kind", f"You already booked {clash_own.room.name} for this time."
+            )
     if clash is not None:
         raise _field_error(
             "start_time",
