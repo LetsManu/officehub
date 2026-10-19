@@ -32,6 +32,7 @@ from .routers import (
     reviews,
     rooms,
     team,
+    time_tracking,
     visitors,
 )
 
@@ -142,5 +143,6 @@ for router in (
     help.router,
     branding.router,
     holidays.router,
+    time_tracking.router,
 ):
     app.include_router(router)
