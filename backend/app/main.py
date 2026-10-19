@@ -11,9 +11,23 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import seed
 from .config import settings
-from .db import Base, SessionLocal, engine
+from .db import Base, SessionLocal, add_missing_columns, engine
 from .errors import ApiError
-from .routers import admin, announcements, auth, documents, profile, requests
+from .routers import (
+    admin,
+    announcements,
+    auth,
+    directory,
+    documents,
+    onboarding,
+    portal,
+    profile,
+    reports,
+    requests,
+    reviews,
+    rooms,
+    visitors,
+)
 
 logger = logging.getLogger("officehub")
 
@@ -26,12 +40,13 @@ async def lifespan(_app: FastAPI):
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
+    add_missing_columns()
     with SessionLocal() as db:
         seed.ensure_initial_data(db)
     yield
 
 
-app = FastAPI(title="OfficeHub API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="OfficeHub API", version=settings.app_version, lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -89,12 +104,26 @@ def health() -> dict:
 @app.get("/api/config", tags=["system"])
 def public_config() -> dict:
     """Public settings the sign-in page needs. Demo accounts are only listed in demo mode."""
-    config: dict = {"demo_mode": settings.demo_mode, "max_upload_mb": settings.max_upload_mb}
+    config: dict = {"demo_mode": settings.demo_mode, "max_upload_mb": settings.max_upload_mb, "version": settings.app_version}
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
         config["demo_password"] = seed.DEMO_PASSWORD
     return config
 
 
-for router in (auth.router, requests.router, announcements.router, documents.router, profile.router, admin.router):
+for router in (
+    auth.router,
+    requests.router,
+    announcements.router,
+    documents.router,
+    profile.router,
+    admin.router,
+    directory.router,
+    rooms.router,
+    visitors.router,
+    reviews.router,
+    onboarding.router,
+    portal.router,
+    reports.router,
+):
     app.include_router(router)

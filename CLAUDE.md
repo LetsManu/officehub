@@ -9,12 +9,17 @@ chatbots, external APIs or cloud dependencies to the application.**
 - `backend/` – FastAPI + SQLAlchemy + SQLite. Entry point `app/main.py`.
   - `app/routers/` – one module per API area; permission checks live here.
   - `app/services/requests.py` – request validation per type, permissions, serialization.
+  - `app/services/people.py` – reporting lines and default onboarding checklist.
+  - `app/db.py` – `add_missing_columns()` upgrades existing databases; new columns need a default
+    (`server_default`) or must be nullable.
   - `app/seed.py` – first admin and fictional demo data (`DEMO_MODE=true`).
   - `tests/` – pytest, uses demo data; run `python -m pytest -q` in `backend/`.
 - `frontend/` – Vue 3 + Vite + TypeScript, no UI library.
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.
   - `src/components/` – shared building blocks (BaseModal, FormField, EmptyState, StatusBadge …).
   - `src/styles.css` – design tokens. Follow `docs/ui-guidelines.md`.
+  - `src/lib/changelog.ts` – plain-language "What's new" entries; add one per release.
+  - No inline `style="…"` attributes: the Content-Security-Policy blocks them. Use classes.
   - Run `npm test` (translations + logic) and `npm run build` (includes type check).
 
 ## Conventions

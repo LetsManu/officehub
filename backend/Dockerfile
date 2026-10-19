@@ -1,11 +1,15 @@
 FROM python:3.12-slim
 
+# Set by the release workflow, shown in the portal footer
+ARG APP_VERSION=dev
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_ROOT_USER_ACTION=ignore \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    APP_VERSION=${APP_VERSION}
 
 WORKDIR /app
 

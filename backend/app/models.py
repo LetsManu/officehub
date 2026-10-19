@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -16,7 +16,7 @@ def utcnow() -> datetime:
 ROLES = ("employee", "manager", "admin")
 APPROVER_ROLES = ("manager", "admin")
 
-REQUEST_TYPES = ("vacation", "home_office", "equipment", "expense", "it_access", "general")
+REQUEST_TYPES = ("vacation", "home_office", "equipment", "expense", "it_access", "appointment", "general")
 REQUEST_STATUSES = ("draft", "submitted", "in_review", "approved", "rejected", "cancelled")
 PENDING_STATUSES = ("submitted", "in_review")
 
@@ -36,6 +36,17 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="employee")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    # Directory and organisation
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default=text("''"))
+    mobile: Mapped[str] = mapped_column(String(40), default="", server_default=text("''"))
+    show_phone: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    show_mobile: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    manager_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # Up to two dashboard tiles the person pinned, comma-separated keys
+    pinned_tiles: Mapped[str] = mapped_column(String(100), default="", server_default=text("''"))
+
+    manager: Mapped["User | None"] = relationship(remote_side=[id])
 
     @property
     def full_name(self) -> str:
@@ -82,6 +93,10 @@ class Request(Base):
     item: Mapped[str | None] = mapped_column(String(120))  # equipment item or IT system
     access_level: Mapped[str | None] = mapped_column(String(10))
     needed_by: Mapped[date | None] = mapped_column(Date)
+    # Appointment requests: up to three proposed local times ("YYYY-MM-DDTHH:MM", JSON list)
+    # and the one the approver confirmed
+    proposed_times: Mapped[str | None] = mapped_column(Text)
+    confirmed_time: Mapped[str | None] = mapped_column(String(16))
 
     attachment_name: Mapped[str | None] = mapped_column(String(200))
     attachment_path: Mapped[str | None] = mapped_column(String(200))
@@ -169,3 +184,131 @@ class Document(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     uploaded_by: Mapped[User] = relationship()
+
+
+# ---------- Meeting rooms ----------
+
+
+class Room(Base):
+    __tablename__ = "rooms"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    seats: Mapped[int] = mapped_column(Integer, default=4)
+    equipment: Mapped[str] = mapped_column(String(200), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class RoomBooking(Base):
+    __tablename__ = "room_bookings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(120))
+    day: Mapped[date] = mapped_column(Date, index=True)
+    start_time: Mapped[str] = mapped_column(String(5))  # "HH:MM"
+    end_time: Mapped[str] = mapped_column(String(5))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    room: Mapped[Room] = relationship()
+    user: Mapped[User] = relationship()
+
+
+# ---------- Visitors ----------
+
+VISITOR_STATUSES = ("expected", "checked_in", "checked_out", "cancelled")
+
+
+class Visitor(Base):
+    __tablename__ = "visitors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    company: Mapped[str] = mapped_column(String(120), default="")
+    visit_date: Mapped[date] = mapped_column(Date, index=True)
+    expected_time: Mapped[str] = mapped_column(String(5), default="")
+    note: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(20), default="expected")
+    host_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime)
+    checked_out_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    host: Mapped[User] = relationship(foreign_keys=[host_id])
+
+
+# ---------- Employee reviews ----------
+
+REVIEW_STATUSES = ("preparation", "completed")
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    year: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20), default="preparation")
+    meeting_date: Mapped[date | None] = mapped_column(Date)
+    # Preparation answers (JSON objects) – each person edits only their own
+    employee_prep: Mapped[str] = mapped_column(Text, default="{}")
+    reviewer_prep: Mapped[str] = mapped_column(Text, default="{}")
+    employee_prep_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    reviewer_prep_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    goals: Mapped[str] = mapped_column(Text, default="")
+    employee_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    reviewer_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    employee: Mapped[User] = relationship(foreign_keys=[employee_id])
+    reviewer: Mapped[User] = relationship(foreign_keys=[reviewer_id])
+
+
+# ---------- Onboarding ----------
+
+ONBOARDING_OWNERS = ("hr", "it", "manager")
+
+
+class OnboardingTask(Base):
+    __tablename__ = "onboarding_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Default tasks have a key (translated in the UI); custom tasks only a title
+    key: Mapped[str | None] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(150), default="")
+    owner: Mapped[str] = mapped_column(String(10))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime)
+    done_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+    done_by: Mapped[User | None] = relationship(foreign_keys=[done_by_id])
+
+
+# ---------- Quick links and settings ----------
+
+
+class QuickLink(Base):
+    __tablename__ = "quick_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(60))
+    url: Mapped[str] = mapped_column(String(500))
+    icon: Mapped[str] = mapped_column(String(20), default="link")
+    description: Mapped[str] = mapped_column(String(200), default="")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Setting(Base):
+    """Small key/value store for portal-wide settings (JSON values)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)

@@ -37,6 +37,15 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - Document library with full-text search (titles and content of PDF, Word, Markdown and text files) and category filter
 - Announcements with pinned items, categories, publish and expiry dates
 - Profile: name, department, job title, office location, preferred language (German / English)
+- **People**: colleague directory with search and department filter, org chart, printable phone list with CSV export (everyone decides whether their numbers are shown)
+- **Rooms**: book meeting rooms in quarter-hour slots, see the day's occupancy, cancel own bookings
+- **Visitors**: register guests; reception checks them in and out
+- **Appointment requests**: suggest up to three times to HR, IT or the manager; the approver confirms one
+- **Employee reviews**: both sides prepare separately, then record and confirm the agreed goals
+- **Onboarding**: checklist for new colleagues (HR, IT and manager tasks) with progress on the dashboard
+- **More tools**: external links (knowledge base, e-learning, time tracking …) in the menu
+- Contact person per section, configurable dashboard quick actions plus two personal favourites
+- Version number and a plain-language "What's new" page
 - Light and dark theme, works on desktop, tablet and phone
 
 **For managers and HR / admins**
@@ -44,8 +53,11 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - Approvals inbox with filters by type, status, person and date
 - Approve or reject with an optional comment (confirmation dialog)
 - Simple figures: open requests, decisions this month, average handling time, approved vacation days
+- Reports: absences per month, expenses per category, requests waiting too long, equipment handed out (each as CSV)
+- Reception view for visitors, onboarding tasks of their own team
 - CSV export of approved requests (opens correctly in Excel and LibreOffice)
-- HR / admin only: publish, edit and archive announcements; upload, replace and archive documents; add people and change roles
+- HR / admin only: publish, edit and archive announcements; upload, replace and archive documents; add people, set managers,
+  change roles and reset passwords; start employee reviews; manage rooms, quick links, dashboard tiles and section contacts
 
 ## Architecture
 
@@ -169,11 +181,14 @@ npm test && npm run build
 | See all requests, approve / reject, comment on any request | | ✓ | ✓ |
 | Statistics and CSV export | | ✓ | ✓ |
 | Manage announcements and documents | | | ✓ |
-| Add people, change roles, deactivate accounts | | | ✓ |
+| Reports, visitor reception, onboarding tasks of own team | | ✓ | ✓ |
+| Add people, set managers, change roles, reset passwords | | | ✓ |
+| Start employee reviews, manage rooms, links and portal settings | | | ✓ |
 
 - Nobody can approve or reject their own request.
 - Drafts are private: only the person who wrote them can see them.
-- People can edit their own name, department, job title, office and language, but never their role or email.
+- People can edit their own name, department, job title, office, phone numbers and language, but never their role or email.
+- Employee reviews are visible only to the employee, the reviewer and HR. Each side sees the other's preparation only after both have finished.
 
 ## Security notes
 
@@ -221,7 +236,7 @@ Stopping the backend for a moment guarantees a consistent SQLite file. Schedule 
 - Email notifications when a request is decided (via the company's own SMTP server)
 - Vacation balance per person and public holidays per location
 - Team-based approvals (managers see only their team)
-- Database migrations with Alembic
+- Database migrations with Alembic (today new columns are added automatically on startup)
 - Single sign-on (LDAP / Active Directory)
 - More languages
 - Calendar export (iCal) for approved vacation

@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SectionContact from '@/components/SectionContact.vue'
 import { api, query } from '@/lib/api'
 import { DOCUMENT_CATEGORIES } from '@/lib/requestTypes'
 import { errorText, formatDate, formatFileSize, t } from '@/lib/i18n'
@@ -121,6 +122,8 @@ onMounted(load)
         <EmptyState v-else icon="file" :message="t('documents.empty')" />
       </section>
     </LoadState>
+
+    <SectionContact section="documents" />
   </div>
 </template>
 

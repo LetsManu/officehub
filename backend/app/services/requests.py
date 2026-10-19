@@ -1,6 +1,7 @@
 """Business rules for requests: validation per type, permissions and serialization."""
 
-from datetime import date
+import json
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..errors import ApiError
 from ..models import PENDING_STATUSES, Request, RequestEvent, User
 from ..schemas import (
+    APPOINTMENT_TOPICS,
     EQUIPMENT_CATEGORIES,
     EXPENSE_CATEGORIES,
     RequestDetail,
@@ -26,6 +28,7 @@ TYPE_FIELDS: dict[str, set[str]] = {
     "equipment": {"title", "description", "category", "item", "needed_by"},
     "expense": {"title", "description", "start_date", "amount", "currency", "category"},
     "it_access": {"title", "description", "item", "access_level", "needed_by"},
+    "appointment": {"title", "description", "category", "proposed_times"},
     "general": {"title", "description"},
 }
 
@@ -82,6 +85,24 @@ def validate_fields(request_type: str, values: dict, today: date | None = None) 
         if not data["access_level"]:
             raise _field_error("access_level", "access_level_required", "Please select the access level.")
 
+    if request_type == "appointment":
+        if data["category"] not in APPOINTMENT_TOPICS:
+            raise _field_error("category", "topic_required", "Please choose who the appointment is with.")
+        times = list(dict.fromkeys(data.get("proposed_times") or []))
+        if not times:
+            raise _field_error("proposed_times", "times_required", "Please suggest at least one time.")
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M")
+        for value in times:
+            try:
+                datetime.strptime(value, "%Y-%m-%dT%H:%M")
+            except ValueError:
+                raise _field_error("proposed_times", "time_invalid", "Please enter a valid date and time.") from None
+            if value <= now:
+                raise _field_error("proposed_times", "time_past", "Suggested times must be in the future.")
+        data["proposed_times"] = json.dumps(sorted(times))
+    else:
+        data["proposed_times"] = None
+
     if request_type == "general" and not data.get("description"):
         raise _field_error("description", "description_required", "Please describe your request.")
 
@@ -101,6 +122,7 @@ def validate_fields(request_type: str, values: dict, today: date | None = None) 
 def current_values(req: Request) -> dict:
     values = {name: getattr(req, name, None) for name in FIELD_NAMES if name != "amount"}
     values["amount"] = Decimal(req.amount_cents) / 100 if req.amount_cents is not None else None
+    values["proposed_times"] = json.loads(req.proposed_times) if req.proposed_times else None
     return values
 
 

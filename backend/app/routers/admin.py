@@ -5,13 +5,14 @@ from decimal import Decimal
 
 from fastapi import APIRouter
 from fastapi.responses import Response
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from ..deps import DB, Admin, Approver
 from ..errors import ApiError, not_found
-from ..models import PENDING_STATUSES, REQUEST_TYPES, Request, User, utcnow
-from ..schemas import UserAdminUpdate, UserCreate, UserOut
+from ..models import PENDING_STATUSES, REQUEST_TYPES, AuthSession, Request, User, utcnow
+from ..schemas import PasswordReset, UserAdminUpdate, UserCreate, UserOut
 from ..security import hash_password
+from ..services.people import check_manager, start_onboarding
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -111,9 +112,13 @@ def list_users(user: Approver, db: DB) -> list[User]:
 def create_user(body: UserCreate, user: Admin, db: DB) -> User:
     if db.scalar(select(User).where(User.email == body.email)):
         raise ApiError(409, "email_taken", "A person with this email address already exists.")
-    data = body.model_dump(exclude={"password"})
+    check_manager(db, None, body.manager_id)
+    data = body.model_dump(exclude={"password", "start_onboarding"})
     new_user = User(**data, password_hash=hash_password(body.password))
     db.add(new_user)
+    db.flush()
+    if body.start_onboarding:
+        start_onboarding(db, new_user)
     db.commit()
     return new_user
 
@@ -125,7 +130,29 @@ def update_user(user_id: int, body: UserAdminUpdate, user: Admin, db: DB) -> Use
         raise not_found("Person")
     if target.id == user.id and (body.role not in (None, "admin") or body.is_active is False):
         raise ApiError(409, "self_lockout", "You cannot remove your own administrator access.")
-    for field, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    if "manager_id" in changes:
+        if changes["manager_id"] == target.id:
+            raise ApiError(422, "manager_cycle", "A person cannot be their own manager.")
+        check_manager(db, target, changes["manager_id"])
+    for field, value in changes.items():
+        if value is None and field != "manager_id":
+            continue
         setattr(target, field, value)
+    if changes.get("is_active") is False:
+        db.execute(delete(AuthSession).where(AuthSession.user_id == target.id))
     db.commit()
     return target
+
+
+@router.post("/users/{user_id}/password", status_code=204)
+def reset_password(user_id: int, body: PasswordReset, user: Admin, db: DB) -> None:
+    target = db.get(User, user_id)
+    if target is None:
+        raise not_found("Person")
+    if target.id == user.id:
+        raise ApiError(409, "use_profile", "Please change your own password under Profile.")
+    target.password_hash = hash_password(body.password)
+    # Sign the person out everywhere so only the new password works.
+    db.execute(delete(AuthSession).where(AuthSession.user_id == target.id))
+    db.commit()

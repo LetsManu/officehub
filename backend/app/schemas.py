@@ -1,10 +1,11 @@
 """Request and response models. All API input is validated here."""
 
+import json
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, StringConstraints, field_validator
 
 def _utc_iso(value: datetime) -> str:
     """Stored datetimes are naive UTC; send them as ISO strings with a trailing "Z"."""
@@ -17,6 +18,13 @@ UtcDateTime = Annotated[datetime, PlainSerializer(_utc_iso, return_type=str)]
 
 Text60 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Optional80 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, max_length=40, pattern=r"^[0-9+()/\-. ]*$")]
+TILE_KEYS = (
+    "vacation", "expense", "equipment", "home_office", "it_access", "appointment",
+    "documents", "directory", "rooms", "visitors", "phone_list",
+)
+DEFAULT_TILES = ["vacation", "expense", "equipment", "documents"]
+TileKey = Literal[TILE_KEYS]  # type: ignore[valid-type]
 Email = Annotated[
     str,
     StringConstraints(
@@ -24,14 +32,17 @@ Email = Annotated[
     ),
 ]
 Language = Literal["de", "en"]
+# Local wall-clock time without time zone, as sent by <input type="datetime-local">
+LocalTime = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")]
 Role = Literal["employee", "manager", "admin"]
 
-RequestType = Literal["vacation", "home_office", "equipment", "expense", "it_access", "general"]
+RequestType = Literal["vacation", "home_office", "equipment", "expense", "it_access", "appointment", "general"]
 RequestStatus = Literal["draft", "submitted", "in_review", "approved", "rejected", "cancelled"]
 Currency = Literal["EUR", "USD", "GBP", "CHF"]
 AccessLevel = Literal["view", "edit", "admin"]
 
 EXPENSE_CATEGORIES = ("travel", "meals", "office_supplies", "training", "software", "other")
+APPOINTMENT_TOPICS = ("hr", "it", "manager", "other")
 EQUIPMENT_CATEGORIES = ("laptop", "monitor", "phone", "furniture", "accessories", "parking", "other")
 ANNOUNCEMENT_CATEGORIES = ("general", "event", "it", "hr", "office")
 DOCUMENT_CATEGORIES = ("handbook", "policy", "it", "onboarding", "template", "other")
@@ -61,6 +72,19 @@ class UserOut(ORM):
     language: str
     role: str
     is_active: bool
+    phone: str = ""
+    mobile: str = ""
+    show_phone: bool = True
+    show_mobile: bool = False
+    manager_id: int | None = None
+    pinned_tiles: list[str] = []
+
+    @field_validator("pinned_tiles", mode="before")
+    @classmethod
+    def _split_tiles(cls, value):
+        if isinstance(value, str):
+            return [v for v in value.split(",") if v]
+        return value or []
 
 
 class UserBrief(ORM):
@@ -76,6 +100,11 @@ class ProfileUpdate(BaseModel):
     job_title: Optional80 | None = None
     office_location: Optional80 | None = None
     language: Language | None = None
+    phone: Phone | None = None
+    mobile: Phone | None = None
+    show_phone: bool | None = None
+    show_mobile: bool | None = None
+    pinned_tiles: Annotated[list[TileKey], Field(max_length=2)] | None = None
 
 
 class PasswordChange(BaseModel):
@@ -93,6 +122,9 @@ class UserCreate(BaseModel):
     language: Language = "de"
     role: Role = "employee"
     password: Annotated[str, StringConstraints(min_length=8, max_length=200)]
+    phone: Phone = ""
+    manager_id: int | None = None
+    start_onboarding: bool = True
 
 
 class UserAdminUpdate(BaseModel):
@@ -100,6 +132,14 @@ class UserAdminUpdate(BaseModel):
     is_active: bool | None = None
     department: Optional80 | None = None
     job_title: Optional80 | None = None
+    office_location: Optional80 | None = None
+    phone: Phone | None = None
+    mobile: Phone | None = None
+    manager_id: int | None = None
+
+
+class PasswordReset(BaseModel):
+    password: Annotated[str, StringConstraints(min_length=8, max_length=200)]
 
 
 # ---------- Requests ----------
@@ -118,6 +158,7 @@ class RequestFields(BaseModel):
     item: Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)] | None = None
     access_level: AccessLevel | None = None
     needed_by: date | None = None
+    proposed_times: Annotated[list[LocalTime], Field(max_length=3)] | None = None
 
 
 class RequestCreate(RequestFields):
@@ -135,6 +176,8 @@ class CommentIn(BaseModel):
 
 class DecisionIn(BaseModel):
     comment: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+    # Appointment requests: which of the proposed times is confirmed
+    chosen_time: LocalTime | None = None
 
 
 class CommentOut(ORM):
@@ -177,6 +220,8 @@ class RequestOut(ORM):
     item: str | None
     access_level: str | None
     needed_by: date | None
+    proposed_times: list[str] | None = None
+    confirmed_time: str | None = None
     attachment_name: str | None
     decision_comment: str | None
     decided_by: UserBrief | None
@@ -185,6 +230,11 @@ class RequestOut(ORM):
     created_at: UtcDateTime
     updated_at: UtcDateTime
     comment_count: int = 0
+
+    @field_validator("proposed_times", mode="before")
+    @classmethod
+    def _decode_times(cls, value):
+        return json.loads(value) if isinstance(value, str) else value
 
 
 class RequestDetail(RequestOut):
