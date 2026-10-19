@@ -26,21 +26,23 @@ export const navGroups = computed<NavGroup[]>(() => {
       items: [
         { to: '/', label: t('nav.dashboard'), icon: 'dashboard' },
         { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
-        { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone' },
+        { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone', count: summary.value.must_read_open },
       ],
     },
     {
       key: 'find',
       label: t('nav.groupFind'),
       items: [
-        { to: '/documents', label: t('nav.documents'), icon: 'file' },
+        { to: '/documents', label: t('nav.documents'), icon: 'file', count: summary.value.personal_documents_new },
         { to: '/people', label: t('nav.people'), icon: 'users' },
+        { to: '/help', label: t('nav.help'), icon: 'lifebuoy' },
       ],
     },
     {
       key: 'office',
       label: t('nav.groupOffice'),
       items: [
+        { to: '/calendar', label: t('nav.calendar'), icon: 'calendar' },
         { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
         { to: '/visitors', label: t('nav.visitors'), icon: 'badge', count: summary.value.visitors_today },
         { to: '/reviews', label: t('nav.reviews'), icon: 'message', count: summary.value.reviews_todo },

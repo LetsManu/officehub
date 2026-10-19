@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import PersonalDocumentsPanel from '@/components/admin/PersonalDocumentsPanel.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import FormField from '@/components/FormField.vue'
@@ -206,6 +207,8 @@ onMounted(() => {
       @close="archiveTarget = null"
       @confirm="archiveTarget && setArchived(archiveTarget, true)"
     />
+
+    <PersonalDocumentsPanel />
   </div>
 </template>
 
