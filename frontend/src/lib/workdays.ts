@@ -1,5 +1,5 @@
-/** Counts Monday–Friday between two ISO dates (inclusive). Mirrors the backend rule. */
-export function countWorkingDays(start: string, end: string): number {
+/** Counts Monday–Friday between two ISO dates (inclusive), minus holidays. Mirrors the backend rule. */
+export function countWorkingDays(start: string, end: string, holidays: ReadonlySet<string> = new Set()): number {
   const from = parseIsoDate(start)
   const to = parseIsoDate(end)
   if (!from || !to || to < from) return 0
@@ -7,7 +7,7 @@ export function countWorkingDays(start: string, end: string): number {
   const cursor = new Date(from)
   while (cursor <= to) {
     const weekday = cursor.getUTCDay()
-    if (weekday !== 0 && weekday !== 6) days++
+    if (weekday !== 0 && weekday !== 6 && !holidays.has(cursor.toISOString().slice(0, 10))) days++
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
   return days

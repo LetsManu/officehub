@@ -25,6 +25,7 @@ export const navGroups = computed<NavGroup[]>(() => {
       label: '',
       items: [
         { to: '/', label: t('nav.dashboard'), icon: 'dashboard' },
+        { to: '/time', label: t('nav.time'), icon: 'clock' },
         { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
         { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone', count: summary.value.must_read_open },
       ],
@@ -46,18 +47,31 @@ export const navGroups = computed<NavGroup[]>(() => {
         { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
         { to: '/visitors', label: t('nav.visitors'), icon: 'badge', count: summary.value.visitors_today },
         { to: '/reviews', label: t('nav.reviews'), icon: 'message', count: summary.value.reviews_todo },
+        { to: '/trainings', label: t('nav.trainings'), icon: 'graduation', count: summary.value.trainings_due },
+      ],
+    },
+    {
+      key: 'together',
+      label: t('nav.groupTogether'),
+      items: [
+        { to: '/surveys', label: t('nav.surveys'), icon: 'chart', count: summary.value.surveys_open },
+        { to: '/ideas', label: t('nav.ideas'), icon: 'lightbulb' },
       ],
     },
   ]
   const manage: NavItem[] = []
-  if (isApprover.value) {
+  if (isApprover.value || summary.value.acting_deputy) {
     manage.push({ to: '/approvals', label: t('nav.approvals'), icon: 'checkCircle', count: summary.value.approvals_pending })
+  }
+  if (isApprover.value) {
     manage.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
     manage.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
   }
   if (isAdmin.value) {
     manage.push({ to: '/manage/documents', label: t('nav.manageDocuments'), icon: 'folder' })
     manage.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), icon: 'edit' })
+    manage.push({ to: '/equipment', label: t('nav.equipment'), icon: 'box' })
+    manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
   }
   if (isApprover.value) manage.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
   if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage })

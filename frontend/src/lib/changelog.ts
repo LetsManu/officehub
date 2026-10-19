@@ -9,6 +9,40 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.0.0',
+    date: '2026-10-19',
+    de: [
+      'Euer Logo und eure Farbe: Das Admin-Team kann das Portal im Firmendesign gestalten – auch die Anmeldeseite.',
+      'Profilfotos: Lade ein Foto hoch, damit Kolleginnen und Kollegen dich leichter erkennen.',
+      'Arbeitszeit: Mit einem Klick kommen und gehen, Wochenübersicht und Gleitzeitkonto.',
+      'Feiertage werden im Kalender angezeigt und bei Urlaubsanträgen nicht mitgezählt.',
+      'Vertretung: Wenn du weg bist, kann eine Kollegin oder ein Kollege deine Freigaben übernehmen.',
+      'Anonyme Umfragen: Ergebnisse gibt es erst ab fünf Antworten – niemand sieht, wer was geantwortet hat.',
+      'Ideenbox: Ideen einreichen, unterstützen und sehen, was daraus wird.',
+      'Schulungen & Nachweise: Du siehst, welche Schulung bald fällig ist.',
+      'Geräte & Austritt: Ausgegebene Geräte im Blick, Checkliste für den letzten Arbeitstag.',
+      'Mehr Sicherheit: Anmeldung mit Bestätigungscode aus einer App (freiwillig oder vom Admin-Team verlangt).',
+      'E-Mails: Auf Wunsch bekommst du Benachrichtigungen auch per E-Mail.',
+      'Protokoll: Das Admin-Team sieht, wer wichtige Einstellungen geändert hat.',
+      'Tabellen lassen sich sortieren, und das Portal kann wie eine App installiert werden.',
+    ],
+    en: [
+      'Your logo and your colour: the admin team can give the portal your company look – the sign-in page too.',
+      'Profile photos: upload a photo so colleagues can recognise you more easily.',
+      'Working time: clock in and out with one click, weekly overview and flexitime balance.',
+      'Public holidays appear in the calendar and are not counted in vacation requests.',
+      'Deputy: when you are away, a colleague can handle your approvals.',
+      'Anonymous surveys: results appear only after five answers – nobody sees who answered what.',
+      'Ideas box: share ideas, support them and see what happens with them.',
+      'Trainings & certificates: you see which training is due soon.',
+      'Equipment & leaving: keep track of handed-out equipment, checklist for the last working day.',
+      'More security: sign in with a code from an app (optional or required by the admin team).',
+      'E-mails: if you like, you also get notifications by e-mail.',
+      'Activity log: the admin team sees who changed important settings.',
+      'Tables can be sorted, and the portal can be installed like an app.',
+    ],
+  },
+  {
     version: '2.0.0',
     date: '2026-10-19',
     de: [

@@ -500,6 +500,28 @@ img {
   color: var(--color-text-muted);
   font-weight: 600;
   background: var(--color-surface-muted);
+  white-space: nowrap;
+}
+
+/* Long tables scroll inside their box and keep the header row visible */
+.table-scroll {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.table-sticky th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table tbody tr:hover td {
+  background: var(--color-surface-muted);
+}
+
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .table tr:last-child td {

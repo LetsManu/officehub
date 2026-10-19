@@ -33,6 +33,19 @@ class Settings:
     admin_email: str | None
     admin_password: str | None
     app_version: str
+    # E-mail (optional): notifications are sent through your own mail server
+    smtp_host: str | None
+    smtp_port: int
+    smtp_user: str | None
+    smtp_password: str | None
+    smtp_from: str | None
+    smtp_security: str  # "starttls", "ssl" or "none"
+    portal_url: str  # used for links in e-mails
+    timezone: str  # local time zone for time tracking
+
+    @property
+    def mail_enabled(self) -> bool:
+        return bool(self.smtp_host and self.smtp_from)
 
     @property
     def max_upload_bytes(self) -> int:
@@ -54,6 +67,14 @@ def load_settings() -> Settings:
         admin_email=os.getenv("ADMIN_EMAIL") or None,
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
         app_version=os.getenv("APP_VERSION", "dev"),
+        smtp_host=os.getenv("SMTP_HOST") or None,
+        smtp_port=_int("SMTP_PORT", 587),
+        smtp_user=os.getenv("SMTP_USER") or None,
+        smtp_password=os.getenv("SMTP_PASSWORD") or None,
+        smtp_from=os.getenv("SMTP_FROM") or None,
+        smtp_security=(os.getenv("SMTP_SECURITY", "starttls").strip().lower()),
+        portal_url=os.getenv("PORTAL_URL", "http://localhost:8080").rstrip("/"),
+        timezone=os.getenv("TIMEZONE", "Europe/Vienna"),
     )
 
 

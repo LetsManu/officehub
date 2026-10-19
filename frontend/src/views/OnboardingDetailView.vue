@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
@@ -20,12 +21,16 @@ const busy = ref(false)
 const newTask = reactive({ title: '', owner: 'hr' as (typeof OWNERS)[number] })
 const newTaskError = ref('')
 
+const route = useRoute()
+const kind = computed(() => (route.query.kind === 'offboarding' ? 'offboarding' : 'onboarding'))
 const isSelf = computed(() => checklist.value?.person.id === currentUser.value?.id)
 const groups = computed(() =>
   OWNERS.map((owner) => ({ owner, tasks: checklist.value?.tasks.filter((task) => task.owner === owner) ?? [] })).filter((g) => g.tasks.length),
 )
 
 function taskTitle(task: OnboardingTask): string {
+  if (task.key === 'asset_return') return t('onboarding.returnItem', { item: task.title })
+  if (task.key && kind.value === 'offboarding') return t(`onboarding.offTasks.${task.key}`)
   return task.key ? t(`onboarding.tasks.${task.key}`) : task.title
 }
 
@@ -33,7 +38,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    checklist.value = await api.get<Checklist>(`/api/onboarding/${props.id}`)
+    checklist.value = await api.get<Checklist>(`/api/onboarding/${props.id}?kind=${kind.value}`)
   } catch (e) {
     error.value = errorText(e)
   } finally {
@@ -57,7 +62,7 @@ async function addTask() {
   if (newTaskError.value) return
   busy.value = true
   try {
-    checklist.value = await api.post<Checklist>(`/api/onboarding/${props.id}/tasks`, { title: newTask.title.trim(), owner: newTask.owner })
+    checklist.value = await api.post<Checklist>(`/api/onboarding/${props.id}/tasks`, { title: newTask.title.trim(), owner: newTask.owner, kind: kind.value })
     newTask.title = ''
     showToast(t('onboarding.taskAdded'))
   } catch (e) {
@@ -75,8 +80,14 @@ onMounted(load)
     <LoadState :loading="loading" :error="error" @retry="load">
       <template v-if="checklist">
         <PageHeader
-          :title="isSelf ? t('dashboard.onboardingTitle') : t('onboarding.checklistFor', { name: checklist.person.full_name })"
-          :back-to="isApprover ? '/onboarding' : '/'"
+          :title="
+            kind === 'offboarding'
+              ? t('onboarding.offChecklistFor', { name: checklist.person.full_name })
+              : isSelf
+                ? t('dashboard.onboardingTitle')
+                : t('onboarding.checklistFor', { name: checklist.person.full_name })
+          "
+          :back-to="isApprover ? (kind === 'offboarding' ? '/onboarding?kind=offboarding' : '/onboarding') : '/'"
         />
 
         <section class="card stack">
@@ -84,6 +95,7 @@ onMounted(load)
             <p class="progress-text" :class="{ ok: checklist.done === checklist.total }">
               {{ checklist.done === checklist.total ? t('onboarding.complete') : t('onboarding.progress', { done: checklist.done, total: checklist.total }) }}
             </p>
+            <p v-if="kind === 'offboarding' && checklist.last_day" class="muted small">{{ t('onboarding.lastDay', { date: formatDate(checklist.last_day) }) }}</p>
             <p v-if="checklist.manager_name" class="muted small">{{ t('onboarding.managerIs', { name: checklist.manager_name }) }}</p>
           </div>
           <progress :value="checklist.done" :max="checklist.total" :aria-label="t('onboarding.progress', { done: checklist.done, total: checklist.total })" />

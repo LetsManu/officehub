@@ -33,6 +33,8 @@ from .models import (
 )
 from .services.people import start_onboarding
 from .security import hash_password
+from .holidays import public_holidays
+from .services.settings import set_setting
 from .workdays import count_working_days
 
 logger = logging.getLogger("officehub.seed")
@@ -324,7 +326,9 @@ def seed_demo(db: Session) -> None:
         created = _at(-created_days_ago)
         req = Request(requester_id=requester.id, status=status, created_at=created, updated_at=created, **fields)
         if req.start_date and req.end_date:
-            req.working_days = count_working_days(req.start_date, req.end_date)
+            # The demo uses Austrian public holidays (see _seed_v3).
+            days_off = {d for y in {req.start_date.year, req.end_date.year} for d, *_ in public_holidays(y, "AT")}
+            req.working_days = count_working_days(req.start_date, req.end_date, days_off)
         db.add(req)
         db.add(RequestEvent(request=req, actor_id=requester.id, action="created", created_at=created))
         if status != "draft":
@@ -398,6 +402,7 @@ def seed_demo(db: Session) -> None:
 
     _seed_workplace(db, t, today, anna, lukas, sara, tom, julia, max_)
     _seed_v2(db, lang, today, add_request, anna, lukas, sara, tom, julia, max_)
+    _seed_v3(db, lang, today, anna, lukas, sara, tom, julia, max_)
     db.flush()
 
     def note(user: User, kind: str, params: dict, link: str, hours_ago: int, read: bool = False) -> None:
@@ -566,3 +571,104 @@ def _seed_v2(db: Session, lang: str, today: date, add_request, anna, lukas, sara
     for order, (section, question, answer) in enumerate(HELP[lang]):
         db.add(HelpArticle(section=section, question=question, answer=answer, sort_order=order,
                            helpful_yes=3 if order == 0 else 0))
+
+
+def _seed_v3(db: Session, lang: str, today: date, anna, lukas, sara, tom, julia, max_) -> None:
+    """Demo data for time tracking, holidays, surveys, ideas, trainings and equipment."""
+    from zoneinfo import ZoneInfo
+
+    from .models import (
+        Asset, AssetEvent, AuditEvent, Idea, IdeaVote, Survey, SurveyParticipation, SurveyResponse,
+        TimeEntry, Training, TrainingRecord,
+    )
+
+    de = lang == "de"
+    set_setting(db, "holidays", {"country": "AT", "region": ""})
+    set_setting(db, "branding", {"company_name": "Muster GmbH" if de else "Example Ltd", "accent_color": "#1D4ED8"})
+
+    # Two weeks of working time for Anna and Lukas (local office time, stored as UTC)
+    tz = ZoneInfo(settings.timezone)
+
+    def utc(day: date, hh: int, mm: int = 0) -> datetime:
+        return datetime(day.year, day.month, day.day, hh, mm, tzinfo=tz).astimezone(timezone.utc).replace(tzinfo=None)
+
+    for offset in range(14, 0, -1):
+        day = today - timedelta(days=offset)
+        if day.weekday() >= 5:
+            continue
+        for person, start_hour, late in ((anna, 8, offset % 3 == 0), (lukas, 9, offset % 4 == 0)):
+            db.add(TimeEntry(user_id=person.id, day=day, start_at=utc(day, start_hour), end_at=utc(day, 12)))
+            db.add(TimeEntry(user_id=person.id, day=day, start_at=utc(day, 12, 30),
+                             end_at=utc(day, 17 if late else 16, 45 if late else 30)))
+    if today.weekday() < 5:
+        db.add(TimeEntry(user_id=anna.id, day=today, start_at=utc(today, 8)))
+
+    # A closed pulse survey with enough answers to show results, and one still open
+    questions = [
+        {"text": "Wie wohl fühlst du dich im Team?" if de else "How comfortable do you feel in your team?", "kind": "scale", "options": []},
+        {"text": "Wo arbeitest du am liebsten?" if de else "Where do you like to work most?", "kind": "choice",
+         "options": ["Büro", "Zuhause", "Gemischt"] if de else ["Office", "Home", "Mixed"]},
+        {"text": "Was sollen wir verbessern?" if de else "What should we improve?", "kind": "text", "options": []},
+    ]
+    closed = Survey(title="Teamklima Herbst" if de else "Team climate autumn", intro="", questions=json.dumps(questions),
+                    status="closed", results_public=True, created_by_id=julia.id, created_at=_at(-20))
+    db.add(closed)
+    db.flush()
+    answers = [
+        [5, 2, "Mehr Austausch zwischen den Abteilungen" if de else "More exchange between departments"],
+        [4, 0, None], [4, 2, "Ruhigere Besprechungsräume" if de else "Quieter meeting rooms"], [3, 1, None], [5, 2, None],
+        [4, 2, "Bessere Kaffeemaschine" if de else "Better coffee machine"],
+    ]
+    for person, answer in zip((anna, lukas, sara, tom, julia, max_), answers):
+        db.add(SurveyParticipation(survey_id=closed.id, user_id=person.id))
+        db.add(SurveyResponse(survey_id=closed.id, answers=json.dumps(answer)))
+    db.add(Survey(title="Kurz-Check: Homeoffice" if de else "Quick check: working from home", intro="",
+                  questions=json.dumps(questions[:2]), status="open", closes_on=today + timedelta(days=10),
+                  created_by_id=julia.id))
+
+    ideas = [
+        (lukas, "Fahrradständer mit Dach" if de else "Covered bike racks",
+         "Viele kommen mit dem Rad – ein Dach würde helfen." if de else "Many of us cycle to work – a roof would help.",
+         "planned", "Wir holen Angebote ein." if de else "We are collecting quotes.", (anna, sara, tom)),
+        (anna, "Monatliches Team-Frühstück" if de else "Monthly team breakfast",
+         "Einmal im Monat gemeinsam frühstücken." if de else "Breakfast together once a month.", "new", "", (lukas, max_)),
+        (sara, "Papierlose Spesenbelege" if de else "Paperless expense receipts",
+         "Nur noch Fotos der Belege hochladen." if de else "Upload photos of receipts only.", "done",
+         "Ist jetzt in OfficeHub möglich." if de else "This now works in OfficeHub.", (julia,)),
+    ]
+    for author, title, body, status, response, voters in ideas:
+        idea = Idea(title=title, body=body, author_id=author.id, status=status, response=response, created_at=_at(-12))
+        db.add(idea)
+        db.flush()
+        for voter in (author, *voters):
+            db.add(IdeaVote(idea_id=idea.id, user_id=voter.id))
+
+    fire = Training(title="Brandschutzunterweisung" if de else "Fire safety briefing", interval_months=12, due_within_days=30,
+                    description="Jährliche Unterweisung, ca. 30 Minuten." if de else "Yearly briefing, about 30 minutes.",
+                    created_at=_at(-60))
+    privacy = Training(title="Datenschutz-Grundlagen" if de else "Data protection basics", interval_months=24, due_within_days=21,
+                       created_at=_at(-10))
+    db.add_all([fire, privacy])
+    db.flush()
+    for person, days_ago in ((tom, 100), (julia, 30), (sara, 340)):
+        done_on = today - timedelta(days=days_ago)
+        db.add(TrainingRecord(training_id=fire.id, user_id=person.id, completed_on=done_on,
+                              valid_until=done_on.replace(year=done_on.year + 1) if not (done_on.month == 2 and done_on.day == 29) else date(done_on.year + 1, 2, 28),
+                              recorded_by_id=julia.id))
+
+    items = [
+        (anna, "MacBook Air 13\"", "laptop", "C02-DEMO-114"), (anna, "Diensthandy" if de else "Work phone", "phone", "IMEI-3519"),
+        (lukas, "ThinkPad T14", "laptop", "PF-DEMO-208"), (max_, "ThinkPad X1", "laptop", "PF-DEMO-301"),
+        (max_, "Zutrittskarte" if de else "Access card", "card", "K-0042"),
+        (None, "Monitor 27\"", "monitor", "MON-7781"), (None, "Headset", "headset", "HS-12"),
+    ]
+    for person, name, kind, serial in items:
+        asset = Asset(name=name, kind=kind, serial=serial, status="assigned" if person else "in_stock",
+                      assigned_to_id=person.id if person else None, assigned_at=today - timedelta(days=90) if person else None)
+        db.add(asset)
+        db.flush()
+        db.add(AssetEvent(asset_id=asset.id, action="assigned" if person else "created", person_id=person.id if person else None,
+                          actor_id=julia.id))
+
+    for action, target in (("settings_updated", "dashboard_tiles"), ("document_uploaded", "Urlaubsrichtlinie" if de else "Vacation policy")):
+        db.add(AuditEvent(actor_id=julia.id, action=action, target=target, details="{}", created_at=_at(-3)))

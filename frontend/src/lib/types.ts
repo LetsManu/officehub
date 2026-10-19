@@ -27,12 +27,19 @@ export interface User {
   birthday_month: number | null
   show_birthday: boolean
   vacation_days: number
+  weekly_minutes: number
+  photo_version: string | null
+  deputy_id: number | null
+  deputy_until: string | null
+  totp_enabled: boolean
+  email_notifications: boolean
 }
 
 export interface UserBrief {
   id: number
   full_name: string
   department: string
+  photo_version?: string | null
 }
 
 export interface RequestComment {
@@ -153,6 +160,7 @@ export interface PublicConfig {
   max_upload_mb: number
   demo_accounts?: DemoAccount[]
   demo_password?: string
+  mail_enabled?: boolean
 }
 
 export interface DirectoryEntry {
@@ -167,6 +175,7 @@ export interface DirectoryEntry {
   phone: string
   mobile: string
   manager_id: number | null
+  photo_version?: string | null
 }
 
 export type ResourceKind = 'room' | 'desk' | 'parking'
@@ -243,6 +252,8 @@ export interface OnboardingTask {
 
 export interface Checklist {
   person: UserBrief
+  kind: 'onboarding' | 'offboarding'
+  last_day: string | null
   manager_name: string | null
   total: number
   done: number
@@ -251,6 +262,8 @@ export interface Checklist {
 
 export interface ChecklistSummary {
   person: UserBrief
+  kind: 'onboarding' | 'offboarding'
+  last_day: string | null
   total: number
   done: number
 }
@@ -275,6 +288,7 @@ export interface SectionContact {
 export interface PortalSettings {
   dashboard_tiles: string[]
   section_contacts: Partial<Record<string, SectionContact>>
+  require_2fa_roles?: Role[]
 }
 
 export interface Report {
@@ -304,6 +318,9 @@ export interface Summary {
   visitors_today: number
   must_read_open: number
   personal_documents_new: number
+  acting_deputy: boolean
+  trainings_due: number
+  surveys_open: number
 }
 
 export interface SearchHit {
@@ -400,4 +417,132 @@ export interface HelpArticle {
   helpful_yes: number
   helpful_no: number
   updated_at: string
+}
+
+export interface TimeEntry {
+  id: number
+  day: string
+  start_at: string
+  end_at: string | null
+  minutes: number
+  note: string
+  edited: boolean
+}
+
+export interface TimeDay {
+  date: string
+  entries: TimeEntry[]
+  worked: number
+  target: number
+  off: string | null
+  warnings: string[]
+}
+
+export interface TimeWeek {
+  person: UserBrief
+  start: string
+  days: TimeDay[]
+  worked: number
+  target: number
+  balance_year: number
+}
+
+export interface TimeStatus {
+  running: TimeEntry | null
+  today_worked: number
+  today_target: number
+  week_worked: number
+  week_target: number
+  balance_year: number
+}
+
+export interface TimeTeamRow {
+  person: UserBrief
+  worked: number
+  target: number
+  clocked_in: boolean
+}
+
+export interface AssetEvent {
+  action: string
+  person_name: string | null
+  actor_name: string
+  note: string
+  created_at: string
+}
+
+export interface Asset {
+  id: number
+  name: string
+  kind: string
+  serial: string
+  notes: string
+  status: 'in_stock' | 'assigned' | 'repair' | 'retired'
+  assigned_to: UserBrief | null
+  assigned_at: string | null
+  history: AssetEvent[]
+}
+
+export interface SurveyQuestion {
+  text: string
+  kind: 'scale' | 'choice' | 'text'
+  options: string[]
+}
+
+export interface Survey {
+  id: number
+  title: string
+  intro: string
+  questions: SurveyQuestion[]
+  status: 'draft' | 'open' | 'closed'
+  closes_on: string | null
+  results_public: boolean
+  answered: boolean
+  responses: number
+  can_see_results: boolean
+}
+
+export interface SurveyResults {
+  survey: Survey
+  responses: number
+  enough: boolean
+  questions: (SurveyQuestion & { counts: number[]; average: number | null; texts: string[] })[]
+}
+
+export type IdeaStatus = 'new' | 'review' | 'planned' | 'done' | 'declined'
+
+export interface Idea {
+  id: number
+  title: string
+  body: string
+  author: UserBrief
+  status: IdeaStatus
+  response: string
+  votes: number
+  voted: boolean
+  can_delete: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Training {
+  id: number
+  title: string
+  description: string
+  interval_months: number | null
+  due_within_days: number
+  department: string
+  link: string
+  active: boolean
+}
+
+export interface TrainingStatus {
+  training: Training
+  person: UserBrief
+  status: 'open' | 'due_soon' | 'overdue' | 'valid' | 'expiring'
+  due_on: string | null
+  completed_on: string | null
+  valid_until: string | null
+  record_id: number | null
+  has_certificate: boolean
 }

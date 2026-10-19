@@ -49,6 +49,14 @@ Repeat for `officehub-frontend`. The source code stays private; only the built i
    | `OFFICEHUB_VERSION` | Version to run, e.g. `1.0.0` (pinned in the release file) |
    | `COOKIE_SECURE` | `true` if users reach OfficeHub via HTTPS |
 
+   Optional:
+
+   | Variable | What to enter |
+   | --- | --- |
+   | `TIMEZONE` | Time zone for time tracking, default `Europe/Vienna` |
+   | `PORTAL_URL` | Address people open, e.g. `https://officehub.example.com` – used for links in e-mails |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Your own mail server for e-mail notifications. Leave `SMTP_HOST` empty to switch e-mail off. Check it under **Administration → Security → Send a test e-mail to me**. |
+
    For a test installation with fictional people and data, set `DEMO_MODE=true` instead
    (all demo accounts use the password `demo1234` – never use demo mode in production).
 4. **Deploy the stack.** After about 15 seconds open `http://<your-server>:8080` and sign in.
@@ -92,7 +100,7 @@ To restore, stop the backend, extract the archive into the volume and start it a
 
 - Use **standalone Docker** (not Swarm) stacks: the frontend waits for the backend health check via `depends_on`.
 - The API port 8000 is not published by default. Uncomment the `ports` section of the backend if you need it.
-- No internet access is required at runtime – only to download the images.
+- No internet access is required at runtime – only to download the images. E-mail uses only the mail server you configure.
 
 ## Troubleshooting
 

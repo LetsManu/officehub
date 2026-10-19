@@ -11,7 +11,7 @@ import type { PortalSettings, User } from '@/lib/types'
 
 const props = defineProps<{ people: User[] }>()
 
-const SECTIONS = ['dashboard', 'requests', 'documents', 'announcements', 'directory', 'rooms', 'visitors'] as const
+const SECTIONS = ['dashboard', 'requests', 'documents', 'announcements', 'directory', 'rooms', 'visitors', 'time'] as const
 
 const selected = ref<string[]>([])
 const contacts = reactive<Record<string, number | ''>>({})

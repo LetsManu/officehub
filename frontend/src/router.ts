@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { nextTick } from 'vue'
 import { currentUser, loadSession } from './lib/session'
+import { branding } from './lib/branding'
 import { t } from './lib/i18n'
 
 declare module 'vue-router' {
@@ -32,10 +33,18 @@ const routes: RouteRecordRaw[] = [
   { path: '/onboarding', component: () => import('./views/OnboardingView.vue'), meta: { title: 'nav.onboarding' } },
   { path: '/onboarding/:id(\\d+)', component: () => import('./views/OnboardingDetailView.vue'), props: true, meta: { title: 'nav.onboarding' } },
   { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { approver: true, title: 'nav.reports' } },
+  { path: '/time', component: () => import('./views/TimeView.vue'), meta: { title: 'nav.time' } },
+  { path: '/surveys', component: () => import('./views/SurveysView.vue'), meta: { title: 'nav.surveys' } },
+  { path: '/surveys/:id(\\d+)', component: () => import('./views/SurveyView.vue'), props: true, meta: { title: 'nav.surveys' } },
+  { path: '/ideas', component: () => import('./views/IdeasView.vue'), meta: { title: 'nav.ideas' } },
+  { path: '/trainings', component: () => import('./views/TrainingsView.vue'), meta: { title: 'nav.trainings' } },
+  { path: '/equipment', component: () => import('./views/EquipmentView.vue'), meta: { admin: true, title: 'nav.equipment' } },
+  { path: '/admin/audit', component: () => import('./views/AuditView.vue'), meta: { admin: true, title: 'nav.audit' } },
   { path: '/calendar', component: () => import('./views/CalendarView.vue'), meta: { title: 'nav.calendar' } },
   { path: '/help', component: () => import('./views/HelpView.vue'), meta: { title: 'nav.help' } },
   { path: '/whats-new', component: () => import('./views/WhatsNewView.vue'), meta: { title: 'whatsNew.title' } },
-  { path: '/approvals', component: () => import('./views/ApprovalsView.vue'), meta: { approver: true, title: 'nav.approvals' } },
+  // Also open for someone standing in for a manager; the API decides what they see.
+  { path: '/approvals', component: () => import('./views/ApprovalsView.vue'), meta: { title: 'nav.approvals' } },
   { path: '/manage/documents', component: () => import('./views/ManageDocumentsView.vue'), meta: { admin: true, title: 'nav.manageDocuments' } },
   { path: '/manage/announcements', component: () => import('./views/ManageAnnouncementsView.vue'), meta: { admin: true, title: 'nav.manageAnnouncements' } },
   { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { approver: true, title: 'nav.administration' } },
@@ -60,7 +69,8 @@ router.beforeEach(async (to) => {
 let firstNavigation = true
 
 router.afterEach(async (to) => {
-  document.title = to.meta.title ? `${t(to.meta.title)} · OfficeHub` : 'OfficeHub'
+  const site = branding.value.company_name || 'OfficeHub'
+  document.title = to.meta.title ? `${t(to.meta.title)} · ${site}` : site
   // Move focus to the page content after navigation so screen readers announce the new page.
   if (firstNavigation) {
     firstNavigation = false

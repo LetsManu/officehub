@@ -4,3 +4,5 @@ sqlalchemy==2.0.41
 bcrypt==4.3.0
 python-multipart==0.0.20
 pypdf==5.4.0
+segno==1.6.6
+tzdata==2026.5

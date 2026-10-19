@@ -19,7 +19,10 @@ def test_vacation_counts_working_days(anna):
     response = anna.post("/api/requests", json=vacation())
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data["working_days"] == 5
+    # Monday to Friday, minus public holidays of the demo country in that week
+    start = date.fromisoformat(data["start_date"])
+    holidays = {h["date"] for h in anna.get(f"/api/holidays?year={start.year}").json()}
+    assert data["working_days"] == 5 - sum(1 for i in range(5) if str(start + timedelta(days=i)) in holidays)
     assert data["status"] == "submitted"
 
 

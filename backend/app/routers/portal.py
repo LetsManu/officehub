@@ -1,7 +1,6 @@
 """Portal-wide settings managed by HR: quick links, dashboard tiles and section contacts."""
 
-import json
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints
@@ -9,12 +8,15 @@ from sqlalchemy import select
 
 from ..deps import DB, Admin, CurrentUser
 from ..errors import not_found
-from ..models import QuickLink, Setting, User
+from ..models import QuickLink, User
 from ..schemas import DEFAULT_TILES, TileKey
+from ..services.audit import audit
+from ..services.security import required_2fa_roles
+from ..services.settings import get_setting, set_setting
 
 router = APIRouter(prefix="/api/portal", tags=["portal"])
 
-SECTIONS = ("dashboard", "requests", "documents", "announcements", "directory", "rooms", "visitors")
+SECTIONS = ("dashboard", "requests", "documents", "announcements", "directory", "rooms", "visitors", "time")
 LINK_ICONS = ("link", "book", "graduation", "clock", "lifebuoy", "workflow", "tasks", "chart", "mail")
 
 Url = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500, pattern=r"^https?://[^\s<>\"']+$")]
@@ -43,25 +45,18 @@ class Contact(BaseModel):
 class PortalSettings(BaseModel):
     dashboard_tiles: list[str]
     section_contacts: dict[str, Contact]
+    require_2fa_roles: list[str] = []
 
 
 class PortalSettingsIn(BaseModel):
     dashboard_tiles: Annotated[list[TileKey], Field(min_length=1, max_length=8)] | None = None
     # section -> person id (None removes the contact)
     section_contacts: dict[str, int | None] | None = None
+    require_2fa_roles: list[Literal["employee", "manager", "admin"]] | None = None
 
 
-def _get(db, key: str, default):
-    row = db.get(Setting, key)
-    return json.loads(row.value) if row else default
-
-
-def _set(db, key: str, value) -> None:
-    row = db.get(Setting, key)
-    if row is None:
-        db.add(Setting(key=key, value=json.dumps(value)))
-    else:
-        row.value = json.dumps(value)
+_get = get_setting
+_set = set_setting
 
 
 def _settings(db) -> PortalSettings:
@@ -70,7 +65,11 @@ def _settings(db) -> PortalSettings:
         person = db.get(User, person_id)
         if section in SECTIONS and person is not None and person.is_active:
             contacts[section] = Contact(id=person.id, full_name=person.full_name, email=person.email, phone=person.phone)
-    return PortalSettings(dashboard_tiles=_get(db, "dashboard_tiles", DEFAULT_TILES), section_contacts=contacts)
+    return PortalSettings(
+        dashboard_tiles=_get(db, "dashboard_tiles", DEFAULT_TILES),
+        section_contacts=contacts,
+        require_2fa_roles=required_2fa_roles(db),
+    )
 
 
 @router.get("/settings", response_model=PortalSettings)
@@ -92,6 +91,9 @@ def update_settings(body: PortalSettingsIn, user: Admin, db: DB) -> PortalSettin
             elif db.get(User, person_id) is not None:
                 contacts[section] = person_id
         _set(db, "section_contacts", contacts)
+    if body.require_2fa_roles is not None:
+        _set(db, "security", {"require_2fa_roles": sorted(set(body.require_2fa_roles))})
+    audit(db, user, "settings_updated", ", ".join(body.model_dump(exclude_unset=True)))
     db.commit()
     return _settings(db)
 

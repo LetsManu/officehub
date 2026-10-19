@@ -39,8 +39,8 @@ export async function loadConfig(): Promise<PublicConfig> {
   return publicConfig.value
 }
 
-export async function signIn(email: string, password: string): Promise<User> {
-  const user = await api.post<User>('/api/auth/login', { email, password })
+export async function signIn(email: string, password: string, code?: string): Promise<User> {
+  const user = await api.post<User>('/api/auth/login', { email, password, ...(code ? { code } : {}) })
   setUser(user)
   loaded = true
   return user

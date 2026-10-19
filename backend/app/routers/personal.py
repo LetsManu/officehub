@@ -11,6 +11,7 @@ from ..files import MIME_TYPES, delete_quietly, resolve, save_upload
 from ..models import PersonalDocument, User, utcnow
 from ..schemas import UserBrief, UtcDateTime
 from ..services import notifications
+from ..services.audit import audit
 
 router = APIRouter(prefix="/api/personal-documents", tags=["personal documents"])
 
@@ -87,6 +88,7 @@ async def upload(
     db.add(doc)
     db.flush()
     notifications.notify_many(db, [person.id], user, "personal_document", {"title": title}, "/documents?tab=mine")
+    audit(db, user, "personal_document_sent", f"{title} → {person.full_name}")
     db.commit()
     db.refresh(doc)
     return _out(doc, person)
@@ -110,6 +112,7 @@ def download(document_id: int, user: CurrentUser, db: DB) -> FileResponse:
 def delete_document(document_id: int, user: Admin, db: DB) -> None:
     doc = _load(db, document_id, user)
     path = doc.file_path
+    audit(db, user, "personal_document_deleted", f"{doc.title} ({doc.user_id})")
     db.delete(doc)
     db.commit()
     delete_quietly(path)

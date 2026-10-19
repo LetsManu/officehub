@@ -52,12 +52,39 @@ class User(Base):
     show_birthday: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     # Vacation days per calendar year
     vacation_days: Mapped[int] = mapped_column(Integer, default=25, server_default=text("25"))
+    # Contracted working time per week in minutes (40 h = 2400), Monday to Friday
+    weekly_minutes: Mapped[int] = mapped_column(Integer, default=2400, server_default=text("2400"))
+    # Profile photo (square JPEG/PNG in the upload folder)
+    photo_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Managers: who decides for them while they are away
+    deputy_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    deputy_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Two-factor sign-in (authenticator app codes)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    recovery_codes: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))
+    # E-mail copies of important notifications
+    email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    # Last working day once offboarding has started
+    last_day: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    manager: Mapped["User | None"] = relationship(remote_side=[id])
+    manager: Mapped["User | None"] = relationship(remote_side=[id], foreign_keys=[manager_id])
+    deputy: Mapped["User | None"] = relationship(remote_side=[id], foreign_keys=[deputy_id])
 
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def photo_version(self) -> str | None:
+        """Changes whenever a new photo is uploaded, so browsers fetch the new one."""
+        return self.photo_path.rsplit("/", 1)[-1].split(".")[0][:12] if self.photo_path else None
+
+    def active_deputy(self, today: date | None = None) -> "User | None":
+        deputy = self.deputy
+        if deputy is None or not deputy.is_active or self.deputy_until is None:
+            return None
+        return deputy if self.deputy_until >= (today or date.today()) else None
 
     @property
     def is_approver(self) -> bool:
@@ -289,6 +316,7 @@ class Review(Base):
 # ---------- Onboarding ----------
 
 ONBOARDING_OWNERS = ("hr", "it", "manager")
+CHECKLIST_KINDS = ("onboarding", "offboarding")
 
 
 class OnboardingTask(Base):
@@ -300,6 +328,9 @@ class OnboardingTask(Base):
     key: Mapped[str | None] = mapped_column(String(40))
     title: Mapped[str] = mapped_column(String(150), default="")
     owner: Mapped[str] = mapped_column(String(10))
+    kind: Mapped[str] = mapped_column(String(12), default="onboarding", server_default=text("'onboarding'"))
+    # Offboarding: "return this item" tasks point to the equipment
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("assets.id", ondelete="SET NULL"), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     done_at: Mapped[datetime | None] = mapped_column(DateTime)
     done_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -407,3 +438,192 @@ class HelpArticle(Base):
     helpful_yes: Mapped[int] = mapped_column(Integer, default=0)
     helpful_no: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# ---------- Holidays, audit log ----------
+
+
+class CompanyHoliday(Base):
+    """Extra days off for the whole company (e.g. 24 December), added by HR."""
+
+    __tablename__ = "company_holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+
+
+class AuditEvent(Base):
+    """Who changed what. Written by the server only; nobody can edit it."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    target: Mapped[str] = mapped_column(String(150), default="")
+    details: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    actor: Mapped[User | None] = relationship()
+
+
+# ---------- Time tracking ----------
+
+
+class TimeEntry(Base):
+    """One block of work. A running entry has no end yet (clocked in)."""
+
+    __tablename__ = "time_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)  # local date of the start
+    start_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+    end_at: Mapped[datetime | None] = mapped_column(DateTime)  # UTC, empty while running
+    note: Mapped[str] = mapped_column(String(200), default="")
+    edited: Mapped[bool] = mapped_column(Boolean, default=False)  # entered or changed by hand
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------- Pulse surveys ----------
+
+SURVEY_STATUSES = ("draft", "open", "closed")
+
+
+class Survey(Base):
+    """Anonymous survey. Answers are stored without any link to the person."""
+
+    __tablename__ = "surveys"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(150))
+    intro: Mapped[str] = mapped_column(Text, default="")
+    # JSON list of {"text": str, "kind": "scale" | "choice" | "text", "options": [str]}
+    questions: Mapped[str] = mapped_column(Text, default="[]")
+    status: Mapped[str] = mapped_column(String(10), default="draft")
+    closes_on: Mapped[date | None] = mapped_column(Date)
+    results_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SurveyParticipation(Base):
+    """Only remembers THAT someone answered, so nobody answers twice. Not WHAT they answered."""
+
+    __tablename__ = "survey_participation"
+
+    survey_id: Mapped[int] = mapped_column(ForeignKey("surveys.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class SurveyResponse(Base):
+    """The answers, deliberately without user and without timestamp."""
+
+    __tablename__ = "survey_responses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    survey_id: Mapped[int] = mapped_column(ForeignKey("surveys.id", ondelete="CASCADE"), index=True)
+    answers: Mapped[str] = mapped_column(Text)
+
+
+# ---------- Ideas box ----------
+
+IDEA_STATUSES = ("new", "review", "planned", "done", "declined")
+
+
+class Idea(Base):
+    __tablename__ = "ideas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String(10), default="new", index=True)
+    response: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    author: Mapped[User] = relationship()
+
+
+class IdeaVote(Base):
+    __tablename__ = "idea_votes"
+
+    idea_id: Mapped[int] = mapped_column(ForeignKey("ideas.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+# ---------- Trainings ----------
+
+
+class Training(Base):
+    """A required training, e.g. fire safety or data protection, optionally repeated."""
+
+    __tablename__ = "trainings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(150))
+    description: Mapped[str] = mapped_column(Text, default="")
+    # Repeat every N months (None = once)
+    interval_months: Mapped[int | None] = mapped_column(Integer)
+    # Time to complete it for new people / after it is created
+    due_within_days: Mapped[int] = mapped_column(Integer, default=30)
+    # "" = everyone, otherwise one department
+    department: Mapped[str] = mapped_column(String(80), default="")
+    link: Mapped[str] = mapped_column(String(500), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class TrainingRecord(Base):
+    __tablename__ = "training_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    training_id: Mapped[int] = mapped_column(ForeignKey("trainings.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    completed_on: Mapped[date] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    certificate_name: Mapped[str | None] = mapped_column(String(200))
+    certificate_path: Mapped[str | None] = mapped_column(String(200))
+    recorded_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# ---------- Equipment ----------
+
+ASSET_KINDS = ("laptop", "phone", "monitor", "headset", "key", "card", "vehicle", "other")
+ASSET_STATUSES = ("in_stock", "assigned", "repair", "retired")
+
+
+class Asset(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(10), default="other")
+    serial: Mapped[str] = mapped_column(String(80), default="")
+    notes: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(10), default="in_stock", index=True)
+    assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    assigned_at: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    assigned_to: Mapped[User | None] = relationship()
+
+
+class AssetEvent(Base):
+    """History of an item: handed out, returned, sent to repair …"""
+
+    __tablename__ = "asset_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), index=True)
+    action: Mapped[str] = mapped_column(String(20))
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    note: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    person: Mapped[User | None] = relationship(foreign_keys=[person_id])
+    actor: Mapped[User] = relationship(foreign_keys=[actor_id])

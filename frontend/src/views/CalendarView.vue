@@ -8,11 +8,12 @@ import PageHeader from '@/components/PageHeader.vue'
 import { api, query } from '@/lib/api'
 import { errorText, formatDateLong, locale, t } from '@/lib/i18n'
 import type { TeamCalendar } from '@/lib/types'
+import { holidayName, holidaysFor, holidaysVersion } from '@/lib/holidays'
 import { todayIso } from '@/lib/workdays'
 
 interface Entry {
   key: string
-  kind: 'vacation' | 'home_office' | 'event' | 'birthday'
+  kind: 'vacation' | 'home_office' | 'event' | 'birthday' | 'holiday'
   label: string
   link?: string
 }
@@ -50,9 +51,13 @@ function shift(delta: number) {
 /** All entries per day of the shown month. */
 const byDay = computed(() => {
   const map = new Map<string, Entry[]>()
+  void holidaysVersion.value
   const add = (day: string, entry: Entry) => map.set(day, [...(map.get(day) ?? []), entry])
   const d = data.value
   if (!d) return map
+  for (const h of holidaysFor(Number(month.value.slice(0, 4)))) {
+    if (h.date.startsWith(month.value)) add(h.date, { key: `h-${h.date}`, kind: 'holiday', label: holidayName(h) })
+  }
   for (const e of d.events) add(e.date, { key: `e-${e.link}`, kind: 'event', label: e.title, link: e.link })
   for (const b of d.birthdays) add(b.date, { key: `b-${b.person.id}`, kind: 'birthday', label: b.person.full_name })
   for (const a of d.absences) {
@@ -83,11 +88,12 @@ const weeks = computed(() => {
 
 const agenda = computed(() => [...byDay.value.entries()].filter(([day]) => day.startsWith(month.value)).sort(([a], [b]) => (a < b ? -1 : 1)))
 
-const ICONS: Record<Entry['kind'], string> = { vacation: 'sun', home_office: 'home', event: 'calendar', birthday: 'star' }
+const ICONS: Record<Entry['kind'], string> = { holiday: 'flag', vacation: 'sun', home_office: 'home', event: 'calendar', birthday: 'star' }
 
 function entryText(entry: Entry): string {
   if (entry.kind === 'vacation' || entry.kind === 'home_office') return `${entry.label} · ${t(`calendar.kinds.${entry.kind}`)}`
   if (entry.kind === 'birthday') return t('calendar.birthdayOf', { name: entry.label })
+  if (entry.kind === 'holiday') return `${entry.label} · ${t('calendar.kinds.holiday')}`
   return entry.label
 }
 
@@ -141,7 +147,7 @@ onBeforeUnmount(() => media.removeEventListener('change', onMedia))
     </div>
 
     <ul class="legend" :aria-label="t('calendar.legend')">
-      <li v-for="kind in (['vacation', 'home_office', 'event', 'birthday'] as const)" :key="kind" :class="`kind-${kind}`">
+      <li v-for="kind in (['holiday', 'vacation', 'home_office', 'event', 'birthday'] as const)" :key="kind" :class="`kind-${kind}`">
         <AppIcon :name="ICONS[kind]" :size="16" />{{ t(`calendar.kinds.${kind}`) }}
       </li>
     </ul>
@@ -315,6 +321,14 @@ onBeforeUnmount(() => media.removeEventListener('change', onMedia))
   text-overflow: ellipsis;
   white-space: nowrap;
   color: inherit;
+}
+
+.kind-holiday {
+  color: var(--color-text);
+}
+
+.entry.kind-holiday {
+  background: var(--color-border);
 }
 
 .kind-vacation {

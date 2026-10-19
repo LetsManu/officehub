@@ -3,12 +3,14 @@ from datetime import timedelta
 from fastapi import APIRouter, Request, Response
 from sqlalchemy import delete, select
 
+from .. import totp
 from ..config import settings
 from ..deps import DB, SESSION_COOKIE, CurrentUser
 from ..errors import ApiError
 from ..models import AuthSession, User, utcnow
 from ..schemas import LoginIn, UserOut
 from ..security import DUMMY_HASH, hash_token, login_throttle, new_session_token, verify_password
+from ..services.security import use_recovery_code
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -25,6 +27,14 @@ def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
     if not user or not valid or not user.is_active:
         login_throttle.fail(key)
         raise ApiError(401, "invalid_credentials", "The email address or password is not correct.")
+    if user.totp_enabled and user.totp_secret:
+        # Password was right; ask for the authenticator code without counting a failure.
+        if not body.code:
+            raise ApiError(401, "two_factor_required", "Please enter the code from your authenticator app.")
+        ok = totp.verify(user.totp_secret, body.code) or use_recovery_code(user, body.code)
+        if not ok:
+            login_throttle.fail(key)
+            raise ApiError(401, "two_factor_invalid", "The code is not correct.")
     login_throttle.reset(key)
 
     now = utcnow()

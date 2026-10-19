@@ -58,6 +58,8 @@ class ORM(BaseModel):
 class LoginIn(BaseModel):
     email: Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=254)]
     password: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    # Six-digit authenticator code or a recovery code, only when two-factor sign-in is on
+    code: Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)] | None = None
 
 
 class UserOut(ORM):
@@ -83,6 +85,12 @@ class UserOut(ORM):
     birthday_month: int | None = None
     show_birthday: bool = False
     vacation_days: int = 25
+    weekly_minutes: int = 2400
+    photo_version: str | None = None
+    deputy_id: int | None = None
+    deputy_until: date | None = None
+    totp_enabled: bool = False
+    email_notifications: bool = True
 
     @field_validator("pinned_tiles", mode="before")
     @classmethod
@@ -96,6 +104,7 @@ class UserBrief(ORM):
     id: int
     full_name: str
     department: str
+    photo_version: str | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -114,6 +123,7 @@ class ProfileUpdate(BaseModel):
     birthday_day: Annotated[int, Field(ge=1, le=31)] | None = None
     birthday_month: Annotated[int, Field(ge=1, le=12)] | None = None
     show_birthday: bool | None = None
+    email_notifications: bool | None = None
 
 
 class PasswordChange(BaseModel):
@@ -136,6 +146,7 @@ class UserCreate(BaseModel):
     start_onboarding: bool = True
     start_date: date | None = None
     vacation_days: Annotated[int, Field(ge=0, le=60)] = 25
+    weekly_minutes: Annotated[int, Field(ge=0, le=60 * 60)] = 2400
 
 
 class UserAdminUpdate(BaseModel):
@@ -149,6 +160,7 @@ class UserAdminUpdate(BaseModel):
     manager_id: int | None = None
     start_date: date | None = None
     vacation_days: Annotated[int, Field(ge=0, le=60)] | None = None
+    weekly_minutes: Annotated[int, Field(ge=0, le=60 * 60)] | None = None
 
 
 class PasswordReset(BaseModel):

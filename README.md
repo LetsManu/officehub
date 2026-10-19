@@ -31,35 +31,39 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 
 **For every employee**
 
-- Dashboard with a personal greeting, four quick actions, open requests, latest announcements and upcoming events
-- Guided request forms with inline validation, a review step and a clear confirmation
-  - Vacation (automatic working-day calculation) · Home office · Equipment · Expense (with receipt upload) · IT access · General request
-- Request status at a glance: Draft, Submitted, In review, Approved, Rejected, Cancelled
-- Comments and full history on every request; cancel while it is still pending
-- Document library with full-text search (titles and content of PDF, Word, Markdown and text files) and category filter
-- Announcements with pinned items, categories, publish and expiry dates
-- Profile: name, department, job title, office location, preferred language (German / English)
-- **People**: colleague directory with search and department filter, org chart, printable phone list with CSV export (everyone decides whether their numbers are shown)
-- **Rooms**: book meeting rooms in quarter-hour slots, see the day's occupancy, cancel own bookings
-- **Visitors**: register guests; reception checks them in and out
-- **Appointment requests**: suggest up to three times to HR, IT or the manager; the approver confirms one
-- **Employee reviews**: both sides prepare separately, then record and confirm the agreed goals
-- **Onboarding**: checklist for new colleagues (HR, IT and manager tasks) with progress on the dashboard
-- **More tools**: external links (knowledge base, e-learning, time tracking …) in the menu
-- Contact person per section, configurable dashboard quick actions plus two personal favourites
-- Version number and a plain-language "What's new" page
-- Light and dark theme, works on desktop, tablet and phone
+- Home page: pinned "Important" banner, numbers at a glance (working time today, open requests, vacation days left),
+  "Needs your attention", recent activity, who is away, celebrations, company news and events
+- One search for everything (**Ctrl+K**): pages, quick actions, people, documents, news, requests and tools
+- Notification bell, optionally with e-mail copies through your own mail server
+- **Time tracking**: clock in/out, add or fix times for the last 31 days, weekly timesheet with targets,
+  flexitime balance, break hints, CSV export
+- Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
+  home office, equipment, expenses with receipt, IT access, appointments and general requests; comments and history
+- Documents with full-text search, plus a private **For you** tab for payslips and certificates from HR
+- Announcements with must-read confirmation and small polls
+- **Team calendar** with vacation, home office, public holidays, events and opt-in birthdays (iCal export)
+- **People** directory, org chart and phone list with profile photos
+- **Rooms, desks and parking** booking (meeting rooms by time, desks and parking by half or whole day)
+- Visitors, employee reviews, onboarding checklists
+- **Trainings**: mandatory trainings with due dates, repeats and certificates
+- **Surveys** (anonymous, results from five answers) and an **ideas box** with votes and HR answers
+- Help & FAQ, contact person per section, "What's new" page
+- Profile with photo, two-factor sign-in (authenticator app + recovery codes), e-mail settings, deputy (managers)
+  and the list of equipment you have
+- German and English, light and dark theme, installable as an app, works on desktop, tablet and phone
 
 **For managers and HR / admins**
 
-- Approvals inbox with filters by type, status, person and date
-- Approve or reject with an optional comment (confirmation dialog)
-- Simple figures: open requests, decisions this month, average handling time, approved vacation days
-- Reports: absences per month, expenses per category, requests waiting too long, equipment handed out (each as CSV)
-- Reception view for visitors, onboarding tasks of their own team
-- CSV export of approved requests (opens correctly in Excel and LibreOffice)
-- HR / admin only: publish, edit and archive announcements; upload, replace and archive documents; add people, set managers,
-  change roles and reset passwords; start employee reviews; manage rooms, quick links, dashboard tiles and section contacts
+- Approvals inbox; deputies can decide while a manager is away
+- Team timesheets, reports and CSV exports
+- Publish news (with read confirmations and reminders), manage documents and send personal documents
+- People management, start date and vacation entitlement, onboarding and **offboarding** checklists
+  (including the return of every item the person has)
+- **Equipment register** with hand-out/return history
+- **Branding**: company name, logo and accent colour (checked for readability)
+- Public holidays built in for Austria, Germany (per state) and Switzerland, plus company days off
+- Security: require two-factor sign-in per role, reset it for a lost phone, **audit log** of important changes
+- Surveys, trainings, help articles, rooms/desks/parking, quick links, dashboard tiles and section contacts
 
 ## Architecture
 
@@ -174,6 +178,13 @@ npm test && npm run build
 | `FRONTEND_PORT` | `8080` | Host port of the portal |
 | `BACKEND_PORT` | `8000` | Host port of the API |
 | `DATA_DIR` | `/data` | Folder for the database and uploads inside the container |
+| `TIMEZONE` | `Europe/Vienna` | Local time zone for time tracking |
+| `PORTAL_URL` | `http://localhost:8080` | Address of the portal, used for links in e-mails |
+| `SMTP_HOST` | – | Mail server for optional e-mail notifications (empty = off) |
+| `SMTP_PORT` | `587` | Mail server port |
+| `SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
+| `SMTP_USER` / `SMTP_PASSWORD` | – | Mail server login, if needed |
+| `SMTP_FROM` | – | Sender address, e.g. `officehub@your-company.example` |
 
 ## User roles
 
@@ -235,13 +246,11 @@ Stopping the backend for a moment guarantees a consistent SQLite file. Schedule 
 
 ## Roadmap
 
-- Email notifications when a request is decided (via the company's own SMTP server)
-- Vacation balance per person and public holidays per location
 - Team-based approvals (managers see only their team)
 - Database migrations with Alembic (today new columns are added automatically on startup)
 - Single sign-on (LDAP / Active Directory)
 - More languages
-- Calendar export (iCal) for approved vacation
+- Public holidays per location (today one region for the whole company)
 
 ## License
 

@@ -1,9 +1,11 @@
 """Business rules for requests: validation per type, permissions and serialization."""
 
 import json
+from collections.abc import Collection
 from datetime import date, datetime
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..errors import ApiError
@@ -39,7 +41,9 @@ def _field_error(field: str, code: str, message: str) -> ApiError:
     return error
 
 
-def validate_fields(request_type: str, values: dict, today: date | None = None) -> dict:
+def validate_fields(
+    request_type: str, values: dict, today: date | None = None, holidays: Collection[date] = ()
+) -> dict:
     """Check the type-specific rules and return the cleaned column values."""
     today = today or date.today()
     allowed = TYPE_FIELDS[request_type]
@@ -58,7 +62,7 @@ def validate_fields(request_type: str, values: dict, today: date | None = None) 
             raise _field_error("end_date", "end_before_start", "End date must be after the start date.")
         if (end - start).days > 366:
             raise _field_error("end_date", "period_too_long", "The period can be at most one year.")
-        if count_working_days(start, end) == 0:
+        if count_working_days(start, end, holidays) == 0:
             raise _field_error("start_date", "no_working_days", "The selected period contains no working days.")
 
     if request_type == "expense":
@@ -113,7 +117,7 @@ def validate_fields(request_type: str, values: dict, today: date | None = None) 
     data["amount_cents"] = int((amount * 100).to_integral_value()) if amount is not None else None
     data["description"] = data.get("description") or ""
     if request_type in {"vacation", "home_office"}:
-        data["working_days"] = count_working_days(data["start_date"], data["end_date"])
+        data["working_days"] = count_working_days(data["start_date"], data["end_date"], holidays)
     else:
         data["working_days"] = None
     return data
@@ -130,16 +134,32 @@ def add_event(db: Session, req: Request, actor: User, action: str) -> None:
     db.add(RequestEvent(request=req, actor_id=actor.id, action=action))
 
 
+def is_acting_deputy(user: User, req: Request) -> bool:
+    """True while the user stands in for the requester's manager."""
+    manager = req.requester.manager
+    deputy = manager.active_deputy() if manager is not None else None
+    return deputy is not None and deputy.id == user.id
+
+
+def deputy_for(db: Session, user: User) -> list[int]:
+    """Ids of managers the user currently stands in for."""
+    return list(
+        db.scalars(
+            select(User.id).where(User.deputy_id == user.id, User.deputy_until >= date.today(), User.is_active.is_(True))
+        )
+    )
+
+
 def can_view(user: User, req: Request) -> bool:
     if req.requester_id == user.id:
         return True
-    # Approvers see everything except other people's unsent drafts.
-    return user.is_approver and req.status != "draft"
+    # Approvers (and a manager's deputy) see everything except other people's unsent drafts.
+    return (user.is_approver or is_acting_deputy(user, req)) and req.status != "draft"
 
 
 def permissions(user: User, req: Request) -> RequestPermissions:
     is_owner = req.requester_id == user.id
-    approver = user.is_approver and not is_owner and req.status != "draft"
+    approver = (user.is_approver or is_acting_deputy(user, req)) and not is_owner and req.status != "draft"
     pending = req.status in PENDING_STATUSES
     return RequestPermissions(
         can_edit=is_owner and req.status == "draft",

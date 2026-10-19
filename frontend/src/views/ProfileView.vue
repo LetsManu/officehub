@@ -2,9 +2,13 @@
 import { computed, reactive, ref, watchEffect } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import FormField from '@/components/FormField.vue'
+import PhotoPicker from '@/components/PhotoPicker.vue'
+import DeputySettings from '@/components/DeputySettings.vue'
+import MyEquipment from '@/components/MyEquipment.vue'
+import TwoFactorSettings from '@/components/TwoFactorSettings.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { currentUser, setUser } from '@/lib/session'
+import { currentUser, isApprover, publicConfig, setUser } from '@/lib/session'
 import { errorText, formatDate, locale, t } from '@/lib/i18n'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -89,6 +93,15 @@ function togglePinned(key: string) {
   else pinned.value = [...pinned.value, key]
 }
 
+async function saveEmail(value: boolean) {
+  try {
+    setUser(await api.patch<User>('/api/profile', { email_notifications: value }))
+    showToast(t('profile.saved'))
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  }
+}
+
 async function saveFavourites() {
   try {
     setUser(await api.patch<User>('/api/profile', { pinned_tiles: pinned.value }))
@@ -119,6 +132,10 @@ async function changePassword() {
 <template>
   <div class="page profile-page">
     <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')" />
+
+    <section class="card">
+      <PhotoPicker />
+    </section>
 
     <form class="card stack" novalidate @submit.prevent="save">
       <h2>{{ t('profile.personal') }}</h2>
@@ -199,6 +216,32 @@ async function changePassword() {
       </div>
     </form>
 
+    <section class="card stack" aria-labelledby="sec-title">
+      <h2 id="sec-title">{{ t('security.title') }}</h2>
+      <TwoFactorSettings />
+    </section>
+
+    <section class="card stack" aria-labelledby="notify-title">
+      <h2 id="notify-title">{{ t('profile.notificationsTitle') }}</h2>
+      <label class="checkbox">
+        <input :checked="currentUser?.email_notifications" type="checkbox" @change="saveEmail(($event.target as HTMLInputElement).checked)" />
+        <span>
+          <span class="label-strong">{{ t('profile.emailNotifications') }}</span><br />
+          <span class="muted small">{{ publicConfig?.mail_enabled ? t('profile.emailNotificationsHint') : t('profile.emailNotificationsOff') }}</span>
+        </span>
+      </label>
+    </section>
+
+    <section v-if="isApprover" class="card stack" aria-labelledby="deputy-title">
+      <h2 id="deputy-title">{{ t('deputy.title') }}</h2>
+      <DeputySettings />
+    </section>
+
+    <section class="card stack" aria-labelledby="equipment-title">
+      <h2 id="equipment-title">{{ t('assets.mineTitle') }}</h2>
+      <MyEquipment />
+    </section>
+
     <details class="disclosure">
       <summary>{{ t('profile.favourites') }}</summary>
       <div class="disclosure-body stack">
@@ -247,6 +290,10 @@ async function changePassword() {
 </template>
 
 <style scoped>
+.label-strong {
+  font-weight: 600;
+}
+
 .profile-page {
   max-width: 760px;
 }

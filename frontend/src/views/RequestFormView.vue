@@ -14,6 +14,7 @@ import { ACCESS_LEVELS, APPOINTMENT_TOPICS, CURRENCIES, EQUIPMENT_CATEGORIES, EX
 import { errorText, formatDate, formatDateTime, formatMoney, formatPeriod, t } from '@/lib/i18n'
 import { loadConfig, publicConfig } from '@/lib/session'
 import { showToast } from '@/lib/toast'
+import { holidaySet } from '@/lib/holidays'
 import { countWorkingDays, todayIso } from '@/lib/workdays'
 import type { RequestDetail, RequestType, VacationBalance } from '@/lib/types'
 
@@ -76,7 +77,11 @@ watch(
   },
 )
 
-const workingDays = computed(() => (form.start_date && form.end_date && form.end_date >= form.start_date ? countWorkingDays(form.start_date, form.end_date) : null))
+const workingDays = computed(() =>
+  form.start_date && form.end_date && form.end_date >= form.start_date
+    ? countWorkingDays(form.start_date, form.end_date, holidaySet(form.start_date, form.end_date))
+    : null,
+)
 
 // Clear a field's error as soon as the person changes that field.
 for (const key of Object.keys(form) as (keyof typeof form)[]) {

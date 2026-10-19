@@ -2,12 +2,17 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
+import SortHeader from '@/components/SortHeader.vue'
+import { useSort } from '@/lib/sort'
 import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import PortalSettingsPanel from '@/components/admin/PortalSettingsPanel.vue'
 import QuickLinksPanel from '@/components/admin/QuickLinksPanel.vue'
 import RoomsPanel from '@/components/admin/RoomsPanel.vue'
+import BrandingPanel from '@/components/admin/BrandingPanel.vue'
+import HolidaysPanel from '@/components/admin/HolidaysPanel.vue'
+import SecurityPanel from '@/components/admin/SecurityPanel.vue'
 import { api, query } from '@/lib/api'
 import { REQUEST_TYPES } from '@/lib/requestTypes'
 import { currentUser, isAdmin } from '@/lib/session'
@@ -73,6 +78,25 @@ async function saveWork() {
     saving.value = false
   }
 }
+
+const PEOPLE_COLUMNS = [
+  { key: 'name', label: 'admin.name' },
+  { key: 'department', label: 'admin.department' },
+  { key: 'manager', label: 'admin.manager' },
+  { key: 'role', label: 'admin.role' },
+  { key: 'status', label: 'admin.status' },
+]
+const peopleSort = useSort(
+  people,
+  {
+    name: (p) => `${p.last_name} ${p.first_name}`,
+    department: (p) => p.department,
+    manager: (p) => people.value.find((m) => m.id === p.manager_id)?.full_name ?? '',
+    role: (p) => p.role,
+    status: (p) => (p.is_active ? 0 : 1),
+  },
+  'name',
+)
 
 const resetTarget = ref<User | null>(null)
 const resetPasswordValue = ref('')
@@ -224,19 +248,17 @@ onMounted(load)
         <summary>{{ t('admin.people') }} ({{ people.length }})</summary>
         <div class="disclosure-body stack">
           <div v-if="isAdmin"><button type="button" class="btn btn-secondary" @click="openAdd"><AppIcon name="plus" />{{ t('admin.addPerson') }}</button></div>
-          <div class="table-wrap">
-            <table class="table">
+          <div class="table-wrap table-scroll">
+            <table class="table table-sticky">
               <thead>
                 <tr>
-                  <th scope="col">{{ t('admin.name') }}</th>
-                  <th scope="col">{{ t('admin.department') }}</th>
-                  <th scope="col">{{ t('admin.manager') }}</th>
-                  <th scope="col">{{ t('admin.role') }}</th>
-                  <th scope="col">{{ t('admin.status') }}</th>
+                  <th v-for="col in PEOPLE_COLUMNS" :key="col.key" scope="col" :aria-sort="peopleSort.ariaSort(col.key)">
+                    <SortHeader :label="t(col.label)" :active="peopleSort.key.value === col.key" :dir="peopleSort.dir.value" @sort="peopleSort.toggle(col.key)" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="person in people" :key="person.id">
+                <tr v-for="person in peopleSort.sorted.value" :key="person.id">
                   <td>
                     <span class="person-name">{{ person.full_name }}</span><br />
                     <span class="muted small">{{ person.email }}</span><br />
@@ -301,6 +323,18 @@ onMounted(load)
         <details class="disclosure">
           <summary>{{ t('admin.rooms') }}</summary>
           <div class="disclosure-body"><RoomsPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.branding') }}</summary>
+          <div class="disclosure-body"><BrandingPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.holidays') }}</summary>
+          <div class="disclosure-body"><HolidaysPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.security') }}</summary>
+          <div class="disclosure-body"><SecurityPanel /></div>
         </details>
       </template>
     </LoadState>

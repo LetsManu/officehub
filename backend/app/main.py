@@ -16,10 +16,14 @@ from .errors import ApiError
 from .routers import (
     admin,
     announcements,
+    assets,
     auth,
+    branding,
     directory,
     documents,
     help,
+    holidays,
+    ideas,
     notifications,
     onboarding,
     personal,
@@ -29,7 +33,10 @@ from .routers import (
     requests,
     reviews,
     rooms,
+    surveys,
     team,
+    time_tracking,
+    trainings,
     visitors,
 )
 
@@ -108,7 +115,12 @@ def health() -> dict:
 @app.get("/api/config", tags=["system"])
 def public_config() -> dict:
     """Public settings the sign-in page needs. Demo accounts are only listed in demo mode."""
-    config: dict = {"demo_mode": settings.demo_mode, "max_upload_mb": settings.max_upload_mb, "version": settings.app_version}
+    config: dict = {
+        "demo_mode": settings.demo_mode,
+        "max_upload_mb": settings.max_upload_mb,
+        "version": settings.app_version,
+        "mail_enabled": settings.mail_enabled,
+    }
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
         config["demo_password"] = seed.DEMO_PASSWORD
@@ -133,5 +145,12 @@ for router in (
     team.router,
     personal.router,
     help.router,
+    branding.router,
+    holidays.router,
+    time_tracking.router,
+    surveys.router,
+    ideas.router,
+    trainings.router,
+    assets.router,
 ):
     app.include_router(router)

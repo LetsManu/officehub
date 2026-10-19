@@ -9,6 +9,7 @@ from ..errors import ApiError, not_found
 from ..files import DOCUMENT_TYPES, MIME_TYPES, delete_quietly, extract_text, resolve, save_upload
 from ..models import Document, User, utcnow
 from ..schemas import DOCUMENT_CATEGORIES, DocumentContent, DocumentOut, DocumentUpdate
+from ..services.audit import audit
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -107,6 +108,7 @@ async def upload_document(
         uploaded_by_id=user.id,
     )
     db.add(doc)
+    audit(db, user, "document_uploaded", title)
     db.commit()
     return doc
 
@@ -119,8 +121,10 @@ def get_document(document_id: int, user: CurrentUser, db: DB) -> Document:
 @router.patch("/{document_id}", response_model=DocumentOut)
 def update_document(document_id: int, body: DocumentUpdate, user: Admin, db: DB) -> Document:
     doc = _get(db, document_id, user)
-    for field, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
+    changes = body.model_dump(exclude_unset=True, exclude_none=True)
+    for field, value in changes.items():
         setattr(doc, field, value)
+    audit(db, user, "document_updated", doc.title, **{k: str(v) for k, v in changes.items()})
     db.commit()
     return doc
 
@@ -136,6 +140,7 @@ async def replace_file(document_id: int, user: Admin, db: DB, file: UploadFile =
     doc.file_size = stored.size
     doc.content_text = extract_text(stored.file_type, stored.data)
     doc.updated_at = utcnow()
+    audit(db, user, "document_replaced", doc.title, file=stored.original_name)
     db.commit()
     delete_quietly(old_path)
     return doc

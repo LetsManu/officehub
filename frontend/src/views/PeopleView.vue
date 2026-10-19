@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import OrgNode from '@/components/OrgNode.vue'
@@ -155,7 +156,7 @@ onMounted(() => {
         <ul v-if="view === 'list'" class="people-grid">
           <li v-for="person in people" :key="person.id" class="card person">
             <div class="person-head">
-              <span class="avatar" aria-hidden="true">{{ person.first_name[0] }}{{ person.last_name[0] }}</span>
+              <UserAvatar :id="person.id" :name="person.full_name" :photo-version="person.photo_version" :size="48" />
               <div class="person-names">
                 <p class="person-name">{{ person.full_name }}</p>
                 <p class="muted small">{{ person.job_title }}<template v-if="person.job_title && person.department"> · </template>{{ person.department }}</p>
