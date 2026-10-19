@@ -36,7 +36,9 @@ Repeat for `officehub-frontend`. The source code stays private; only the built i
 2. In Portainer: **Stacks → Add stack**
    - Name: `officehub`
    - Build method: **Web editor** – paste the content of `docker-compose.yml`
-     (or **Repository**, pointing to this repository with compose path `deploy/portainer/docker-compose.yml`)
+     (or **Repository**: repository URL `https://github.com/LetsManu/officehub`, reference `refs/heads/main`,
+     **Compose path `deploy/portainer/docker-compose.yml`**, and authentication with your GitHub user + token
+     because the repository is private)
 3. **Environment variables → Load variables from .env file** → choose `stack.env`. Then set at least:
 
    | Variable | What to enter |
@@ -96,6 +98,7 @@ To restore, stop the backend, extract the archive into the volume and start it a
 
 | Problem | Cause and fix |
 | --- | --- |
+| `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |
 | `pull access denied` / `unauthorized` | Images are private and Portainer has no registry login → step 1 |
 | `Bind for 0.0.0.0:8080 failed` | Port is in use → choose another `FRONTEND_PORT` |
 | Frontend stays in "created" state | Backend is not healthy yet → check the backend logs in Portainer |

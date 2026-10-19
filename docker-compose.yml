@@ -2,6 +2,8 @@ name: officehub
 
 services:
   backend:
+    # Prebuilt image from the release (used by Portainer); built locally if it cannot be pulled.
+    image: ghcr.io/letsmanu/officehub-backend:${OFFICEHUB_VERSION:-latest}
     build: ./backend
     restart: unless-stopped
     env_file:
@@ -22,6 +24,7 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
 
   frontend:
+    image: ghcr.io/letsmanu/officehub-frontend:${OFFICEHUB_VERSION:-latest}
     build: ./frontend
     restart: unless-stopped
     depends_on:

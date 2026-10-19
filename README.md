@@ -93,7 +93,7 @@ Requirements: Docker with the Compose plugin.
 git clone https://github.com/LetsManu/officehub.git
 cd officehub
 cp .env.example .env        # optional – the defaults start the demo
-docker compose up -d
+docker compose up -d        # uses the published images; add --build to build from source
 ```
 
 - Portal: <http://localhost:8080>
