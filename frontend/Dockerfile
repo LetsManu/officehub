@@ -1,5 +1,6 @@
-# Build the single-page app
-FROM node:22-alpine AS build
+# Build the single-page app. The result is plain static files, so this stage always runs on the
+# build machine's own platform: building under arm64 emulation (QEMU) is very slow and can hang.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
