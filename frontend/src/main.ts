@@ -7,7 +7,7 @@ import { applyTheme, theme } from './lib/theme'
 import { language, setLanguage } from './lib/i18n'
 import './styles.css'
 
-applyTheme(theme.value)
+applyTheme(theme.value, false)
 setLanguage(language.value)
 
 setUnauthorizedHandler(() => {

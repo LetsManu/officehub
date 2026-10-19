@@ -270,3 +270,39 @@ export interface Report {
   columns: string[]
   rows: (string | number | null)[][]
 }
+
+export interface AppNotification {
+  id: number
+  kind: string
+  params: Record<string, string | number>
+  link: string
+  read: boolean
+  created_at: string
+}
+
+export interface NotificationList {
+  items: AppNotification[]
+  unread: number
+}
+
+export interface Summary {
+  unread: number
+  approvals_pending: number
+  reviews_todo: number
+  visitors_today: number
+}
+
+export interface SearchHit {
+  id: number
+  title: string
+  subtitle: string
+  link: string
+}
+
+export interface SearchResults {
+  people: DirectoryEntry[]
+  documents: SearchHit[]
+  announcements: SearchHit[]
+  requests: SearchHit[]
+  links: SearchHit[]
+}

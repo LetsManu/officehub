@@ -5,21 +5,33 @@ import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import RequestRow from '@/components/RequestRow.vue'
 import SectionContact from '@/components/SectionContact.vue'
+import StatTile from '@/components/StatTile.vue'
 import { api } from '@/lib/api'
 import { portalSettings } from '@/lib/portal'
 import { currentUser, isApprover } from '@/lib/session'
-import { errorText, formatDate, formatDateLong, t } from '@/lib/i18n'
+import { errorText, formatDate, formatDateLong, locale, t } from '@/lib/i18n'
+import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
+import { refreshSummary, summary } from '@/lib/summary'
 import { DEFAULT_TILES, tileByKey, type TileDefinition } from '@/lib/tiles'
-import type { Announcement, Booking, Checklist, OfficeRequest, RequestList, Review, Stats, Visitor } from '@/lib/types'
+import type { Announcement, AppNotification, Booking, Checklist, NotificationList, OfficeRequest, RequestList, Review } from '@/lib/types'
 import { todayIso } from '@/lib/workdays'
 
+interface AttentionItem {
+  key: string
+  icon: string
+  text: string
+  action: string
+  to: string
+  tone: 'info' | 'warning'
+}
+
 const openRequests = ref<OfficeRequest[]>([])
+const openTotal = ref(0)
 const announcements = ref<Announcement[]>([])
-const pendingApprovals = ref(0)
 const bookingsToday = ref<Booking[]>([])
 const reviewTodo = ref<Review | null>(null)
 const onboarding = ref<Checklist | null>(null)
-const visitorsToday = ref(0)
+const activity = ref<AppNotification[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -36,13 +48,56 @@ const quickActions = computed<TileDefinition[]>(() => {
   return keys.map(tileByKey).filter((tile): tile is TileDefinition => Boolean(tile))
 })
 
-const latestNews = computed(() => announcements.value.slice(0, 3))
+const spotlight = computed(() => announcements.value.find((a) => a.pinned) ?? null)
+const latestNews = computed(() => announcements.value.filter((a) => a.id !== spotlight.value?.id).slice(0, 3))
 const upcomingEvents = computed(() =>
   announcements.value
     .filter((a) => a.category === 'event' && a.event_date && a.event_date >= todayIso())
     .sort((a, b) => (a.event_date! < b.event_date! ? -1 : 1))
     .slice(0, 3),
 )
+
+/** First sentences of a Markdown text as plain text. */
+function excerpt(markdown: string, length = 180): string {
+  const plain = markdown
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*(#+|[-*>]|\d+\.)\s+/gm, '')
+    .replace(/[*_`]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return plain.length > length ? `${plain.slice(0, length).replace(/\s+\S*$/, '')} …` : plain
+}
+
+const attention = computed<AttentionItem[]>(() => {
+  const items: AttentionItem[] = []
+  const pending = summary.value.approvals_pending
+  if (isApprover.value && pending > 0) {
+    items.push({
+      key: 'approvals', icon: 'checkCircle', tone: 'warning', to: '/approvals', action: t('dashboard.reviewNow'),
+      text: pending === 1 ? t('dashboard.pendingApprovalsOne') : t('dashboard.pendingApprovals', { count: pending }),
+    })
+  }
+  if (reviewTodo.value) {
+    items.push({
+      key: 'review', icon: 'message', tone: 'info', to: `/reviews/${reviewTodo.value.id}`, action: t('dashboard.reviewOpen'),
+      text: t('dashboard.reviewTodo', { year: reviewTodo.value.year }),
+    })
+  }
+  if (onboarding.value) {
+    items.push({
+      key: 'onboarding', icon: 'clipboard', tone: 'info', to: `/onboarding/${onboarding.value.person.id}`, action: t('dashboard.onboardingOpen'),
+      text: `${t('dashboard.onboardingTitle')}: ${t('dashboard.onboardingProgress', { done: onboarding.value.done, total: onboarding.value.total })}`,
+    })
+  }
+  const visitors = summary.value.visitors_today
+  if (visitors > 0) {
+    items.push({
+      key: 'visitors', icon: 'badge', tone: 'info', to: '/visitors', action: t('dashboard.visitorsOpen'),
+      text: visitors === 1 ? t('dashboard.visitorsTodayOne') : t('dashboard.visitorsToday', { count: visitors }),
+    })
+  }
+  return items
+})
 
 async function load() {
   loading.value = true
@@ -53,16 +108,16 @@ async function load() {
       api.get<Announcement[]>('/api/announcements?limit=10'),
     ])
     openRequests.value = requests.items
+    openTotal.value = requests.total
     announcements.value = news
     // Optional extras: the dashboard still works if one of them fails.
-    const [stats, bookings, reviews, checklist, visitors] = await Promise.allSettled([
-      isApprover.value ? api.get<Stats>('/api/admin/stats') : Promise.reject(),
+    const [bookings, reviews, checklist, notes] = await Promise.allSettled([
       api.get<Booking[]>('/api/rooms/bookings/mine'),
       api.get<Review[]>('/api/reviews'),
       api.get<Checklist>(`/api/onboarding/${currentUser.value?.id}`),
-      isApprover.value ? api.get<Visitor[]>('/api/visitors?scope=day') : Promise.reject(),
+      api.get<NotificationList>('/api/notifications?limit=4'),
+      refreshSummary(true),
     ])
-    if (stats.status === 'fulfilled') pendingApprovals.value = stats.value.pending
     if (bookings.status === 'fulfilled') bookingsToday.value = bookings.value.filter((b) => b.day === todayIso())
     if (reviews.status === 'fulfilled') {
       reviewTodo.value =
@@ -71,7 +126,7 @@ async function load() {
         ) ?? null
     }
     if (checklist.status === 'fulfilled' && checklist.value.total > 0 && checklist.value.done < checklist.value.total) onboarding.value = checklist.value
-    if (visitors.status === 'fulfilled') visitorsToday.value = visitors.value.filter((v) => v.status === 'expected').length
+    if (notes.status === 'fulfilled') activity.value = notes.value.items
   } catch (e) {
     error.value = errorText(e)
   } finally {
@@ -84,13 +139,34 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <header class="stack-sm">
-      <h1>{{ greeting }}</h1>
-      <p class="muted">{{ t('dashboard.intro') }}</p>
+    <header class="hero">
+      <div class="stack-sm">
+        <p class="today muted small">{{ formatDateLong(todayIso()) }}</p>
+        <h1>{{ greeting }}</h1>
+        <p class="muted">{{ t('dashboard.intro') }}</p>
+      </div>
     </header>
 
+    <RouterLink v-if="spotlight" :to="`/announcements#a-${spotlight.id}`" class="spotlight">
+      <span class="spotlight-tag"><AppIcon name="pin" :size="14" />{{ t('dashboard.spotlight') }}</span>
+      <span class="spotlight-title">{{ spotlight.title }}</span>
+      <span class="spotlight-text">{{ excerpt(spotlight.body) }}</span>
+      <span class="spotlight-more">{{ t('dashboard.readMore') }}<AppIcon name="chevronRight" :size="16" /></span>
+    </RouterLink>
+
+    <section aria-labelledby="stats-title">
+      <h2 id="stats-title" class="visually-hidden">{{ t('dashboard.atAGlance') }}</h2>
+      <div class="stats">
+        <StatTile v-if="isApprover" to="/approvals" icon="checkCircle" :tone="summary.approvals_pending ? 'warning' : 'neutral'" :value="summary.approvals_pending" :label="t('dashboard.statApprovals')" />
+        <StatTile to="/requests" icon="inbox" :value="openTotal" :label="t('dashboard.statOpenRequests')" />
+        <StatTile to="/rooms" icon="door" tone="success" :value="bookingsToday.length" :label="t('dashboard.statBookings')" />
+        <StatTile to="/visitors" icon="badge" tone="neutral" :value="summary.visitors_today" :label="t('dashboard.statVisitors')" />
+        <StatTile v-if="!isApprover" to="/reviews" icon="message" tone="neutral" :value="summary.reviews_todo" :label="t('dashboard.statReviews')" />
+      </div>
+    </section>
+
     <section aria-labelledby="quick-title">
-      <h2 id="quick-title" class="visually-hidden">{{ t('dashboard.quickActions') }}</h2>
+      <h2 id="quick-title" class="section-title">{{ t('dashboard.quickActions') }}</h2>
       <ul class="quick">
         <li v-for="action in quickActions" :key="action.key">
           <RouterLink :to="action.to" class="quick-action">
@@ -101,44 +177,43 @@ onMounted(load)
       </ul>
     </section>
 
-    <div v-if="reviewTodo" class="notice notice-info">
-      <AppIcon name="message" />
-      <div class="row-between grow">
-        <p>{{ t('dashboard.reviewTodo', { year: reviewTodo.year }) }}</p>
-        <RouterLink :to="`/reviews/${reviewTodo.id}`" class="btn btn-secondary">{{ t('dashboard.reviewOpen') }}</RouterLink>
-      </div>
-    </div>
-
-    <div v-if="onboarding" class="notice notice-info">
-      <AppIcon name="clipboard" />
-      <div class="row-between grow">
-        <div class="stack-sm">
-          <p><strong>{{ t('dashboard.onboardingTitle') }}</strong> · {{ t('dashboard.onboardingProgress', { done: onboarding.done, total: onboarding.total }) }}</p>
-          <progress :value="onboarding.done" :max="onboarding.total" :aria-label="t('dashboard.onboardingProgress', { done: onboarding.done, total: onboarding.total })" />
-        </div>
-        <RouterLink :to="`/onboarding/${onboarding.person.id}`" class="btn btn-secondary">{{ t('dashboard.onboardingOpen') }}</RouterLink>
-      </div>
-    </div>
-
-    <div v-if="isApprover && visitorsToday > 0" class="notice">
-      <AppIcon name="badge" />
-      <div class="row-between grow">
-        <p>{{ visitorsToday === 1 ? t('dashboard.visitorsTodayOne') : t('dashboard.visitorsToday', { count: visitorsToday }) }}</p>
-        <RouterLink to="/visitors" class="btn btn-secondary">{{ t('dashboard.visitorsOpen') }}</RouterLink>
-      </div>
-    </div>
-
-    <div v-if="isApprover && pendingApprovals > 0" class="notice notice-info">
-      <AppIcon name="checkCircle" />
-      <div class="row-between grow">
-        <p>{{ pendingApprovals === 1 ? t('dashboard.pendingApprovalsOne') : t('dashboard.pendingApprovals', { count: pendingApprovals }) }}</p>
-        <RouterLink to="/approvals" class="btn btn-primary">{{ t('dashboard.reviewNow') }}</RouterLink>
-      </div>
-    </div>
-
     <LoadState :loading="loading" :error="error" @retry="load">
-      <div class="columns">
-        <section class="card card-flush" aria-labelledby="open-title">
+      <div class="bento">
+        <section class="card card-flush attention" aria-labelledby="attention-title">
+          <div class="section-head">
+            <h2 id="attention-title">{{ t('dashboard.attentionTitle') }}</h2>
+            <span v-if="attention.length" class="count-badge">{{ attention.length }}</span>
+          </div>
+          <ul v-if="attention.length" class="list">
+            <li v-for="item in attention" :key="item.key" class="attention-item">
+              <span class="attention-icon" :class="`tone-${item.tone}`"><AppIcon :name="item.icon" :size="20" /></span>
+              <p class="attention-text">{{ item.text }}</p>
+              <RouterLink :to="item.to" class="btn btn-secondary">{{ item.action }}</RouterLink>
+            </li>
+          </ul>
+          <div v-else class="all-done">
+            <AppIcon name="checkCircle" :size="28" />
+            <p>{{ t('dashboard.attentionEmpty') }}</p>
+          </div>
+        </section>
+
+        <section class="card card-flush activity" aria-labelledby="activity-title">
+          <div class="section-head"><h2 id="activity-title">{{ t('dashboard.recentActivity') }}</h2></div>
+          <ul v-if="activity.length" class="list">
+            <li v-for="item in activity" :key="item.id">
+              <RouterLink :to="item.link || '/'" class="list-link activity-item">
+                <span class="activity-icon" :class="{ unread: !item.read }"><AppIcon :name="NOTIFICATION_ICONS[item.kind] ?? 'bell'" :size="18" /></span>
+                <span class="stack-sm">
+                  <span>{{ notificationText(item) }}</span>
+                  <span class="muted small">{{ timeAgo(item.created_at, locale) }}</span>
+                </span>
+              </RouterLink>
+            </li>
+          </ul>
+          <EmptyState v-else icon="bell" :message="t('notifications.empty')" />
+        </section>
+
+        <section class="card card-flush requests" aria-labelledby="open-title">
           <div class="section-head">
             <h2 id="open-title">{{ t('dashboard.openRequests') }}</h2>
             <RouterLink to="/requests" class="btn btn-ghost">{{ t('dashboard.allRequests') }}</RouterLink>
@@ -176,7 +251,7 @@ onMounted(load)
             </div>
             <ul class="list">
               <li v-for="booking in bookingsToday" :key="booking.id" class="event">
-                <AppIcon name="door" />
+                <span class="time-chip">{{ booking.start_time }}</span>
                 <span class="stack-sm">
                   <span class="news-title">{{ booking.title }}</span>
                   <span class="muted small">{{ t('rooms.timeRange', { start: booking.start_time, end: booking.end_time }) }} · {{ booking.room_name }}</span>
@@ -189,7 +264,10 @@ onMounted(load)
             <div class="section-head"><h2 id="events-title">{{ t('dashboard.events') }}</h2></div>
             <ul class="list">
               <li v-for="item in upcomingEvents" :key="item.id" class="event">
-                <AppIcon name="calendar" />
+                <span class="date-chip" aria-hidden="true">
+                  <span class="date-day">{{ new Date(`${item.event_date}T00:00`).getDate() }}</span>
+                  <span class="date-month">{{ new Date(`${item.event_date}T00:00`).toLocaleDateString(locale, { month: 'short' }) }}</span>
+                </span>
                 <span class="stack-sm">
                   <span class="news-title">
                     {{ item.title }}
@@ -209,40 +287,131 @@ onMounted(load)
 </template>
 
 <style scoped>
+.hero h1 {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+}
+
+.today {
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+/* ---------- Spotlight (pinned announcement) ---------- */
+
+.spotlight {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-highlight);
+  color: #ffffff;
+  text-decoration: none;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgb(29 78 216 / 0.25);
+}
+
+.spotlight::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.08);
+  pointer-events: none;
+}
+
+.spotlight-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: rgb(255 255 255 / 0.18);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.spotlight-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.spotlight-text {
+  max-width: 70ch;
+  color: rgb(255 255 255 / 0.9);
+}
+
+.spotlight-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.spotlight:focus-visible {
+  outline-color: var(--color-focus);
+}
+
+/* ---------- Stats and quick actions ---------- */
+
+.stats {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+}
+
+.section-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+}
+
 .quick {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
 }
 
 .quick-action {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 72px;
+  min-height: 64px;
   height: 100%;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   color: var(--color-text);
   font-weight: 600;
   text-decoration: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--t-fast) ease, box-shadow var(--t-fast) ease, transform var(--t-fast) ease;
 }
 
 .quick-action:hover {
   border-color: var(--color-primary);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
 }
 
 .quick-icon {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
@@ -253,14 +422,9 @@ onMounted(load)
   flex: 1;
 }
 
-.notice progress {
-  width: 220px;
-  max-width: 100%;
-  height: 8px;
-  accent-color: var(--color-success);
-}
+/* ---------- Bento grid ---------- */
 
-.columns {
+.bento {
   display: grid;
   gap: var(--space-5);
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -277,8 +441,64 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
   border-bottom: 1px solid var(--color-border);
+}
+
+.attention-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-5);
+}
+
+.attention-text {
+  flex: 1 1 220px;
+}
+
+.attention-icon,
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.attention-icon.tone-info,
+.activity-icon.unread {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.attention-icon.tone-warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.activity-icon {
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
+.activity-item {
+  align-items: flex-start;
+  font-size: var(--text-sm);
+}
+
+.all-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  color: var(--color-success);
+}
+
+.all-done p {
+  color: var(--color-text-muted);
 }
 
 .news {
@@ -290,6 +510,7 @@ onMounted(load)
 
 .news-title {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   font-weight: 600;
@@ -303,9 +524,48 @@ onMounted(load)
   color: var(--color-text);
 }
 
+.time-chip {
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  height: 36px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.date-chip {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  padding: 4px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+.date-day {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.date-month {
+  color: var(--color-primary-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .today-badge {
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
   font-size: var(--text-xs);
@@ -313,18 +573,22 @@ onMounted(load)
   white-space: nowrap;
 }
 
-.event > .icon {
-  color: var(--color-primary-text);
-}
-
 @media (max-width: 560px) {
   .quick {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spotlight {
+    padding: var(--space-4);
+  }
 }
 
 @media (max-width: 1100px) {
-  .columns {
+  .bento {
     grid-template-columns: 1fr;
   }
 }
