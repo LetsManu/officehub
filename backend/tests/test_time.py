@@ -11,35 +11,35 @@ def _last_weekday(before: date) -> date:
     return day
 
 
-def test_clock_in_and_out(anna):
-    status = anna.get("/api/time/status").json()
+def test_clock_in_and_out(sara):
+    status = sara.get("/api/time/status").json()
     assert status["running"] is None
-    running = anna.post("/api/time/clock-in", json={}).json()["running"]
+    running = sara.post("/api/time/clock-in", json={}).json()["running"]
     assert running and running["end_at"] is None
-    assert anna.post("/api/time/clock-in", json={}).json()["code"] == "already_clocked_in"
-    done = anna.post("/api/time/clock-out").json()
+    assert sara.post("/api/time/clock-in", json={}).json()["code"] == "already_clocked_in"
+    done = sara.post("/api/time/clock-out").json()
     assert done["running"] is None
-    assert anna.post("/api/time/clock-out").json()["code"] == "not_clocked_in"
+    assert sara.post("/api/time/clock-out").json()["code"] == "not_clocked_in"
 
 
-def test_manual_entries_week_and_rules(anna):
+def test_manual_entries_week_and_rules(sara):
     day = _last_weekday(local_today())
-    first = anna.post("/api/time/entries", json={"day": str(day), "start": "08:00", "end": "12:00"})
+    first = sara.post("/api/time/entries", json={"day": str(day), "start": "08:00", "end": "12:00"})
     assert first.status_code == 201 and first.json()["minutes"] == 240 and first.json()["edited"] is True
-    overlap = anna.post("/api/time/entries", json={"day": str(day), "start": "11:30", "end": "13:00"})
+    overlap = sara.post("/api/time/entries", json={"day": str(day), "start": "11:30", "end": "13:00"})
     assert overlap.json()["code"] == "time_overlap"
     # 8 hours without a break triggers a hint
-    anna.post("/api/time/entries", json={"day": str(day), "start": "12:00", "end": "16:30"})
-    week = anna.get(f"/api/time/week?start={day}").json()
+    sara.post("/api/time/entries", json={"day": str(day), "start": "12:00", "end": "16:30"})
+    week = sara.get(f"/api/time/week?start={day}").json()
     row = next(d for d in week["days"] if d["date"] == str(day))
     assert row["worked"] == 510 and row["target"] in (0, 480)
     if row["target"]:
         assert "break_short" in row["warnings"]
-    future = anna.post("/api/time/entries", json={"day": str(local_today() + timedelta(days=1)), "start": "08:00", "end": "09:00"})
+    future = sara.post("/api/time/entries", json={"day": str(local_today() + timedelta(days=1)), "start": "08:00", "end": "09:00"})
     assert future.json()["code"] == "day_future"
-    old = anna.post("/api/time/entries", json={"day": str(local_today() - timedelta(days=40)), "start": "08:00", "end": "09:00"})
+    old = sara.post("/api/time/entries", json={"day": str(local_today() - timedelta(days=40)), "start": "08:00", "end": "09:00"})
     assert old.json()["code"] == "time_locked"
-    bad = anna.post("/api/time/entries", json={"day": str(day), "start": "18:00", "end": "17:00"})
+    bad = sara.post("/api/time/entries", json={"day": str(day), "start": "18:00", "end": "17:00"})
     assert bad.json()["code"] == "end_before_start_time"
 
 
@@ -71,9 +71,9 @@ def test_team_view_and_privacy(tom, anna, lukas, julia):
     assert len(julia.get("/api/time/team").json()) >= 6
 
 
-def test_export_csv(anna):
+def test_export_csv(sara):
     day = _last_weekday(local_today())
-    anna.post("/api/time/entries", json={"day": str(day), "start": "09:00", "end": "10:00", "note": "=SUM(A1)"})
-    response = anna.get(f"/api/time/export.csv?month={day:%Y-%m}")
+    sara.post("/api/time/entries", json={"day": str(day), "start": "09:00", "end": "10:00", "note": "=SUM(A1)"})
+    response = sara.get(f"/api/time/export.csv?month={day:%Y-%m}")
     assert response.status_code == 200 and "'=SUM(A1)" in response.text
     assert make_client().get(f"/api/time/export.csv?month={day:%Y-%m}").status_code == 401

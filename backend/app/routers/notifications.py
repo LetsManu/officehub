@@ -18,6 +18,8 @@ from ..models import (
     QuickLink,
     Request,
     Review,
+    Survey,
+    SurveyParticipation,
     User,
     Visitor,
     utcnow,
@@ -26,6 +28,7 @@ from ..schemas import UtcDateTime
 from ..services.requests import deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
+from .trainings import open_trainings
 
 router = APIRouter(prefix="/api", tags=["notifications"])
 
@@ -54,6 +57,8 @@ class Summary(BaseModel):
     must_read_open: int
     personal_documents_new: int
     acting_deputy: bool
+    trainings_due: int
+    surveys_open: int
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -140,6 +145,14 @@ def summary(user: CurrentUser, db: DB) -> Summary:
         must_read_open=open_must_read(db, user),
         personal_documents_new=personal_new,
         acting_deputy=bool(deputy_managers),
+        trainings_due=open_trainings(db, user),
+        surveys_open=count(
+            select(Survey.id).where(
+                Survey.status == "open",
+                (Survey.closes_on.is_(None)) | (Survey.closes_on >= date.today()),
+                Survey.id.not_in(select(SurveyParticipation.survey_id).where(SurveyParticipation.user_id == user.id)),
+            )
+        ),
     )
 
 

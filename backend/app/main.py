@@ -16,12 +16,14 @@ from .errors import ApiError
 from .routers import (
     admin,
     announcements,
+    assets,
     auth,
     branding,
     directory,
     documents,
     help,
     holidays,
+    ideas,
     notifications,
     onboarding,
     personal,
@@ -31,8 +33,10 @@ from .routers import (
     requests,
     reviews,
     rooms,
+    surveys,
     team,
     time_tracking,
+    trainings,
     visitors,
 )
 
@@ -144,5 +148,9 @@ for router in (
     branding.router,
     holidays.router,
     time_tracking.router,
+    surveys.router,
+    ideas.router,
+    trainings.router,
+    assets.router,
 ):
     app.include_router(router)

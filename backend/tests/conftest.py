@@ -61,3 +61,8 @@ def julia():
 
 def pytest_sessionfinish(session, exitstatus):
     shutil.rmtree(_DATA_DIR, ignore_errors=True)
+
+
+@pytest.fixture
+def sara():
+    return make_client("sara.novak@example.com")
