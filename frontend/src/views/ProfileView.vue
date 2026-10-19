@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { reactive, ref, watchEffect } from 'vue'
+import { computed, reactive, ref, watchEffect } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import FormField from '@/components/FormField.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
 import { currentUser, setUser } from '@/lib/session'
-import { errorText, t } from '@/lib/i18n'
+import { errorText, formatDate, locale, t } from '@/lib/i18n'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
 import { TILES } from '@/lib/tiles'
@@ -22,10 +22,17 @@ const form = reactive({
   mobile: '',
   show_phone: true,
   show_mobile: false,
+  birthday_day: null as number | null,
+  birthday_month: null as number | null,
+  show_birthday: false,
 })
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+const MONTHS = computed(() =>
+  Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i, 1).toLocaleDateString(locale.value, { month: 'long' }) })),
+)
 const pinned = ref<string[]>([])
 const pinnedError = ref('')
-const errors = reactive({ first_name: '', last_name: '', phone: '', mobile: '' })
+const errors = reactive({ first_name: '', last_name: '', phone: '', mobile: '', birthday: '' })
 const PHONE = /^[0-9+()/\-. ]*$/
 const saving = ref(false)
 const formError = ref('')
@@ -48,6 +55,9 @@ watchEffect(() => {
       mobile: u.mobile,
       show_phone: u.show_phone,
       show_mobile: u.show_mobile,
+      birthday_day: u.birthday_day,
+      birthday_month: u.birthday_month,
+      show_birthday: u.show_birthday,
     })
     pinned.value = [...u.pinned_tiles]
   }
@@ -58,7 +68,8 @@ async function save() {
   errors.last_name = form.last_name.trim() ? '' : t('validation.last_name_required')
   errors.phone = PHONE.test(form.phone) ? '' : t('validation.phone_invalid')
   errors.mobile = PHONE.test(form.mobile) ? '' : t('validation.phone_invalid')
-  if (errors.first_name || errors.last_name || errors.phone || errors.mobile) return
+  errors.birthday = (form.birthday_day === null) !== (form.birthday_month === null) ? t('validation.birthday_invalid') : ''
+  if (errors.first_name || errors.last_name || errors.phone || errors.mobile || errors.birthday) return
   saving.value = true
   formError.value = ''
   try {
@@ -150,9 +161,36 @@ async function changePassword() {
       <label class="checkbox"><input v-model="form.show_phone" type="checkbox" /><span>{{ t('profile.showPhone') }}</span></label>
       <label class="checkbox"><input v-model="form.show_mobile" type="checkbox" /><span>{{ t('profile.showMobile') }}</span></label>
 
+      <h3 class="subhead">{{ t('profile.birthday') }}</h3>
+      <p class="muted small">{{ t('profile.birthdayHint') }}</p>
+      <div class="grid-2">
+        <FormField id="p-bday" :label="t('profile.birthdayDay')" :error="errors.birthday" optional>
+          <template #default="{ attrs }">
+            <select v-bind="attrs" v-model="form.birthday_day" class="select">
+              <option :value="null">–</option>
+              <option v-for="d in DAYS" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </template>
+        </FormField>
+        <FormField id="p-bmonth" :label="t('profile.birthdayMonth')" optional>
+          <template #default="{ attrs }">
+            <select v-bind="attrs" v-model="form.birthday_month" class="select">
+              <option :value="null">–</option>
+              <option v-for="m in MONTHS" :key="m.value" :value="m.value">{{ m.label }}</option>
+            </select>
+          </template>
+        </FormField>
+      </div>
+      <label class="checkbox">
+        <input v-model="form.show_birthday" type="checkbox" :disabled="form.birthday_day === null" />
+        <span>{{ t('profile.showBirthday') }}</span>
+      </label>
+
       <dl class="facts readonly">
         <div><dt>{{ t('profile.email') }}</dt><dd>{{ currentUser?.email }}</dd></div>
         <div><dt>{{ t('profile.role') }}</dt><dd>{{ currentUser ? t(`roles.${currentUser.role}`) : '' }}</dd></div>
+        <div v-if="currentUser?.start_date"><dt>{{ t('profile.startDate') }}</dt><dd>{{ formatDate(currentUser.start_date) }}</dd></div>
+        <div><dt>{{ t('profile.vacationDays') }}</dt><dd>{{ t('profile.vacationDaysValue', { count: currentUser?.vacation_days ?? 0 }) }}</dd></div>
       </dl>
       <p class="muted small">{{ t('profile.readonlyHint') }}</p>
 

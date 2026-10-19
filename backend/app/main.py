@@ -19,14 +19,17 @@ from .routers import (
     auth,
     directory,
     documents,
+    help,
     notifications,
     onboarding,
+    personal,
     portal,
     profile,
     reports,
     requests,
     reviews,
     rooms,
+    team,
     visitors,
 )
 
@@ -127,5 +130,8 @@ for router in (
     portal.router,
     reports.router,
     notifications.router,
+    team.router,
+    personal.router,
+    help.router,
 ):
     app.include_router(router)

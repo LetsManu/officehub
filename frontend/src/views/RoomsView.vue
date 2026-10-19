@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -11,7 +12,7 @@ import { api } from '@/lib/api'
 import { errorText, formatDate, formatDateLong, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import { todayIso } from '@/lib/workdays'
-import type { Booking, Room } from '@/lib/types'
+import type { Booking, ResourceKind, Room } from '@/lib/types'
 
 const DAY_START = 7 * 60
 const DAY_END = 20 * 60
@@ -22,6 +23,18 @@ const TIMES = Array.from({ length: (DAY_END - DAY_START) / 15 + 1 }, (_, i) => {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 })
 
+/** Desks and parking spaces are booked in halves of the day. */
+const SLOTS = {
+  morning: { start: '08:00', end: '12:00' },
+  afternoon: { start: '12:00', end: '17:00' },
+  day: { start: '08:00', end: '17:00' },
+} as const
+type Slot = keyof typeof SLOTS
+const KINDS: ResourceKind[] = ['room', 'desk', 'parking']
+
+const route = useRoute()
+const router = useRouter()
+const kind = ref<ResourceKind>(KINDS.includes(route.query.kind as ResourceKind) ? (route.query.kind as ResourceKind) : 'room')
 const day = ref(todayIso())
 const rooms = ref<Room[]>([])
 const bookings = ref<Booking[]>([])
@@ -68,7 +81,7 @@ async function load() {
   error.value = null
   try {
     const [r, b, m] = await Promise.all([
-      api.get<Room[]>('/api/rooms'),
+      api.get<Room[]>(`/api/rooms?kind=${kind.value}`),
       api.get<Booking[]>(`/api/rooms/bookings?day=${day.value}`),
       api.get<Booking[]>('/api/rooms/bookings/mine'),
     ])
@@ -107,6 +120,32 @@ async function book() {
   }
 }
 
+function slotBooking(room: Room, slot: Slot): Booking | undefined {
+  const { start, end } = SLOTS[slot]
+  return bookingsByRoom.value.get(room.id)?.find((b) => b.start_time < end && b.end_time > start)
+}
+
+function slotFree(room: Room, slot: Slot): boolean {
+  return !slotBooking(room, slot)
+}
+
+const quickBusy = ref<string | null>(null)
+
+async function quickBook(room: Room, slot: Slot) {
+  quickBusy.value = `${room.id}-${slot}`
+  try {
+    await api.post('/api/rooms/bookings', {
+      room_id: room.id, day: day.value, start_time: SLOTS[slot].start, end_time: SLOTS[slot].end, title: t(`rooms.kinds.${room.kind}`),
+    })
+    showToast(t('rooms.placeBooked', { place: room.name, slot: t(`rooms.slots.${slot}`) }))
+    await load()
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  } finally {
+    quickBusy.value = null
+  }
+}
+
 async function cancelBooking() {
   if (!cancelTarget.value) return
   saving.value = true
@@ -123,6 +162,11 @@ async function cancelBooking() {
 }
 
 watch(day, load)
+watch(kind, (value) => {
+  router.replace({ query: value === 'room' ? {} : { kind: value } })
+  rooms.value = []
+  load()
+})
 watch(
   () => form.start_time,
   (start) => {
@@ -138,6 +182,10 @@ const bookingRoom = computed(() => rooms.value.find((r) => r.id === form.room_id
   <div class="page">
     <PageHeader :title="t('rooms.title')" :subtitle="t('rooms.subtitle')" />
 
+    <div class="segmented" role="group" :aria-label="t('rooms.kindLabel')">
+      <button v-for="k in KINDS" :key="k" type="button" :aria-pressed="kind === k" @click="kind = k">{{ t(`rooms.tabs.${k}`) }}</button>
+    </div>
+
     <div class="day-bar" role="group" :aria-label="t('rooms.day')">
       <button type="button" class="btn btn-secondary btn-icon" :aria-label="t('rooms.previousDay')" :disabled="isToday" @click="shiftDay(-1)">
         <AppIcon name="chevronLeft" />
@@ -152,7 +200,41 @@ const bookingRoom = computed(() => rooms.value.find((r) => r.id === form.room_id
     </div>
 
     <LoadState :loading="loading" :error="error" @retry="load">
-      <section v-if="rooms.length" class="room-list" :aria-label="t('rooms.title')">
+      <section v-if="rooms.length && kind !== 'room'" class="places" :aria-label="t(`rooms.tabs.${kind}`)">
+        <article v-for="room in rooms" :key="room.id" class="card place" :aria-labelledby="`place-${room.id}`">
+          <div>
+            <h2 :id="`place-${room.id}`">{{ room.name }}</h2>
+            <p v-if="room.equipment" class="muted small">{{ room.equipment }}</p>
+          </div>
+          <ul class="halves">
+            <li v-for="slot in (['morning', 'afternoon'] as const)" :key="slot" class="half" :class="{ taken: !slotFree(room, slot) }">
+              <span class="half-name">{{ t(`rooms.slots.${slot}`) }}</span>
+              <span v-if="slotBooking(room, slot)" class="small">{{ slotBooking(room, slot)!.person_name }}</span>
+              <span v-else class="small free-text">{{ t('rooms.slotFree') }}</span>
+            </li>
+          </ul>
+          <div class="row place-actions">
+            <template v-for="slot in (['morning', 'afternoon', 'day'] as const)" :key="slot">
+              <button
+                v-if="slot === 'day' ? slotFree(room, 'morning') && slotFree(room, 'afternoon') : slotFree(room, slot)"
+                type="button"
+                class="btn btn-secondary"
+                :disabled="quickBusy !== null"
+                :aria-label="t('rooms.bookPlace', { place: room.name, slot: t(`rooms.slots.${slot}`) })"
+                @click="quickBook(room, slot)"
+              >
+                {{ t(`rooms.slots.${slot}`) }}
+              </button>
+            </template>
+            <template v-for="booking in bookingsByRoom.get(room.id) ?? []" :key="booking.id">
+              <button v-if="booking.can_cancel" type="button" class="btn btn-ghost danger-text" @click="cancelTarget = booking">
+                {{ t('rooms.cancel') }} ({{ t('rooms.timeRange', { start: booking.start_time, end: booking.end_time }) }})
+              </button>
+            </template>
+          </div>
+        </article>
+      </section>
+      <section v-else-if="rooms.length" class="room-list" :aria-label="t('rooms.title')">
         <article v-for="room in rooms" :key="room.id" class="card room" :aria-labelledby="`room-${room.id}`">
           <div class="row-between">
             <div>
@@ -179,7 +261,7 @@ const bookingRoom = computed(() => rooms.value.find((r) => r.id === form.room_id
           <p v-else class="muted small free"><AppIcon name="checkCircle" :size="16" />{{ t('rooms.free') }}</p>
         </article>
       </section>
-      <section v-else class="card"><EmptyState icon="door" :message="t('rooms.noRooms')" /></section>
+      <section v-else class="card"><EmptyState icon="door" :message="t(`rooms.empty.${kind}`)" /></section>
 
       <details class="disclosure" :open="mine.length > 0 || undefined">
         <summary>{{ t('rooms.mine') }} ({{ mine.length }})</summary>
@@ -264,6 +346,62 @@ const bookingRoom = computed(() => rooms.value.find((r) => r.id === form.room_id
 .room-list {
   display: grid;
   gap: var(--space-3);
+}
+
+.places {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.place {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.halves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.half {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-success-soft);
+  border: 1px solid color-mix(in srgb, var(--color-success) 30%, transparent);
+}
+
+.half.taken {
+  background: var(--color-neutral-soft);
+  border-color: var(--color-border);
+}
+
+.half-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.free-text {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.place-actions {
+  gap: var(--space-2);
+}
+
+.place-actions .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
 }
 
 .room {

@@ -7,12 +7,12 @@ import FormField from '@/components/FormField.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
-import type { Room } from '@/lib/types'
+import type { ResourceKind, Room } from '@/lib/types'
 
 const rooms = ref<Room[]>([])
 const editorOpen = ref(false)
 const editing = ref<Room | null>(null)
-const form = reactive({ name: '', seats: 4, equipment: '', active: true })
+const form = reactive({ kind: 'room' as ResourceKind, name: '', seats: 4, equipment: '', active: true })
 const nameError = ref('')
 const saving = ref(false)
 
@@ -22,7 +22,7 @@ async function load() {
 
 function openEditor(room: Room | null) {
   editing.value = room
-  Object.assign(form, room ?? { name: '', seats: 4, equipment: '', active: true })
+  Object.assign(form, room ?? { kind: 'room', name: '', seats: 4, equipment: '', active: true })
   nameError.value = ''
   editorOpen.value = true
 }
@@ -54,7 +54,7 @@ onMounted(load)
       <li v-for="room in rooms" :key="room.id" :class="{ inactive: !room.active }">
         <AppIcon name="door" />
         <span class="grow">
-          <span class="room-name">{{ room.name }}</span>
+          <span class="room-name">{{ room.name }} <span class="muted small">· {{ t(`rooms.kinds.${room.kind}`) }}</span></span>
           <span class="muted small">{{ t('rooms.seats', { count: room.seats }) }}<template v-if="room.equipment"> · {{ room.equipment }}</template></span>
         </span>
         <button type="button" class="btn btn-ghost" @click="openEditor(room)">{{ t('app.edit') }}</button>
@@ -64,10 +64,17 @@ onMounted(load)
 
     <BaseModal :open="editorOpen" :title="editing ? t('admin.editRoom') : t('admin.addRoom')" :confirm-label="t('app.save')" :busy="saving" @close="editorOpen = false" @confirm="save">
       <form class="stack" novalidate @submit.prevent="save">
+        <FormField id="room-kind" :label="t('admin.roomKind')">
+          <template #default="{ attrs }">
+            <select v-bind="attrs" v-model="form.kind" class="select">
+              <option v-for="k in (['room', 'desk', 'parking'] as const)" :key="k" :value="k">{{ t(`rooms.kinds.${k}`) }}</option>
+            </select>
+          </template>
+        </FormField>
         <FormField id="room-name" :label="t('admin.roomName')" :error="nameError">
           <template #default="{ attrs }"><input v-bind="attrs" v-model="form.name" class="input" maxlength="80" /></template>
         </FormField>
-        <FormField id="room-seats" :label="t('admin.roomSeats')">
+        <FormField v-if="form.kind === 'room'" id="room-seats" :label="t('admin.roomSeats')">
           <template #default="{ attrs }"><input v-bind="attrs" v-model.number="form.seats" class="input" type="number" min="1" max="500" /></template>
         </FormField>
         <FormField id="room-equipment" :label="t('admin.roomEquipment')" optional>

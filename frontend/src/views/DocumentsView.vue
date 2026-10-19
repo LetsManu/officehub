@@ -9,10 +9,40 @@ import SectionContact from '@/components/SectionContact.vue'
 import { api, query } from '@/lib/api'
 import { DOCUMENT_CATEGORIES } from '@/lib/requestTypes'
 import { errorText, formatDate, formatFileSize, t } from '@/lib/i18n'
-import type { OfficeDocument } from '@/lib/types'
+import { refreshSummary, summary } from '@/lib/summary'
+import type { OfficeDocument, PersonalDocument } from '@/lib/types'
 
 const route = useRoute()
 const router = useRouter()
+
+const tab = ref<'all' | 'mine'>(route.query.tab === 'mine' ? 'mine' : 'all')
+const personal = ref<PersonalDocument[]>([])
+const personalLoading = ref(false)
+
+async function loadPersonal() {
+  personalLoading.value = true
+  try {
+    personal.value = await api.get<PersonalDocument[]>('/api/personal-documents')
+  } catch (e) {
+    error.value = errorText(e)
+  } finally {
+    personalLoading.value = false
+  }
+}
+
+function opened(doc: PersonalDocument) {
+  // The download marks it as opened on the server; update the list and badges shortly after.
+  window.setTimeout(() => {
+    loadPersonal()
+    refreshSummary(true)
+  }, 800)
+  if (!doc.opened_at) doc.opened_at = new Date().toISOString()
+}
+
+watch(tab, (value) => {
+  router.replace({ query: value === 'mine' ? { tab: 'mine' } : {} })
+  if (value === 'mine') loadPersonal()
+})
 
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const category = ref(typeof route.query.category === 'string' ? route.query.category : '')
@@ -61,6 +91,7 @@ function clearFilters() {
 }
 
 watch([search, category, sort], () => {
+  if (tab.value === 'mine') return
   router.replace({
     query: {
       ...(search.value ? { q: search.value } : {}),
@@ -72,14 +103,49 @@ watch([search, category, sort], () => {
   timer = window.setTimeout(load, 250)
 })
 
-onMounted(load)
+onMounted(() => {
+  load()
+  if (tab.value === 'mine') loadPersonal()
+})
 </script>
 
 <template>
   <div class="page">
     <PageHeader :title="t('documents.title')" :subtitle="t('documents.subtitle')" />
 
-    <div class="filters" role="search">
+    <div class="segmented" role="group" :aria-label="t('documents.title')">
+      <button type="button" :aria-pressed="tab === 'all'" @click="tab = 'all'">{{ t('documents.tabAll') }}</button>
+      <button type="button" :aria-pressed="tab === 'mine'" @click="tab = 'mine'">
+        {{ t('documents.tabMine') }}
+        <span v-if="summary.personal_documents_new" class="count-badge">{{ summary.personal_documents_new }}<span class="visually-hidden"> {{ t('personalDocs.new') }}</span></span>
+      </button>
+    </div>
+
+    <template v-if="tab === 'mine'">
+      <p class="notice notice-info small"><AppIcon name="shield" :size="18" />{{ t('personalDocs.privacy') }}</p>
+      <LoadState :loading="personalLoading && !personal.length" :error="null">
+        <section v-if="personal.length" class="card card-flush">
+          <ul class="list">
+            <li v-for="doc in personal" :key="doc.id" class="doc">
+              <a :href="`/api/personal-documents/${doc.id}/download`" class="list-link doc-link" @click="opened(doc)">
+                <span class="doc-icon"><AppIcon name="file" /></span>
+                <span class="doc-main">
+                  <span class="doc-title">
+                    {{ doc.title }}
+                    <span v-if="!doc.opened_at" class="new-tag">{{ t('personalDocs.new') }}</span>
+                  </span>
+                  <span class="muted small">{{ formatDate(doc.created_at) }} · {{ doc.file_type.toUpperCase() }} · {{ formatFileSize(doc.file_size) }} · {{ t('personalDocs.from', { name: doc.uploaded_by.full_name }) }}</span>
+                </span>
+                <AppIcon name="download" class="download" />
+              </a>
+            </li>
+          </ul>
+        </section>
+        <section v-else class="card"><EmptyState icon="file" :message="t('personalDocs.empty')" /></section>
+      </LoadState>
+    </template>
+
+    <div v-else class="filters" role="search">
       <div class="search-box">
         <label for="doc-search" class="visually-hidden">{{ t('documents.search') }}</label>
         <AppIcon name="search" class="search-icon" />
@@ -101,7 +167,7 @@ onMounted(load)
       </div>
     </div>
 
-    <LoadState :loading="loading" :error="error" @retry="load">
+    <LoadState v-if="tab === 'all'" :loading="loading" :error="error" @retry="load">
       <section v-if="documents.length" class="card card-flush">
         <p class="result-count muted small" aria-live="polite">{{ resultLabel }}</p>
         <ul class="list">
@@ -219,6 +285,26 @@ onMounted(load)
 
 .download {
   color: var(--color-text-muted);
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.notice .icon {
+  flex-shrink: 0;
+}
+
+.new-tag {
+  margin-left: var(--space-2);
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {

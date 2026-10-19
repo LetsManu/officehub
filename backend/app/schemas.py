@@ -78,6 +78,11 @@ class UserOut(ORM):
     show_mobile: bool = False
     manager_id: int | None = None
     pinned_tiles: list[str] = []
+    start_date: date | None = None
+    birthday_day: int | None = None
+    birthday_month: int | None = None
+    show_birthday: bool = False
+    vacation_days: int = 25
 
     @field_validator("pinned_tiles", mode="before")
     @classmethod
@@ -105,6 +110,10 @@ class ProfileUpdate(BaseModel):
     show_phone: bool | None = None
     show_mobile: bool | None = None
     pinned_tiles: Annotated[list[TileKey], Field(max_length=2)] | None = None
+    # Birthday without year; both empty removes it
+    birthday_day: Annotated[int, Field(ge=1, le=31)] | None = None
+    birthday_month: Annotated[int, Field(ge=1, le=12)] | None = None
+    show_birthday: bool | None = None
 
 
 class PasswordChange(BaseModel):
@@ -125,6 +134,8 @@ class UserCreate(BaseModel):
     phone: Phone = ""
     manager_id: int | None = None
     start_onboarding: bool = True
+    start_date: date | None = None
+    vacation_days: Annotated[int, Field(ge=0, le=60)] = 25
 
 
 class UserAdminUpdate(BaseModel):
@@ -136,6 +147,8 @@ class UserAdminUpdate(BaseModel):
     phone: Phone | None = None
     mobile: Phone | None = None
     manager_id: int | None = None
+    start_date: date | None = None
+    vacation_days: Annotated[int, Field(ge=0, le=60)] | None = None
 
 
 class PasswordReset(BaseModel):
@@ -251,6 +264,11 @@ class RequestList(BaseModel):
 # ---------- Announcements ----------
 
 
+PollOption = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+PollOptions = Annotated[list[PollOption], Field(min_length=2, max_length=6)]
+PollQuestion = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+
+
 class AnnouncementIn(BaseModel):
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150)]
     body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10000)]
@@ -259,6 +277,9 @@ class AnnouncementIn(BaseModel):
     expiry_date: date | None = None
     event_date: date | None = None
     pinned: bool = False
+    must_read: bool = False
+    poll_question: PollQuestion | None = None
+    poll_options: PollOptions | None = None
 
 
 class AnnouncementUpdate(BaseModel):
@@ -270,6 +291,18 @@ class AnnouncementUpdate(BaseModel):
     event_date: date | None = None
     pinned: bool | None = None
     archived: bool | None = None
+    must_read: bool | None = None
+    poll_question: PollQuestion | None = None
+    poll_options: PollOptions | None = None
+
+
+class PollOut(BaseModel):
+    question: str
+    options: list[str]
+    my_vote: int | None
+    # Results are shown after voting (and always to HR)
+    counts: list[int] | None
+    total: int
 
 
 class AnnouncementOut(ORM):
@@ -282,6 +315,9 @@ class AnnouncementOut(ORM):
     event_date: date | None
     pinned: bool
     archived: bool
+    must_read: bool = False
+    confirmed_at: UtcDateTime | None = None
+    poll: PollOut | None = None
     author: UserBrief
     created_at: UtcDateTime
     updated_at: UtcDateTime

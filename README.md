@@ -18,8 +18,8 @@ no jargon, only the information needed for the current task, and the most common
 | Home page with notifications | Search everything (Ctrl+K) |
 | --- | --- |
 | ![Home page](docs/screenshots/dashboard.png) | ![Search](docs/screenshots/search.png) |
-| **Vacation request – review step** | |
-| ![Vacation review](docs/screenshots/vacation-review.png) | |
+| **Vacation request – review step** | **Team calendar** |
+| ![Vacation review](docs/screenshots/vacation-review.png) | ![Team calendar](docs/screenshots/calendar.png) |
 | **Approvals** | **Document search** |
 | ![Approvals](docs/screenshots/approvals.png) | ![Documents](docs/screenshots/documents.png) |
 | **Mobile** | **Dark mode** |

@@ -15,7 +15,7 @@ import { errorText, formatDate, formatDateTime, formatMoney, formatPeriod, t } f
 import { loadConfig, publicConfig } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import { countWorkingDays, todayIso } from '@/lib/workdays'
-import type { RequestDetail, RequestType } from '@/lib/types'
+import type { RequestDetail, RequestType, VacationBalance } from '@/lib/types'
 
 const props = defineProps<{ type?: string; id?: string }>()
 const router = useRouter()
@@ -57,6 +57,24 @@ const nowLocal = () => {
 const isPeriodType = computed(() => requestType.value === 'vacation' || requestType.value === 'home_office')
 const showsTitleField = computed(() => requestType.value === 'expense' || requestType.value === 'general')
 const maxUploadMb = computed(() => publicConfig.value?.max_upload_mb ?? 15)
+
+const balance = ref<VacationBalance | null>(null)
+const balanceYear = computed(() => Number((form.start_date || today).slice(0, 4)))
+const overdraft = computed(() =>
+  balance.value && workingDays.value !== null ? Math.max(0, workingDays.value - balance.value.remaining) : 0,
+)
+
+watch(
+  [requestType, balanceYear],
+  async ([type, year]) => {
+    if (type !== 'vacation') return
+    try {
+      balance.value = await api.get<VacationBalance>(`/api/me/vacation?year=${year}`)
+    } catch {
+      balance.value = null // the balance is a help, not required
+    }
+  },
+)
 
 const workingDays = computed(() => (form.start_date && form.end_date && form.end_date >= form.start_date ? countWorkingDays(form.start_date, form.end_date) : null))
 
@@ -389,6 +407,19 @@ const descriptionLabel = computed(() => {
                 <p class="muted small">{{ t('form.workingDaysHint') }}</p>
               </div>
             </div>
+            <div v-if="requestType === 'vacation' && balance" class="balance">
+              <div class="row-between">
+                <p>
+                  <strong>{{ t('vacation.remaining', { remaining: balance.remaining, total: balance.entitlement, year: balance.year }) }}</strong>
+                </p>
+                <p class="muted small">{{ t('vacation.details', { taken: balance.taken, planned: balance.planned }) }}</p>
+              </div>
+              <progress :value="Math.max(0, balance.entitlement - balance.remaining)" :max="Math.max(1, balance.entitlement)" :aria-label="t('vacation.remaining', { remaining: balance.remaining, total: balance.entitlement, year: balance.year })" />
+            </div>
+            <div v-if="overdraft > 0" class="notice notice-warning" role="status">
+              <AppIcon name="alert" />
+              <p>{{ t('vacation.overdraft', { count: overdraft }) }}</p>
+            </div>
           </template>
 
           <!-- Expense -->
@@ -534,6 +565,20 @@ const descriptionLabel = computed(() => {
 </template>
 
 <style scoped>
+.balance {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.balance progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--color-primary);
+}
+
 .form-page {
   max-width: 760px;
 }

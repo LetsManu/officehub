@@ -14,6 +14,7 @@ from ..models import (
     Announcement,
     Document,
     Notification,
+    PersonalDocument,
     QuickLink,
     Request,
     Review,
@@ -22,6 +23,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas import UtcDateTime
+from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
 
 router = APIRouter(prefix="/api", tags=["notifications"])
@@ -48,6 +50,8 @@ class Summary(BaseModel):
     approvals_pending: int
     reviews_todo: int
     visitors_today: int
+    must_read_open: int
+    personal_documents_new: int
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -121,7 +125,15 @@ def summary(user: CurrentUser, db: DB) -> Summary:
     visitors = select(Visitor.id).where(Visitor.visit_date == date.today(), Visitor.status == "expected")
     if not user.is_approver:
         visitors = visitors.where(Visitor.host_id == user.id)
-    return Summary(unread=_unread(db, user), approvals_pending=approvals, reviews_todo=reviews, visitors_today=count(visitors))
+    personal_new = count(select(PersonalDocument.id).where(PersonalDocument.user_id == user.id, PersonalDocument.opened_at.is_(None)))
+    return Summary(
+        unread=_unread(db, user),
+        approvals_pending=approvals,
+        reviews_todo=reviews,
+        visitors_today=count(visitors),
+        must_read_open=open_must_read(db, user),
+        personal_documents_new=personal_new,
+    )
 
 
 # ---------- Global search ----------

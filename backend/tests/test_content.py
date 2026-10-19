@@ -80,7 +80,7 @@ def test_stats_and_export(anna, tom):
     assert export.status_code == 200
     assert export.headers["content-type"].startswith("text/csv")
     lines = export.text.strip().splitlines()
-    assert len(lines) == 2  # header + one approved demo request
+    assert len(lines) == 4  # header + three approved demo requests (expense, vacation, home office)
 
 
 def test_csv_injection_is_neutralised(anna, julia):
