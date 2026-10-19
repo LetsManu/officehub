@@ -15,6 +15,7 @@ const router = useRouter()
 
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const category = ref(typeof route.query.category === 'string' ? route.query.category : '')
+const sort = ref(route.query.sort === 'updated' ? 'updated' : 'title')
 const documents = ref<OfficeDocument[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -42,7 +43,7 @@ async function load() {
   loading.value = documents.value.length === 0
   error.value = null
   try {
-    const result = await api.get<OfficeDocument[]>(`/api/documents${query({ q: search.value.trim(), category: category.value })}`)
+    const result = await api.get<OfficeDocument[]>(`/api/documents${query({ q: search.value.trim(), category: category.value, sort: sort.value })}`)
     if (current !== requestNumber) return // a newer search is already running
     documents.value = result
     if (!filtered.value) hasAny.value = result.length > 0
@@ -58,8 +59,14 @@ function clearFilters() {
   category.value = ''
 }
 
-watch([search, category], () => {
-  router.replace({ query: { ...(search.value ? { q: search.value } : {}), ...(category.value ? { category: category.value } : {}) } })
+watch([search, category, sort], () => {
+  router.replace({
+    query: {
+      ...(search.value ? { q: search.value } : {}),
+      ...(category.value ? { category: category.value } : {}),
+      ...(sort.value !== 'title' ? { sort: sort.value } : {}),
+    },
+  })
   window.clearTimeout(timer)
   timer = window.setTimeout(load, 250)
 })
@@ -82,6 +89,13 @@ onMounted(load)
         <select id="doc-category" v-model="category" class="select">
           <option value="">{{ t('documents.allCategories') }}</option>
           <option v-for="c in DOCUMENT_CATEGORIES" :key="c" :value="c">{{ t(`documents.categories.${c}`) }}</option>
+        </select>
+      </div>
+      <div>
+        <label for="doc-sort" class="visually-hidden">{{ t('documents.sort') }}</label>
+        <select id="doc-sort" v-model="sort" class="select">
+          <option value="title">{{ t('documents.sortTitle') }}</option>
+          <option value="updated">{{ t('documents.sortUpdated') }}</option>
         </select>
       </div>
     </div>
@@ -128,7 +142,7 @@ onMounted(load)
 .filters {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) minmax(160px, 200px);
 }
 
 .search-box {

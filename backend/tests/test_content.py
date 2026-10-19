@@ -40,6 +40,17 @@ def test_document_search(anna):
     assert len(anna.get("/api/documents?category=it").json()) == 1
 
 
+def test_document_sorting(anna, julia):
+    by_title = anna.get("/api/documents").json()
+    assert [d["title"] for d in by_title] == sorted(d["title"] for d in by_title)
+    oldest = by_title[0]["id"]
+    julia.post(f"/api/documents/{oldest}/file", files={"file": ("new.md", b"# New", "text/markdown")})
+    recent = anna.get("/api/documents?sort=updated").json()
+    assert recent[0]["id"] == oldest
+    assert len(anna.get("/api/documents?sort=updated&category=it").json()) == 1
+    assert anna.get("/api/documents?sort=size").json()["code"] == "invalid_sort"
+
+
 def test_document_upload_permissions(anna, julia):
     files = {"file": ("guide.md", b"# Onboarding\nWelcome aboard", "text/markdown")}
     form = {"title": "Onboarding guide", "category": "onboarding"}

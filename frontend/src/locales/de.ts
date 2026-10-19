@@ -222,6 +222,7 @@ const de = {
     email_taken: 'Es gibt bereits eine Person mit dieser E-Mail-Adresse.',
     self_lockout: 'Du kannst dir die Administrationsrechte nicht selbst entziehen.',
     validation: 'Einige Angaben fehlen oder sind ungültig.',
+    invalid_sort: 'Diese Sortierung ist nicht möglich.',
     unknown: 'Etwas ist schiefgelaufen. Bitte versuche es erneut.',
   },
   detail: {
@@ -305,6 +306,9 @@ const de = {
     searchPlaceholder: 'Suche nach Titel oder Inhalt …',
     category: 'Kategorie',
     allCategories: 'Alle Kategorien',
+    sort: 'Sortierung',
+    sortTitle: 'A–Z',
+    sortUpdated: 'Zuletzt aktualisiert',
     updated: 'Aktualisiert {date}',
     open: 'Öffnen',
     download: 'Herunterladen',

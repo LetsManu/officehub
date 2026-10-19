@@ -54,7 +54,10 @@ def list_documents(
     q: str | None = Query(None, max_length=100),
     category: str | None = None,
     include_archived: bool = False,
+    sort: str = "title",
 ) -> list[DocumentOut]:
+    if sort not in ("title", "updated"):
+        raise ApiError(422, "invalid_sort", "Sort by 'title' or 'updated'.")
     query = select(Document)
     if not (include_archived and user.is_admin):
         query = query.where(Document.archived.is_(False))
@@ -70,7 +73,8 @@ def list_documents(
                 Document.content_text.ilike(pattern, escape="\\"),
             )
         )
-    docs = db.scalars(query.order_by(Document.title)).all()
+    order = (Document.updated_at.desc(), Document.title) if sort == "updated" else (Document.title,)
+    docs = db.scalars(query.order_by(*order)).all()
     result = []
     for doc in docs:
         out = DocumentOut.model_validate(doc)
