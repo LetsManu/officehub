@@ -113,6 +113,14 @@ All of them use the password `demo1234`.
 
 To reset the demo, remove the data volume: `docker compose down -v && docker compose up -d`.
 
+### Deploying with Portainer
+
+Every release publishes ready-built images (`ghcr.io/letsmanu/officehub-backend` / `-frontend`, amd64 + arm64)
+and a Portainer stack file. See **[docs/deployment-portainer.md](docs/deployment-portainer.md)** and the
+[latest release](https://github.com/LetsManu/officehub/releases/latest).
+
+To publish a new release: `git tag v1.1.0 && git push origin v1.1.0` (or Actions → Release → Run workflow).
+
 ### Running in production mode
 
 1. In `.env`, set `DEMO_MODE=false`, `ADMIN_EMAIL` and a strong `ADMIN_PASSWORD`.

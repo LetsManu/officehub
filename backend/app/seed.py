@@ -215,8 +215,8 @@ def ensure_initial_data(db: Session) -> None:
             User(
                 email=settings.admin_email.strip().lower(),
                 password_hash=hash_password(settings.admin_password),
-                first_name="Admin",
-                last_name="",
+                first_name="OfficeHub",
+                last_name="Admin",
                 role="admin",
                 language="de",
             )

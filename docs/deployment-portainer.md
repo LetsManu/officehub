@@ -1,0 +1,103 @@
+# Deploying OfficeHub with Portainer
+
+OfficeHub is published as two Docker images on the GitHub Container Registry:
+
+| Image | Purpose |
+| --- | --- |
+| `ghcr.io/letsmanu/officehub-frontend` | Web interface (nginx), port 8080, forwards `/api` to the backend |
+| `ghcr.io/letsmanu/officehub-backend` | API (FastAPI), SQLite database and uploaded files in `/data` |
+
+Both images are built for `linux/amd64` and `linux/arm64` (e.g. Raspberry Pi 4/5).
+Each release has the tags `1.2.3`, `1.2` and `latest`.
+
+## 1. Allow Portainer to download the images
+
+The repository is private, so its images are private too. Choose **one** option:
+
+**Option A – registry login (recommended for private images)**
+
+1. On GitHub: profile picture → **Settings → Developer settings → Personal access tokens → Tokens (classic)**
+   → **Generate new token (classic)** with only the scope **`read:packages`**. Copy the token.
+2. In Portainer: **Registries → Add registry → Custom registry**
+   - Name: `GitHub`
+   - Registry URL: `ghcr.io`
+   - Authentication: on, Username: your GitHub user name, Password: the token
+3. Save.
+
+**Option B – make the images public**
+
+On GitHub: your profile → **Packages** → `officehub-backend` → **Package settings → Change visibility → Public**.
+Repeat for `officehub-frontend`. The source code stays private; only the built images become downloadable.
+
+## 2. Create the stack
+
+1. Download `docker-compose.yml` and `stack.env` from the
+   [latest release](https://github.com/LetsManu/officehub/releases/latest).
+2. In Portainer: **Stacks → Add stack**
+   - Name: `officehub`
+   - Build method: **Web editor** – paste the content of `docker-compose.yml`
+     (or **Repository**, pointing to this repository with compose path `deploy/portainer/docker-compose.yml`)
+3. **Environment variables → Load variables from .env file** → choose `stack.env`. Then set at least:
+
+   | Variable | What to enter |
+   | --- | --- |
+   | `ADMIN_EMAIL` | Email address of the first administrator |
+   | `ADMIN_PASSWORD` | A strong password (change it after the first sign-in) |
+   | `FRONTEND_PORT` | Port on the server, default `8080` |
+   | `OFFICEHUB_VERSION` | Version to run, e.g. `1.0.0` (pinned in the release file) |
+   | `COOKIE_SECURE` | `true` if users reach OfficeHub via HTTPS |
+
+   For a test installation with fictional people and data, set `DEMO_MODE=true` instead
+   (all demo accounts use the password `demo1234` – never use demo mode in production).
+4. **Deploy the stack.** After about 15 seconds open `http://<your-server>:8080` and sign in.
+
+The administrator is created only on the very first start, when the database is still empty.
+Changing `ADMIN_EMAIL` / `ADMIN_PASSWORD` later has no effect – use **Profile → Change password** instead.
+
+## 3. HTTPS
+
+Run OfficeHub behind your existing reverse proxy (Nginx Proxy Manager, Traefik, Caddy …):
+
+- Forward your domain to `http://<server>:8080` (or join the proxy's Docker network and use `frontend:8080`).
+- Set `COOKIE_SECURE=true` in the stack and redeploy.
+- Allow uploads of at least 20 MB in the proxy (`client_max_body_size 20m` for nginx).
+
+## 4. Updating
+
+1. Stacks → `officehub` → **Editor**: change `OFFICEHUB_VERSION` to the new version (or keep `latest`).
+2. Click **Update the stack** and enable **Re-pull image and redeploy**.
+
+Your data stays in the `officehub_officehub-data` volume during updates.
+Read the release notes first, and make a backup before larger updates.
+
+## 5. Backup
+
+All data lives in the volume `officehub_officehub-data` (`officehub.db` and the `uploads/` folder).
+
+Using a shell on the Docker host:
+
+```bash
+docker stop officehub-backend-1
+docker run --rm -v officehub_officehub-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/officehub-backup-$(date +%F).tar.gz -C /data .
+docker start officehub-backend-1
+```
+
+Container and volume names can differ slightly depending on the stack name – check them under **Containers** and **Volumes** in Portainer.
+To restore, stop the backend, extract the archive into the volume and start it again (see the README).
+
+## Notes
+
+- Use **standalone Docker** (not Swarm) stacks: the frontend waits for the backend health check via `depends_on`.
+- The API port 8000 is not published by default. Uncomment the `ports` section of the backend if you need it.
+- No internet access is required at runtime – only to download the images.
+
+## Troubleshooting
+
+| Problem | Cause and fix |
+| --- | --- |
+| `pull access denied` / `unauthorized` | Images are private and Portainer has no registry login → step 1 |
+| `Bind for 0.0.0.0:8080 failed` | Port is in use → choose another `FRONTEND_PORT` |
+| Frontend stays in "created" state | Backend is not healthy yet → check the backend logs in Portainer |
+| Cannot sign in after deployment | Admin was created by an earlier start with other values → use those, or remove the volume to start fresh (deletes all data) |
+| Sign-in works but you are logged out at once | `COOKIE_SECURE=true` while using plain `http://` → set it to `false` or use HTTPS |

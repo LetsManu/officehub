@@ -1,0 +1,148 @@
+# Release: builds the Docker images, publishes them to the GitHub Container Registry
+# and creates a GitHub Release with a ready-to-use compose file for Portainer.
+#
+# Start a release by pushing a version tag:
+#   git tag v1.0.0 && git push origin v1.0.0
+# or run it manually under Actions → Release → Run workflow.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. v1.0.0 (the tag is created if it does not exist)"
+        required: true
+
+permissions:
+  contents: write # create the release and tag
+  packages: write # push images to ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          pip install -r requirements-dev.txt
+          python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Frontend tests and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+  images:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out version and image name
+        id: vars
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "image=${REGISTRY}/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/officehub-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.vars.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.vars.outputs.version }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=OfficeHub ${{ matrix.service }}
+            org.opencontainers.image.description=OfficeHub employee self-service portal (${{ matrix.service }})
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  release:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare release files
+        id: vars
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          mkdir -p dist
+          # Pin the compose file to this exact version.
+          sed -e "s#ghcr.io/letsmanu/#ghcr.io/${OWNER}/#g" \
+              -e "s#:\${OFFICEHUB_VERSION:-latest}#:\${OFFICEHUB_VERSION:-${VERSION#v}}#g" \
+              deploy/portainer/docker-compose.yml > dist/docker-compose.yml
+          sed "s/^OFFICEHUB_VERSION=.*/OFFICEHUB_VERSION=${VERSION#v}/" deploy/portainer/stack.env > dist/stack.env
+          cp docs/deployment-portainer.md dist/DEPLOYMENT.md
+          (cd dist && zip -q "officehub-${VERSION}-portainer.zip" docker-compose.yml stack.env DEPLOYMENT.md)
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          cat > notes.md <<NOTES
+          ## Deploy with Portainer
+
+          1. Portainer → **Stacks → Add stack → Web editor**
+          2. Paste \`docker-compose.yml\` from the assets below
+          3. Under **Environment variables → Load variables from .env file**, upload \`stack.env\` and adjust it
+          4. **Deploy the stack**, then open \`http://<server>:8080\`
+
+          Images:
+          - \`ghcr.io/${OWNER}/officehub-backend:${VERSION#v}\`
+          - \`ghcr.io/${OWNER}/officehub-frontend:${VERSION#v}\`
+
+          Full guide: \`DEPLOYMENT.md\` (also in the repository under \`docs/deployment-portainer.md\`).
+          NOTES
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            gh release upload "$VERSION" dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip --clobber
+          else
+            gh release create "$VERSION" \
+              --title "OfficeHub $VERSION" \
+              --notes-file notes.md \
+              --generate-notes \
+              --target "${{ github.sha }}" \
+              dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip
+          fi

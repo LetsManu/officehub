@@ -1,0 +1,41 @@
+# OfficeHub stack for Portainer (Stacks → Add stack → Web editor).
+# Uses the prebuilt images from the GitHub Container Registry – nothing is built on the server.
+# Settings come from the stack's environment variables (see stack.env).
+
+services:
+  backend:
+    image: ghcr.io/letsmanu/officehub-backend:${OFFICEHUB_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_LANGUAGE: ${DEMO_LANGUAGE:-de}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SESSION_HOURS: ${SESSION_HOURS:-12}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-15}
+    volumes:
+      # SQLite database (officehub.db) and uploaded files (uploads/)
+      - officehub-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    # The API is reached through the frontend; publish it only if you need direct access:
+    # ports:
+    #   - "8000:8000"
+
+  frontend:
+    image: ghcr.io/letsmanu/officehub-frontend:${OFFICEHUB_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+
+volumes:
+  officehub-data:
