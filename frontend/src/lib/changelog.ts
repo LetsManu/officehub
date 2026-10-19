@@ -9,6 +9,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '2.0.0',
+    date: '2026-10-19',
+    de: [
+      'Neues, ruhigeres Design mit besser lesbarer Schrift – hell und dunkel, auch am Handy.',
+      'Eine Suche für alles: oben auf „Suchen“ klicken oder Strg+K drücken.',
+      'Benachrichtigungen: Die Glocke zeigt, wenn dein Antrag geprüft, genehmigt oder kommentiert wurde oder dein Besuch da ist.',
+      'Neue Startseite: wichtige Neuigkeit, Zahlen auf einen Blick, „Braucht deine Aufmerksamkeit“ und letzte Aktivitäten.',
+      'Zähler im Menü zeigen offene Freigaben, Gäste heute und Gespräche zum Vorbereiten.',
+    ],
+    en: [
+      'A calmer new design with easier-to-read text – light and dark, on phones too.',
+      'One search for everything: click "Search" at the top or press Ctrl+K.',
+      'Notifications: the bell tells you when your request is being looked at, approved or commented on, or when your visitor has arrived.',
+      'New home page: important news, numbers at a glance, "Needs your attention" and recent activity.',
+      'Counters in the menu show open approvals, visitors today and reviews to prepare.',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-10-19',
     de: [

@@ -17,6 +17,7 @@ from ..deps import DB, Admin, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Review, User, utcnow
 from ..schemas import UserBrief, UtcDateTime
+from ..services import notifications
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
@@ -123,6 +124,11 @@ def create_review(body: ReviewCreate, user: Admin, db: DB) -> ReviewOut:
         raise ApiError(409, "review_exists", "This person already has a review for that year.")
     review = Review(**body.model_dump())
     db.add(review)
+    db.flush()
+    for person, other in ((employee, reviewer), (reviewer, employee)):
+        notifications.notify(
+            db, person.id, "review_created", {"name": other.full_name, "year": body.year}, f"/reviews/{review.id}"
+        )
     db.commit()
     db.refresh(review)
     return _out(review, user)

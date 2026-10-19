@@ -24,7 +24,11 @@ watch(
 
 <template>
   <AppLayout v-if="withLayout">
-    <RouterView />
+    <RouterView v-slot="{ Component, route: current }">
+      <Transition name="page">
+        <component :is="Component" :key="current.path" />
+      </Transition>
+    </RouterView>
   </AppLayout>
   <RouterView v-else />
   <ToastHost />

@@ -312,3 +312,20 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(50), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
+
+
+# ---------- Notifications ----------
+
+
+class Notification(Base):
+    """Something a person should know about. The text is built in the UI from kind + params."""
+
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    params: Mapped[str] = mapped_column(Text, default="{}")  # JSON object with names, titles …
+    link: Mapped[str] = mapped_column(String(200), default="")
+    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)

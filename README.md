@@ -15,9 +15,11 @@ no jargon, only the information needed for the current task, and the most common
 
 ## Screenshots
 
-| Dashboard | Vacation request – review step |
+| Home page with notifications | Search everything (Ctrl+K) |
 | --- | --- |
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Vacation review](docs/screenshots/vacation-review.png) |
+| ![Home page](docs/screenshots/dashboard.png) | ![Search](docs/screenshots/search.png) |
+| **Vacation request – review step** | |
+| ![Vacation review](docs/screenshots/vacation-review.png) | |
 | **Approvals** | **Document search** |
 | ![Approvals](docs/screenshots/approvals.png) | ![Documents](docs/screenshots/documents.png) |
 | **Mobile** | **Dark mode** |

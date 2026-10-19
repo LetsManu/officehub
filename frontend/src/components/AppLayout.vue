@@ -1,52 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
-import { currentUser, isAdmin, isApprover, publicConfig, signOut } from '@/lib/session'
+import CommandPalette from './CommandPalette.vue'
+import NotificationBell from './NotificationBell.vue'
+import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
+import { navGroups } from '@/lib/navigation'
+import { refreshSummary, startSummary, stopSummary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
 import { trapTab } from '@/lib/focus'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: string
-}
-
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
+const searchOpen = ref(false)
 const drawer = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
-
-const mainItems = computed<NavItem[]>(() => [
-  { to: '/', label: t('nav.dashboard'), icon: 'dashboard' },
-  { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
-  { to: '/documents', label: t('nav.documents'), icon: 'file' },
-  { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone' },
-  { to: '/people', label: t('nav.people'), icon: 'users' },
-  { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
-  { to: '/visitors', label: t('nav.visitors'), icon: 'badge' },
-  { to: '/reviews', label: t('nav.reviews'), icon: 'message' },
-  { to: '/profile', label: t('nav.profile'), icon: 'user' },
-])
-
-const manageItems = computed<NavItem[]>(() => {
-  const items: NavItem[] = []
-  if (isApprover.value) {
-    items.push({ to: '/approvals', label: t('nav.approvals'), icon: 'checkCircle' })
-    items.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
-    items.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
-  }
-  if (isAdmin.value) {
-    items.push({ to: '/manage/documents', label: t('nav.manageDocuments'), icon: 'folder' })
-    items.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), icon: 'edit' })
-  }
-  if (isApprover.value) items.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
-  return items
-})
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
 function isActive(to: string): boolean {
   return to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`)
@@ -64,14 +37,46 @@ function toggleTheme() {
 async function logout() {
   await signOut().catch(() => undefined)
   resetPortal()
+  stopSummary()
   showToast(t('app.signedOutToast'), 'info')
   router.push('/login')
 }
 
 function onDrawerKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') menuOpen.value = false
-  else if (drawer.value) trapTab(event, drawer.value)
+  if (event.key !== 'Escape' && drawer.value) trapTab(event, drawer.value)
 }
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  return Boolean(el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)))
+}
+
+/** Ctrl+K / ⌘K anywhere, or "/" when not typing, opens the search. */
+function onGlobalKeydown(event: KeyboardEvent) {
+  // The phone menu also closes with Esc when focus is outside it.
+  if (event.key === 'Escape' && menuOpen.value && !searchOpen.value) {
+    menuOpen.value = false
+    return
+  }
+  if (searchOpen.value || document.querySelector('[aria-modal="true"]')) return
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    searchOpen.value = true
+  } else if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !isTyping(event.target)) {
+    event.preventDefault()
+    searchOpen.value = true
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
+  startSummary()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+  stopSummary()
+})
 
 let closedByNavigation = false
 
@@ -85,6 +90,7 @@ watch(menuOpen, async (open) => {
 watch(
   () => route.fullPath,
   () => {
+    refreshSummary()
     if (menuOpen.value) {
       // Focus moves to the new page content instead (see router.afterEach).
       closedByNavigation = true
@@ -97,22 +103,6 @@ watch(
 <template>
   <a href="#main" class="skip-link">{{ t('app.skipToContent') }}</a>
   <div class="shell">
-    <!-- Mobile top bar -->
-    <header class="topbar">
-      <RouterLink to="/" class="brand"><span class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>OfficeHub</RouterLink>
-      <button
-        ref="menuButton"
-        type="button"
-        class="btn btn-ghost btn-icon"
-        :aria-label="t('app.openMenu')"
-        aria-controls="sidebar"
-        :aria-expanded="menuOpen"
-        @click="menuOpen = true"
-      >
-        <AppIcon name="menu" :size="24" />
-      </button>
-    </header>
-
     <div v-if="menuOpen" class="drawer-backdrop" @click="menuOpen = false" />
 
     <aside
@@ -130,28 +120,23 @@ watch(
       </div>
 
       <nav class="nav" :aria-label="t('nav.main')">
-        <ul class="nav-list">
-          <li v-for="item in mainItems" :key="item.to">
-            <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
-              <AppIcon :name="item.icon" />
-              {{ item.label }}
-            </RouterLink>
-          </li>
-        </ul>
-        <template v-if="manageItems.length">
-          <p class="nav-heading">{{ t('nav.manage') }}</p>
-          <ul class="nav-list">
-            <li v-for="item in manageItems" :key="item.to">
+        <template v-for="group in navGroups" :key="group.key">
+          <p v-if="group.label" :id="`nav-${group.key}`" class="nav-heading">{{ group.label }}</p>
+          <ul class="nav-list" :aria-labelledby="group.label ? `nav-${group.key}` : undefined">
+            <li v-for="item in group.items" :key="item.to">
               <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
                 <AppIcon :name="item.icon" />
-                {{ item.label }}
+                <span class="grow">{{ item.label }}</span>
+                <span v-if="item.count" class="count-badge">
+                  {{ item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span>
+                </span>
               </RouterLink>
             </li>
           </ul>
         </template>
         <template v-if="quickLinks.length">
-          <p class="nav-heading">{{ t('nav.moreTools') }}</p>
-          <ul class="nav-list">
+          <p id="nav-tools" class="nav-heading">{{ t('nav.moreTools') }}</p>
+          <ul class="nav-list" aria-labelledby="nav-tools">
             <li v-for="link in quickLinks" :key="link.id">
               <a :href="link.url" target="_blank" rel="noopener noreferrer" class="nav-link" :title="link.description || undefined">
                 <AppIcon :name="link.icon" />
@@ -179,7 +164,7 @@ watch(
           </span>
         </RouterLink>
         <div class="bottom-actions">
-          <button type="button" class="btn btn-ghost nav-action" @click="toggleTheme">
+          <button type="button" class="btn btn-ghost nav-action mobile-only" @click="toggleTheme">
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
             {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
           </button>
@@ -194,9 +179,50 @@ watch(
       </div>
     </aside>
 
-    <main id="main" class="content" tabindex="-1">
-      <slot />
-    </main>
+    <div class="main-col">
+      <header class="topbar">
+        <button
+          ref="menuButton"
+          type="button"
+          class="btn btn-ghost btn-icon menu-btn"
+          :aria-label="t('app.openMenu')"
+          aria-controls="sidebar"
+          :aria-expanded="menuOpen"
+          @click="menuOpen = true"
+        >
+          <AppIcon name="menu" :size="24" />
+        </button>
+        <RouterLink to="/" class="brand mobile-brand"><span class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>OfficeHub</RouterLink>
+
+        <button type="button" class="search-trigger" aria-haspopup="dialog" :aria-label="t('search.trigger')" @click="searchOpen = true">
+          <AppIcon name="search" :size="20" />
+          <span class="search-label">{{ t('search.trigger') }}</span>
+          <span class="shortcut" aria-hidden="true"><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd><kbd>K</kbd></span>
+        </button>
+
+        <div class="header-actions">
+          <button
+            type="button"
+            class="btn btn-ghost btn-icon header-btn desktop-only"
+            :aria-label="theme === 'dark' ? t('app.lightMode') : t('app.darkMode')"
+            :title="theme === 'dark' ? t('app.lightMode') : t('app.darkMode')"
+            @click="toggleTheme"
+          >
+            <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
+          </button>
+          <NotificationBell />
+          <RouterLink v-if="currentUser" to="/profile" class="header-avatar desktop-only" :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`">
+            <span class="avatar" aria-hidden="true">{{ initials }}</span>
+          </RouterLink>
+        </div>
+      </header>
+
+      <main id="main" class="content" tabindex="-1">
+        <slot />
+      </main>
+    </div>
+
+    <CommandPalette :open="searchOpen" @close="searchOpen = false" />
   </div>
 </template>
 
@@ -227,8 +253,10 @@ watch(
   gap: var(--space-2);
   min-height: var(--touch);
   color: var(--color-text);
-  font-weight: 700;
+  font-family: var(--font-heading);
+  font-weight: 600;
   font-size: var(--text-lg);
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 
@@ -237,23 +265,22 @@ watch(
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  background: var(--color-primary);
+  border-radius: 9px;
+  background: var(--color-highlight);
   color: #fff;
+  box-shadow: 0 2px 6px rgb(29 78 216 / 0.3);
 }
 
-.topbar {
-  display: none;
-}
+/* ---------- Sidebar ---------- */
 
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
-  z-index: 50;
+  z-index: var(--z-drawer);
   display: flex;
   flex-direction: column;
   width: var(--sidebar-width);
-  padding: var(--space-4) var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-4);
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   overflow-y: auto;
@@ -263,7 +290,8 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-2) var(--space-4);
+  min-height: calc(var(--header-height) - var(--space-3));
+  padding: 0 var(--space-2) var(--space-3);
 }
 
 .nav {
@@ -289,6 +317,7 @@ watch(
 
 .nav-link,
 .nav-action {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -301,6 +330,7 @@ watch(
   font-weight: 500;
   font-size: var(--text-sm);
   text-decoration: none;
+  transition: background-color var(--t-fast) ease, color var(--t-fast) ease;
 }
 
 .nav-link:hover,
@@ -313,6 +343,18 @@ watch(
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
   font-weight: 600;
+}
+
+/* Active marker: a short bar on the left edge */
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-primary);
 }
 
 .sidebar-bottom {
@@ -388,10 +430,93 @@ watch(
   color: var(--color-text-subtle);
 }
 
-.content {
+/* ---------- Header ---------- */
+
+.main-col {
   margin-left: var(--sidebar-width);
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-height);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-bg) 85%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.menu-btn,
+.mobile-brand,
+.mobile-only {
+  display: none;
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  max-width: 520px;
+  min-height: var(--touch);
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--t-fast) ease;
+}
+
+.search-trigger:hover {
+  border-color: var(--color-border-strong);
+}
+
+.search-label {
+  flex: 1;
+}
+
+.shortcut {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.header-btn {
+  color: var(--color-text-muted);
+}
+
+.header-btn:hover {
+  color: var(--color-text);
+}
+
+.header-avatar {
+  display: grid;
+  place-items: center;
+  width: var(--touch);
+  height: var(--touch);
+  border-radius: 50%;
+  text-decoration: none;
+}
+
+.content {
   padding: var(--space-6) var(--space-6) var(--space-7);
-  max-width: calc(1080px + var(--sidebar-width));
+  max-width: 1180px;
 }
 
 .content:focus {
@@ -403,23 +528,56 @@ watch(
 }
 
 @media (max-width: 899px) {
+  .main-col {
+    margin-left: 0;
+  }
+
   .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 40;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--color-border);
+    gap: var(--space-2);
+    padding: 0 var(--space-2);
     background: var(--color-surface);
+    backdrop-filter: none;
+  }
+
+  .menu-btn,
+  .mobile-brand {
+    display: inline-flex;
+  }
+
+  .mobile-only {
+    display: flex;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+
+  .search-trigger {
+    flex: 0 0 var(--touch);
+    justify-content: center;
+    width: var(--touch);
+    padding: 0;
+    margin-left: auto;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-text-muted);
+  }
+
+  .search-label,
+  .shortcut {
+    display: none;
+  }
+
+  .header-actions {
+    margin-left: 0;
   }
 
   .sidebar {
     width: min(86vw, 320px);
     transform: translateX(-100%);
     visibility: hidden;
-    transition: transform 0.2s ease, visibility 0.2s;
+    transition: transform var(--t-med) var(--ease), visibility var(--t-med);
   }
 
   .sidebar.open {
@@ -432,12 +590,11 @@ watch(
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 45;
+    z-index: calc(var(--z-drawer) - 1);
     background: var(--backdrop);
   }
 
   .content {
-    margin-left: 0;
     padding: var(--space-5) var(--space-4) var(--space-7);
   }
 }

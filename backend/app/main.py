@@ -19,6 +19,7 @@ from .routers import (
     auth,
     directory,
     documents,
+    notifications,
     onboarding,
     portal,
     profile,
@@ -125,5 +126,6 @@ for router in (
     onboarding.router,
     portal.router,
     reports.router,
+    notifications.router,
 ):
     app.include_router(router)

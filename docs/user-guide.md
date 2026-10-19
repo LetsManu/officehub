@@ -20,16 +20,29 @@ To sign out, click **Sign out** at the bottom of the menu.
 
 ---
 
-## The dashboard
+## The home page
 
-The dashboard is your starting page. It shows:
+The home page is your starting page. It shows:
 
-- **Quick actions** – the four things people do most often: request vacation, submit an expense, request equipment and find documents.
-- **My open requests** – everything you have sent that is still waiting for a decision.
-- **Latest announcements** – news from the company. A pin symbol means the message is especially important.
-- **Upcoming events** – for example the next team meeting.
+- **Important** – the pinned announcement, if there is one.
+- **At a glance** – your open requests, room bookings and visitors today (and approvals waiting, for managers).
+- **Quick actions** – the things people do most often, for example request vacation or submit an expense.
+- **Needs your attention** – things only you can do, such as preparing your employee review or deciding on requests.
+- **Recent activity** – the latest news about your requests, visitors and reviews.
+- **My open requests**, **latest announcements**, **your room bookings today** and **upcoming events**.
 
-On a phone, open the menu with the ☰ button at the top right.
+### Search
+
+Click **Search** at the top (or press **Ctrl+K**, on a Mac **⌘K**) and type what you are looking for: a colleague,
+a document, an announcement, one of your requests or a tool. Use the arrow keys and Enter, or just click a result.
+
+### Notifications
+
+The bell at the top shows a number when something new happened – for example when your request was approved,
+someone commented, or your visitor arrived. Click a notification to open the matching page.
+**Mark all as read** clears the number.
+
+On a phone, open the menu with the ☰ button at the top left.
 
 ---
 

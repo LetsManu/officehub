@@ -1,15 +1,19 @@
 /* OfficeHub design tokens and base styles. See docs/ui-guidelines.md. */
 
+@import '@fontsource-variable/lexend/wght.css';
+@import '@fontsource-variable/source-sans-3/wght.css';
+
 :root {
   color-scheme: light;
-  --color-bg: #f5f6f8;
+  --color-bg: #f4f6fa;
   --color-surface: #ffffff;
-  --color-surface-muted: #f9fafb;
-  --color-border: #e1e4e9;
-  --color-border-strong: #c9ced6;
-  --color-text: #1f2937;
-  --color-text-muted: #4b5563;
-  --color-text-subtle: #5b6472;
+  --color-surface-muted: #f8f9fc;
+  --color-surface-raised: #ffffff;
+  --color-border: #e2e6ee;
+  --color-border-strong: #c8cfdb;
+  --color-text: #172033;
+  --color-text-muted: #475066;
+  --color-text-subtle: #5a6378;
 
   --color-primary: #1d4ed8;
   --color-primary-hover: #1e40af;
@@ -24,13 +28,21 @@
   --color-danger: #b91c1c;
   --color-danger-hover: #991b1b;
   --color-danger-soft: #fef2f2;
-  --color-neutral-soft: #f1f3f5;
+  --color-neutral-soft: #f0f2f6;
+  /* Counters in the navigation (amber stands out without meaning "error") */
+  --color-badge: #b45309;
+  --color-on-badge: #ffffff;
+  --color-highlight: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
 
   --color-focus: #1d4ed8;
-  --shadow-overlay: 0 12px 32px rgb(15 23 42 / 0.16);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 8px rgb(15 23 42 / 0.04);
+  --shadow-hover: 0 4px 14px rgb(15 23 42 / 0.08);
+  --shadow-overlay: 0 16px 40px rgb(15 23 42 / 0.18);
   --backdrop: rgb(15 23 42 / 0.45);
 
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Source Sans 3 Variable', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-heading: 'Lexend Variable', 'Source Sans 3 Variable', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
   --text-xs: 0.8125rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;
@@ -49,17 +61,30 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-full: 999px;
   --touch: 44px;
-  --sidebar-width: 256px;
+  --sidebar-width: 264px;
+  --header-height: 64px;
+
+  --t-fast: 120ms;
+  --t-med: 180ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --z-sticky: 30;
+  --z-drawer: 50;
+  --z-popover: 60;
+  --z-modal: 100;
+  --z-toast: 200;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #0f1216;
-  --color-surface: #171b21;
-  --color-surface-muted: #1c2128;
-  --color-border: #2a313b;
-  --color-border-strong: #3a4350;
+  --color-bg: #0d1117;
+  --color-surface: #151a22;
+  --color-surface-muted: #1b212b;
+  --color-surface-raised: #1d2430;
+  --color-border: #28303c;
+  --color-border-strong: #3a4452;
   --color-text: #e6e8eb;
   --color-text-muted: #b2b8c2;
   --color-text-subtle: #a3aab5;
@@ -77,9 +102,15 @@
   --color-danger-hover: #fca5a5;
   --color-danger-soft: #2c1517;
   --color-neutral-soft: #222831;
+  --color-badge: #f59e0b;
+  --color-on-badge: #1a1203;
+  --color-highlight: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #2f5fe0 100%);
 
   --color-focus: #9db8ff;
-  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.5);
+  --shadow-sm: none;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.02);
+  --shadow-hover: 0 6px 18px rgb(0 0 0 / 0.35);
+  --shadow-overlay: 0 16px 40px rgb(0 0 0 / 0.55);
   --backdrop: rgb(0 0 0 / 0.6);
 }
 
@@ -109,12 +140,14 @@ h3,
 h4 {
   margin: 0;
   line-height: 1.3;
-  font-weight: 650;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 h1 {
   font-size: var(--text-2xl);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 h2 {
@@ -209,6 +242,7 @@ img {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
+  box-shadow: var(--shadow-card);
 }
 
 .card-header {
@@ -242,7 +276,11 @@ img {
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btn:disabled {
@@ -565,6 +603,67 @@ img {
 .prewrap {
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+/* ---------- Count badge (navigation, bell) ---------- */
+
+.count-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-badge);
+  color: var(--color-on-badge);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Loading placeholder ---------- */
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-neutral-soft) 0%, var(--color-surface-muted) 50%, var(--color-neutral-soft) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* ---------- Page change ---------- */
+
+.page-enter-active {
+  transition: opacity var(--t-med) var(--ease), transform var(--t-med) var(--ease);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font: 600 0.75rem/1 var(--font-sans);
 }
 
 @media (prefers-reduced-motion: reduce) {

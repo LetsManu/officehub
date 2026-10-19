@@ -19,45 +19,64 @@ Use the tokens, never hard-coded colours.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--color-bg` | `#F5F6F8` | `#0F1216` | Page background |
-| `--color-surface` | `#FFFFFF` | `#171B21` | Cards, sidebar, dialogs |
-| `--color-border` | `#E1E4E9` | `#2A313B` | Subtle borders and dividers |
-| `--color-text` | `#1F2937` | `#E6E8EB` | Body text |
-| `--color-text-muted` | `#4B5563` | `#B2B8C2` | Secondary text, labels |
+| `--color-bg` | `#F4F6FA` | `#0D1117` | Page background |
+| `--color-surface` | `#FFFFFF` | `#151A22` | Cards, sidebar, dialogs |
+| `--color-surface-raised` | `#FFFFFF` | `#1D2430` | Popovers and the search window |
+| `--color-border` | `#E2E6EE` | `#28303C` | Subtle borders and dividers |
+| `--color-text` | `#172033` | `#E6E8EB` | Body text |
+| `--color-text-muted` | `#475066` | `#B2B8C2` | Secondary text, labels |
+| `--color-text-subtle` | `#5A6378` | `#A3AAB5` | Captions, group headings |
 | `--color-primary` | `#1D4ED8` | `#2F5FE0` | Brand blue: primary buttons, active navigation, links |
 | `--color-success` | `#15803D` | `#4ADE80` | **Only** success / approved |
 | `--color-warning` | `#B45309` | `#FBBF24` | **Only** warnings / in review |
 | `--color-danger` | `#B91C1C` | `#F87171` | **Only** errors and destructive actions |
+| `--color-badge` | `#B45309` | `#F59E0B` | Counters in the menu and on the bell |
 
 Each semantic colour has a soft background variant (`--color-*-soft`) for badges and notices.
 
 - All normal text meets a contrast ratio of at least **4.5:1** against its background.
-- Never use colour alone to carry meaning: status badges always include the word, errors include an icon and text.
-- No gradients, no decorative colours.
+- Never use colour alone to carry meaning: status badges always include the word, errors include an icon and text,
+  counters have a hidden "open" label for screen readers.
+- One gradient only: `--color-highlight`, for the pinned "Important" banner on the home page and the logo.
 
 ## Typography
 
-- System font stack (`system-ui, -apple-system, Segoe UI, Roboto, …`) – no web fonts, works offline.
+- **Lexend** for headings, **Source Sans 3** for text. Both are bundled with the app (`@fontsource-variable/*`),
+  so the portal still works without internet access. The system font stack is the fallback.
 - Base size **16 px**, line height 1.55.
 
 | Token | Size | Use |
 | --- | --- | --- |
 | `--text-2xl` | 28 px | Page title (`h1`) |
-| `--text-xl` | 22 px | Dialog title |
+| `--text-xl` | 22 px | Dialog title, numbers in stat tiles |
 | `--text-lg` | 18 px | Section title (`h2`) |
 | `--text-md` | 16 px | Body |
 | `--text-sm` | 14 px | Labels, buttons, meta information |
 | `--text-xs` | 13 px | Badges, small captions |
 
-One `h1` per page. Headings use weight 650; body text 400; labels and buttons 600.
+One `h1` per page. Headings use weight 600 (`--font-heading`); body text 400; labels and buttons 600.
 
-## Spacing and shape
+## Spacing, shape and depth
 
 - Spacing scale: 4, 8, 12, 16, 24, 32, 48 px (`--space-1` … `--space-7`).
-- Cards: 24 px padding, 14 px radius, 1 px border, **no heavy shadows** (shadows only for overlays).
+- Cards: 24 px padding, 14 px radius, 1 px border and the very soft `--shadow-card`.
+  Clickable cards lift slightly on hover (`--shadow-hover`). Overlays use `--shadow-overlay`.
 - Inputs and buttons: 10 px radius, at least **44 × 44 px** touch target.
 - Content width: forms max. 760 px, detail pages 860 px, lists use the full content column.
 - Generous whitespace: 24 px between page sections.
+- Layers: `--z-sticky` (header) < `--z-drawer` (phone menu) < `--z-popover` (bell) < `--z-modal` < `--z-toast`.
+
+## Motion
+
+- Short and calm: `--t-fast` (120 ms) for hover and press, `--t-med` (180 ms) for panels and the page fade-in.
+- Only opacity and transform are animated. With "reduce motion" switched on in the system, all motion is off.
+
+## Header, search and notifications
+
+- The header holds the search field, the theme switch, the bell and the profile picture. On phones: menu, logo, search, bell.
+- Search opens with a click, **Ctrl+K / ⌘K** or **/**. Arrow keys move, Enter opens, Esc closes.
+- Notifications are short sentences built from the event type, so they follow the reader's language.
+  Each one links to the page where something can be done.
 
 ## Buttons
 

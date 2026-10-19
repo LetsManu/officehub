@@ -10,6 +10,7 @@ from sqlalchemy import select
 from ..deps import DB, Admin, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Room, RoomBooking
+from ..services import notifications
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
@@ -163,5 +164,14 @@ def cancel_booking(booking_id: int, user: CurrentUser, db: DB) -> None:
         raise not_found("Booking")
     if booking.user_id != user.id and not user.is_admin:
         raise forbidden("Only the person who booked the room can cancel it.")
+    notifications.notify_many(
+        db,
+        [booking.user_id],
+        user,
+        "booking_cancelled",
+        {"name": user.full_name, "room": booking.room.name, "title": booking.title, "day": booking.day.isoformat(),
+         "time": booking.start_time},
+        "/rooms",
+    )
     db.delete(booking)
     db.commit()
