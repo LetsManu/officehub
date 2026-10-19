@@ -164,13 +164,20 @@ watch(
       </nav>
 
       <div class="sidebar-bottom">
-        <div v-if="currentUser" class="who">
+        <RouterLink
+          v-if="currentUser"
+          to="/profile"
+          class="who"
+          :class="{ active: isActive('/profile') }"
+          :aria-current="isActive('/profile') ? 'page' : undefined"
+          :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`"
+        >
           <span class="avatar" aria-hidden="true">{{ initials }}</span>
           <span class="who-text">
             <span class="who-name">{{ currentUser.full_name }}</span>
             <span class="who-role">{{ t(`roles.${currentUser.role}`) }}</span>
           </span>
-        </div>
+        </RouterLink>
         <div class="bottom-actions">
           <button type="button" class="btn btn-ghost nav-action" @click="toggleTheme">
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
@@ -319,7 +326,19 @@ watch(
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: var(--touch);
   padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.who:hover {
+  background: var(--color-surface-muted);
+}
+
+.who.active {
+  background: var(--color-primary-soft);
 }
 
 .avatar {
