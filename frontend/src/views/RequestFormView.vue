@@ -10,8 +10,8 @@ import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { ACCESS_LEVELS, CURRENCIES, EQUIPMENT_CATEGORIES, EXPENSE_CATEGORIES, REQUEST_TYPES, TYPE_ICONS } from '@/lib/requestTypes'
-import { errorText, formatDate, formatMoney, formatPeriod, t } from '@/lib/i18n'
+import { ACCESS_LEVELS, APPOINTMENT_TOPICS, CURRENCIES, EQUIPMENT_CATEGORIES, EXPENSE_CATEGORIES, REQUEST_TYPES, TYPE_ICONS } from '@/lib/requestTypes'
+import { errorText, formatDate, formatDateTime, formatMoney, formatPeriod, t } from '@/lib/i18n'
 import { loadConfig, publicConfig } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import { countWorkingDays, todayIso } from '@/lib/workdays'
@@ -21,7 +21,7 @@ const props = defineProps<{ type?: string; id?: string }>()
 const router = useRouter()
 
 type Step = 'details' | 'review' | 'done'
-type Field = 'title' | 'description' | 'start_date' | 'end_date' | 'amount' | 'currency' | 'category' | 'item' | 'access_level' | 'needed_by' | 'receipt'
+type Field = 'title' | 'description' | 'start_date' | 'end_date' | 'amount' | 'currency' | 'category' | 'item' | 'access_level' | 'needed_by' | 'receipt' | 'proposed_times'
 
 const requestType = ref<RequestType>('general')
 const step = ref<Step>('details')
@@ -44,11 +44,16 @@ const form = reactive({
   access_level: '',
   needed_by: '',
 })
+const times = ref<string[]>([''])
 const receipt = ref<File | null>(null)
 const receiptInput = ref<HTMLInputElement | null>(null)
 const errors = reactive<Partial<Record<Field, string>>>({})
 
 const today = todayIso()
+const nowLocal = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
 const isPeriodType = computed(() => requestType.value === 'vacation' || requestType.value === 'home_office')
 const showsTitleField = computed(() => requestType.value === 'expense' || requestType.value === 'general')
 const maxUploadMb = computed(() => publicConfig.value?.max_upload_mb ?? 15)
@@ -84,6 +89,8 @@ const generatedTitle = computed(() => {
       return form.item.trim().slice(0, 120) || label
     case 'it_access':
       return `${label}: ${form.item.trim()}`.slice(0, 120)
+    case 'appointment':
+      return form.category ? `${label}: ${t(`appointmentTopics.${form.category}`)}` : label
     default:
       return form.title.trim()
   }
@@ -121,6 +128,12 @@ function validate(): boolean {
     if (!form.item.trim()) set('item', 'system_required')
     if (!form.access_level) set('access_level', 'access_level_required')
   }
+  if (type === 'appointment') {
+    if (!form.category) set('category', 'topic_required')
+    const filled = times.value.filter(Boolean)
+    if (!filled.length) set('proposed_times', 'times_required')
+    else if (filled.some((value) => value <= nowLocal())) set('proposed_times', 'time_past')
+  }
   if (type === 'general') {
     if (!form.title.trim()) set('title', 'title_required')
     if (!form.description.trim()) set('description', 'description_required')
@@ -130,7 +143,7 @@ function validate(): boolean {
   const firstInvalid = Object.keys(errors)[0]
   if (firstInvalid) {
     formError.value = t('form.fixErrors')
-    nextTick(() => document.getElementById(`f-${firstInvalid}`)?.focus())
+    nextTick(() => (document.getElementById(`f-${firstInvalid}`) ?? document.getElementById(`f-${firstInvalid}-0`))?.focus())
     return false
   }
   formError.value = ''
@@ -144,17 +157,18 @@ function payload(): Record<string, unknown> {
   if (type === 'expense') Object.assign(body, { amount: parsedAmount(), currency: form.currency, start_date: form.start_date, category: form.category })
   if (type === 'equipment') Object.assign(body, { item: form.item.trim(), category: form.category, needed_by: form.needed_by || null })
   if (type === 'it_access') Object.assign(body, { item: form.item.trim(), access_level: form.access_level, needed_by: form.needed_by || null })
+  if (type === 'appointment') Object.assign(body, { category: form.category, proposed_times: [...new Set(times.value.filter(Boolean))] })
   return body
 }
 
 function applyServerError(error: unknown) {
   const err = error as { field?: string | null }
   const field = err.field === 'start_date' && requestType.value === 'expense' ? 'start_date' : err.field
-  if (field && field in form) {
+  if (field && (field in form || field === 'proposed_times')) {
     errors[field as Field] = errorText(error)
     step.value = 'details'
     formError.value = t('form.fixErrors')
-    nextTick(() => document.getElementById(`f-${field}`)?.focus())
+    nextTick(() => (document.getElementById(`f-${field}`) ?? document.getElementById(`f-${field}-0`))?.focus())
   } else {
     formError.value = errorText(error)
   }
@@ -245,6 +259,7 @@ async function loadDraft() {
       access_level: request.access_level ?? '',
       needed_by: request.needed_by ?? '',
     })
+    times.value = request.proposed_times?.length ? [...request.proposed_times] : ['']
   } catch (error) {
     loadError.value = errorText(error)
   } finally {
@@ -289,6 +304,10 @@ const reviewRows = computed(() => {
     rows.push({ label: t('form.accessLevel'), value: t(`accessLevels.${form.access_level}`) })
     if (form.needed_by) rows.push({ label: t('form.neededBy'), value: formatDate(form.needed_by) })
   }
+  if (type === 'appointment') {
+    rows.push({ label: t('form.topic'), value: t(`appointmentTopics.${form.category}`) })
+    rows.push({ label: t('form.proposedTimes'), value: times.value.filter(Boolean).map((v) => formatDateTime(v)).join('\n') })
+  }
   if (form.description.trim()) rows.push({ label: descriptionLabel.value, value: form.description.trim() })
   return rows
 })
@@ -303,6 +322,8 @@ const descriptionLabel = computed(() => {
       return t('form.equipmentReason')
     case 'expense':
       return t('form.moreDetails')
+    case 'appointment':
+      return t('form.appointmentReason')
     default:
       return t('form.description')
   }
@@ -445,6 +466,40 @@ const descriptionLabel = computed(() => {
             </div>
           </template>
 
+          <!-- Appointment -->
+          <template v-if="requestType === 'appointment'">
+            <FormField id="f-category" :label="t('form.topic')" :error="errors.category">
+              <template #default="{ attrs }">
+                <select v-bind="attrs" v-model="form.category" class="select">
+                  <option value="" disabled>–</option>
+                  <option v-for="topic in APPOINTMENT_TOPICS" :key="topic" :value="topic">{{ t(`appointmentTopics.${topic}`) }}</option>
+                </select>
+              </template>
+            </FormField>
+            <fieldset class="times" :aria-describedby="errors.proposed_times ? 'times-error' : 'times-hint'">
+              <legend class="label">{{ t('form.proposedTimes') }}</legend>
+              <p id="times-hint" class="muted small">{{ t('form.proposedTimesHint') }}</p>
+              <div v-for="(_, index) in times" :key="index" class="time-row">
+                <label :for="`f-proposed_times-${index}`" class="visually-hidden">{{ t('form.proposedTime', { n: index + 1 }) }}</label>
+                <input
+                  :id="`f-proposed_times-${index}`"
+                  v-model="times[index]"
+                  class="input"
+                  type="datetime-local"
+                  step="900"
+                  :min="nowLocal()"
+                  :aria-invalid="errors.proposed_times ? 'true' : undefined"
+                  @input="delete errors.proposed_times"
+                />
+                <button v-if="times.length > 1" type="button" class="btn btn-ghost btn-icon" :aria-label="t('form.removeTime', { n: index + 1 })" @click="times.splice(index, 1)">
+                  <AppIcon name="close" />
+                </button>
+              </div>
+              <p v-if="errors.proposed_times" id="times-error" class="field-error">{{ errors.proposed_times }}</p>
+              <div v-if="times.length < 3"><button type="button" class="btn btn-ghost" @click="times.push('')"><AppIcon name="plus" />{{ t('form.addTime') }}</button></div>
+            </fieldset>
+          </template>
+
           <FormField id="f-description" :label="descriptionLabel" :error="errors.description" :optional="requestType !== 'general'">
             <template #default="{ attrs }"><textarea v-bind="attrs" v-model="form.description" class="textarea" maxlength="4000" rows="4" /></template>
           </FormField>
@@ -498,6 +553,32 @@ const descriptionLabel = computed(() => {
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
   flex-shrink: 0;
+}
+
+.times {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.times .label {
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.time-row {
+  display: flex;
+  gap: var(--space-2);
+  max-width: 360px;
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .file-input {

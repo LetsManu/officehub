@@ -22,6 +22,7 @@ const busy = ref(false)
 
 const modal = ref<'cancel' | 'approve' | 'reject' | null>(null)
 const decisionComment = ref('')
+const chosenTime = ref('')
 const modalError = ref('')
 
 const comment = ref('')
@@ -89,6 +90,11 @@ const facts = computed(() => {
     rows.push({ label: t('form.system'), value: r.item ?? '' })
     if (r.access_level) rows.push({ label: t('form.accessLevel'), value: t(`accessLevels.${r.access_level}`) })
   }
+  if (r.type === 'appointment') {
+    if (r.category) rows.push({ label: t('form.topic'), value: t(`appointmentTopics.${r.category}`) })
+    if (r.confirmed_time) rows.push({ label: t('detail.confirmedTime'), value: formatDateTime(r.confirmed_time) })
+    else if (r.proposed_times?.length) rows.push({ label: t('detail.proposedTimes'), value: r.proposed_times.map((v) => formatDateTime(v)).join('\n') })
+  }
   if (r.needed_by) rows.push({ label: t('form.neededBy'), value: formatDate(r.needed_by) })
   rows.push({ label: t('detail.requestedBy'), value: `${r.requester.full_name} · ${r.requester.department}` })
   rows.push({ label: t('detail.created'), value: formatDateTime(r.created_at) })
@@ -110,6 +116,7 @@ async function load() {
 
 function openModal(kind: 'cancel' | 'approve' | 'reject') {
   decisionComment.value = ''
+  chosenTime.value = request.value?.proposed_times?.[0] ?? ''
   modalError.value = ''
   modal.value = kind
 }
@@ -131,7 +138,8 @@ async function run(action: () => Promise<RequestDetail>, message: string) {
 
 function confirmModal() {
   const id = props.id
-  const body = { comment: decisionComment.value.trim() || null }
+  const body: Record<string, unknown> = { comment: decisionComment.value.trim() || null }
+  if (modal.value === 'approve' && request.value?.type === 'appointment') body.chosen_time = chosenTime.value
   if (modal.value === 'cancel') run(() => api.patch(`/api/requests/${id}`, { status: 'cancelled' }), t('detail.cancelled'))
   if (modal.value === 'approve') run(() => api.post(`/api/requests/${id}/approve`, body), t('detail.approved'))
   if (modal.value === 'reject') run(() => api.post(`/api/requests/${id}/reject`, body), t('detail.rejected'))
@@ -228,7 +236,7 @@ onMounted(load)
           <dl class="facts">
             <div v-for="row in facts" :key="row.label">
               <dt>{{ row.label }}</dt>
-              <dd>{{ row.value }}</dd>
+              <dd class="prewrap">{{ row.value }}</dd>
             </div>
           </dl>
           <div v-if="request.description" class="stack-sm">
@@ -298,6 +306,13 @@ onMounted(load)
           @close="modal = null"
           @confirm="confirmModal"
         >
+          <fieldset v-if="modal === 'approve' && request.type === 'appointment' && request.proposed_times?.length" class="choose-time">
+            <legend class="choose-legend">{{ t('detail.chooseTime') }}</legend>
+            <label v-for="time in request.proposed_times" :key="time" class="checkbox">
+              <input v-model="chosenTime" type="radio" name="chosen-time" :value="time" />
+              <span>{{ formatDateTime(time) }}</span>
+            </label>
+          </fieldset>
           <FormField v-if="modal === 'approve' || modal === 'reject'" id="decision-comment" :label="t('detail.decisionCommentLabel', { name: request.requester.full_name })" optional>
             <template #default="{ attrs }"><textarea v-bind="attrs" v-model="decisionComment" class="textarea" rows="3" maxlength="2000" /></template>
           </FormField>
@@ -370,6 +385,20 @@ onMounted(load)
 
 .comment.mine {
   background: var(--color-primary-soft);
+}
+
+.choose-time {
+  display: grid;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+.choose-legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+  font-size: var(--text-sm);
 }
 
 .history {

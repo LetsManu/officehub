@@ -2,7 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
-import { currentUser, isAdmin, isApprover, signOut } from '@/lib/session'
+import { currentUser, isAdmin, isApprover, publicConfig, signOut } from '@/lib/session'
+import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -25,12 +26,20 @@ const mainItems = computed<NavItem[]>(() => [
   { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
   { to: '/documents', label: t('nav.documents'), icon: 'file' },
   { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone' },
+  { to: '/people', label: t('nav.people'), icon: 'users' },
+  { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
+  { to: '/visitors', label: t('nav.visitors'), icon: 'badge' },
+  { to: '/reviews', label: t('nav.reviews'), icon: 'message' },
   { to: '/profile', label: t('nav.profile'), icon: 'user' },
 ])
 
 const manageItems = computed<NavItem[]>(() => {
   const items: NavItem[] = []
-  if (isApprover.value) items.push({ to: '/approvals', label: t('nav.approvals'), icon: 'checkCircle' })
+  if (isApprover.value) {
+    items.push({ to: '/approvals', label: t('nav.approvals'), icon: 'checkCircle' })
+    items.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
+    items.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
+  }
   if (isAdmin.value) {
     items.push({ to: '/manage/documents', label: t('nav.manageDocuments'), icon: 'folder' })
     items.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), icon: 'edit' })
@@ -54,6 +63,7 @@ function toggleTheme() {
 
 async function logout() {
   await signOut().catch(() => undefined)
+  resetPortal()
   showToast(t('app.signedOutToast'), 'info')
   router.push('/login')
 }
@@ -139,6 +149,18 @@ watch(
             </li>
           </ul>
         </template>
+        <template v-if="quickLinks.length">
+          <p class="nav-heading">{{ t('nav.moreTools') }}</p>
+          <ul class="nav-list">
+            <li v-for="link in quickLinks" :key="link.id">
+              <a :href="link.url" target="_blank" rel="noopener noreferrer" class="nav-link" :title="link.description || undefined">
+                <AppIcon :name="link.icon" />
+                <span class="grow">{{ link.title }}</span>
+                <AppIcon name="external" :size="16" :label="t('nav.opensNewTab')" />
+              </a>
+            </li>
+          </ul>
+        </template>
       </nav>
 
       <div class="sidebar-bottom">
@@ -158,6 +180,9 @@ watch(
             <AppIcon name="logout" />
             {{ t('app.signOut') }}
           </button>
+          <RouterLink v-if="publicConfig?.version" to="/whats-new" class="version">
+            {{ t('nav.whatsNew', { version: publicConfig.version }) }}
+          </RouterLink>
         </div>
       </div>
     </aside>
@@ -329,6 +354,19 @@ watch(
 
 .bottom-actions {
   display: grid;
+}
+
+.grow {
+  flex: 1;
+}
+
+.version {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
 }
 
 .content {

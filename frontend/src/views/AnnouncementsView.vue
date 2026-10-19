@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SectionContact from '@/components/SectionContact.vue'
 import { api } from '@/lib/api'
 import { errorText, formatDate, formatDateLong, t } from '@/lib/i18n'
 import type { Announcement } from '@/lib/types'
@@ -56,6 +57,8 @@ onMounted(load)
         <EmptyState icon="megaphone" :message="t('announcements.empty')" />
       </section>
     </LoadState>
+
+    <SectionContact section="announcements" />
   </div>
 </template>
 

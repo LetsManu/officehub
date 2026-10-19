@@ -334,6 +334,11 @@ img {
   resize: vertical;
 }
 
+.input[readonly],
+.textarea[readonly] {
+  background: var(--color-surface-muted);
+}
+
 .input:focus-visible,
 .select:focus-visible,
 .textarea:focus-visible {
@@ -508,6 +513,7 @@ img {
 /* ---------- Segmented filter ---------- */
 
 .segmented {
+  justify-self: start;
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--space-1);

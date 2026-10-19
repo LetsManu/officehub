@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
 import StatusBadge from './StatusBadge.vue'
 import { TYPE_ICONS } from '@/lib/requestTypes'
-import { formatDate, formatMoney, formatPeriod, t } from '@/lib/i18n'
+import { formatDate, formatDateTime, formatMoney, formatPeriod, t } from '@/lib/i18n'
 import type { OfficeRequest } from '@/lib/types'
 
 const props = defineProps<{ request: OfficeRequest; showRequester?: boolean }>()
@@ -18,6 +18,7 @@ const summary = computed(() => {
     if (r.working_days) parts.push(r.working_days === 1 ? t('requests.day') : t('requests.days', { count: r.working_days }))
   }
   if ((r.type === 'equipment' || r.type === 'it_access') && r.item) parts.push(r.item)
+  if (r.type === 'appointment' && r.confirmed_time) parts.push(formatDateTime(r.confirmed_time))
   return parts.join(' · ')
 })
 </script>

@@ -1,7 +1,7 @@
 export type Role = 'employee' | 'manager' | 'admin'
 export type Language = 'de' | 'en'
 
-export type RequestType = 'vacation' | 'home_office' | 'equipment' | 'expense' | 'it_access' | 'general'
+export type RequestType = 'vacation' | 'home_office' | 'equipment' | 'expense' | 'it_access' | 'appointment' | 'general'
 export type RequestStatus = 'draft' | 'submitted' | 'in_review' | 'approved' | 'rejected' | 'cancelled'
 
 export interface User {
@@ -16,6 +16,12 @@ export interface User {
   language: Language
   role: Role
   is_active: boolean
+  phone: string
+  mobile: string
+  show_phone: boolean
+  show_mobile: boolean
+  manager_id: number | null
+  pinned_tiles: string[]
 }
 
 export interface UserBrief {
@@ -64,6 +70,8 @@ export interface OfficeRequest {
   item: string | null
   access_level: string | null
   needed_by: string | null
+  proposed_times: string[] | null
+  confirmed_time: string | null
   attachment_name: string | null
   decision_comment: string | null
   decided_by: UserBrief | null
@@ -132,8 +140,133 @@ export interface DemoAccount {
 }
 
 export interface PublicConfig {
+  version?: string
   demo_mode: boolean
   max_upload_mb: number
   demo_accounts?: DemoAccount[]
   demo_password?: string
+}
+
+export interface DirectoryEntry {
+  id: number
+  first_name: string
+  last_name: string
+  full_name: string
+  department: string
+  job_title: string
+  office_location: string
+  email: string
+  phone: string
+  mobile: string
+  manager_id: number | null
+}
+
+export interface Room {
+  id: number
+  name: string
+  seats: number
+  equipment: string
+  active: boolean
+}
+
+export interface Booking {
+  id: number
+  room_id: number
+  room_name: string
+  day: string
+  start_time: string
+  end_time: string
+  title: string
+  person_id: number
+  person_name: string
+  can_cancel: boolean
+}
+
+export type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled'
+
+export interface Visitor {
+  id: number
+  name: string
+  company: string
+  visit_date: string
+  expected_time: string
+  note: string
+  status: VisitorStatus
+  host_id: number
+  host_name: string
+  checked_in_at: string | null
+  checked_out_at: string | null
+  can_cancel: boolean
+  can_check_in: boolean
+}
+
+export interface Review {
+  id: number
+  year: number
+  status: 'preparation' | 'completed'
+  employee: UserBrief
+  reviewer: UserBrief
+  meeting_date: string | null
+  my_side: 'employee' | 'reviewer' | 'hr'
+  employee_prep_done: boolean
+  reviewer_prep_done: boolean
+  employee_prep: Record<string, string> | null
+  reviewer_prep: Record<string, string> | null
+  goals: string
+  employee_confirmed_at: string | null
+  reviewer_confirmed_at: string | null
+  updated_at: string
+}
+
+export interface OnboardingTask {
+  id: number
+  key: string | null
+  title: string
+  owner: 'hr' | 'it' | 'manager'
+  done: boolean
+  done_at: string | null
+  done_by: string | null
+  can_toggle: boolean
+}
+
+export interface Checklist {
+  person: UserBrief
+  manager_name: string | null
+  total: number
+  done: number
+  tasks: OnboardingTask[]
+}
+
+export interface ChecklistSummary {
+  person: UserBrief
+  total: number
+  done: number
+}
+
+export interface QuickLink {
+  id: number
+  title: string
+  url: string
+  icon: string
+  description: string
+  sort_order: number
+  active: boolean
+}
+
+export interface SectionContact {
+  id: number
+  full_name: string
+  email: string
+  phone: string
+}
+
+export interface PortalSettings {
+  dashboard_tiles: string[]
+  section_contacts: Partial<Record<string, SectionContact>>
+}
+
+export interface Report {
+  name: string
+  columns: string[]
+  rows: (string | number | null)[][]
 }

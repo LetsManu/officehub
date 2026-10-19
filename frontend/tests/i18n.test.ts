@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import de from '../src/locales/de'
 import en from '../src/locales/en'
+import { TILES } from '../src/lib/tiles'
 
 function flatten(node: unknown, prefix = ''): Map<string, string> {
   const out = new Map<string, string>()
@@ -41,6 +42,10 @@ describe('translations', () => {
     const prefixes = [...source.matchAll(/\bt\(\s*`([\w.]+)\.\$\{/g)].map((m) => m[1])
     const missing = prefixes.filter((prefix) => ![...deKeys.keys()].some((key) => key.startsWith(`${prefix}.`)))
     expect(missing).toEqual([])
+  })
+
+  it('every dashboard tile has a translated label', () => {
+    expect(TILES.map((tile) => tile.label).filter((key) => !deKeys.has(key))).toEqual([])
   })
 
   it('placeholders match between languages', () => {

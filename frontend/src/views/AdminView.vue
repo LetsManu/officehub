@@ -5,6 +5,9 @@ import BaseModal from '@/components/BaseModal.vue'
 import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import PortalSettingsPanel from '@/components/admin/PortalSettingsPanel.vue'
+import QuickLinksPanel from '@/components/admin/QuickLinksPanel.vue'
+import RoomsPanel from '@/components/admin/RoomsPanel.vue'
 import { api, query } from '@/lib/api'
 import { REQUEST_TYPES } from '@/lib/requestTypes'
 import { currentUser, isAdmin } from '@/lib/session'
@@ -23,7 +26,23 @@ const exportUrl = computed(() => `/api/admin/requests/export.csv${query(exportFi
 const ROLES: Role[] = ['employee', 'manager', 'admin']
 const addOpen = ref(false)
 const saving = ref(false)
-const newPerson = reactive({ first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee' as Role, language: 'de', password: '' })
+const newPerson = reactive({
+  first_name: '',
+  last_name: '',
+  email: '',
+  department: '',
+  job_title: '',
+  role: 'employee' as Role,
+  language: 'de',
+  password: '',
+  phone: '',
+  manager_id: '' as number | '',
+  start_onboarding: true,
+})
+
+const resetTarget = ref<User | null>(null)
+const resetPasswordValue = ref('')
+const resetError = ref('')
 const newErrors = reactive({ first_name: '', last_name: '', email: '', password: '' })
 const addError = ref('')
 
@@ -54,7 +73,7 @@ async function load() {
   }
 }
 
-async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'is_active'>>) {
+async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'is_active' | 'manager_id'>>) {
   try {
     const updated = await api.patch<User>(`/api/admin/users/${person.id}`, change)
     people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
@@ -66,7 +85,7 @@ async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'i
 }
 
 function openAdd() {
-  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee', language: 'de', password: '' })
+  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee', language: 'de', password: '', phone: '', manager_id: '', start_onboarding: true })
   Object.assign(newErrors, { first_name: '', last_name: '', email: '', password: '' })
   addError.value = ''
   addOpen.value = true
@@ -81,12 +100,34 @@ async function addPerson() {
   saving.value = true
   addError.value = ''
   try {
-    await api.post('/api/admin/users', { ...newPerson, email: newPerson.email.trim() })
+    await api.post('/api/admin/users', { ...newPerson, email: newPerson.email.trim(), manager_id: newPerson.manager_id || null })
     addOpen.value = false
     showToast(t('admin.personAdded'))
     await load()
   } catch (e) {
     addError.value = errorText(e)
+  } finally {
+    saving.value = false
+  }
+}
+
+function openReset(person: User) {
+  resetTarget.value = person
+  resetPasswordValue.value = ''
+  resetError.value = ''
+}
+
+async function resetPassword() {
+  if (!resetTarget.value) return
+  resetError.value = resetPasswordValue.value.length >= 8 ? '' : t('validation.password_short')
+  if (resetError.value) return
+  saving.value = true
+  try {
+    await api.post(`/api/admin/users/${resetTarget.value.id}/password`, { password: resetPasswordValue.value })
+    resetTarget.value = null
+    showToast(t('admin.passwordReset'))
+  } catch (e) {
+    resetError.value = errorText(e)
   } finally {
     saving.value = false
   }
@@ -155,6 +196,7 @@ onMounted(load)
                 <tr>
                   <th scope="col">{{ t('admin.name') }}</th>
                   <th scope="col">{{ t('admin.department') }}</th>
+                  <th scope="col">{{ t('admin.manager') }}</th>
                   <th scope="col">{{ t('admin.role') }}</th>
                   <th scope="col">{{ t('admin.status') }}</th>
                 </tr>
@@ -165,7 +207,20 @@ onMounted(load)
                     <span class="person-name">{{ person.full_name }}</span><br />
                     <span class="muted small">{{ person.email }}</span>
                   </td>
-                  <td>{{ person.department }}</td>
+                  <td>{{ person.department }}<br /><span v-if="person.phone" class="muted small">{{ person.phone }}</span></td>
+                  <td>
+                    <select
+                      v-if="isAdmin"
+                      class="select role-select"
+                      :value="person.manager_id ?? ''"
+                      :aria-label="`${t('admin.manager')}: ${person.full_name}`"
+                      @change="updatePerson(person, { manager_id: Number(($event.target as HTMLSelectElement).value) || null })"
+                    >
+                      <option value="">{{ t('admin.noManager') }}</option>
+                      <option v-for="m in people.filter((p) => p.id !== person.id && p.is_active)" :key="m.id" :value="m.id">{{ m.full_name }}</option>
+                    </select>
+                    <span v-else>{{ people.find((p) => p.id === person.manager_id)?.full_name ?? '–' }}</span>
+                  </td>
                   <td>
                     <select
                       v-if="isAdmin && person.id !== currentUser?.id"
@@ -188,6 +243,7 @@ onMounted(load)
                       {{ person.is_active ? t('admin.deactivate') : t('admin.activate') }}
                     </button>
                     <span :class="person.is_active ? 'active' : 'muted'">{{ person.is_active ? t('admin.active') : t('admin.inactive') }}</span>
+                    <button v-if="isAdmin && person.id !== currentUser?.id" type="button" class="btn btn-ghost" @click="openReset(person)">{{ t('admin.resetPassword') }}</button>
                   </td>
                 </tr>
               </tbody>
@@ -195,6 +251,21 @@ onMounted(load)
           </div>
         </div>
       </details>
+
+      <template v-if="isAdmin">
+        <details class="disclosure">
+          <summary>{{ t('admin.portal') }}</summary>
+          <div class="disclosure-body"><PortalSettingsPanel :people="people" /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.links') }}</summary>
+          <div class="disclosure-body"><QuickLinksPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.rooms') }}</summary>
+          <div class="disclosure-body"><RoomsPanel /></div>
+        </details>
+      </template>
     </LoadState>
 
     <BaseModal :open="addOpen" :title="t('admin.addPersonTitle')" :confirm-label="t('admin.addPerson')" :busy="saving" wide @close="addOpen = false" @confirm="addPerson">
@@ -229,8 +300,38 @@ onMounted(load)
             </template>
           </FormField>
         </div>
+        <div class="grid-2">
+          <FormField id="np-phone" :label="t('admin.phone')" optional>
+            <template #default="{ attrs }"><input v-bind="attrs" v-model="newPerson.phone" class="input" type="tel" maxlength="40" /></template>
+          </FormField>
+          <FormField id="np-manager" :label="t('admin.manager')" optional>
+            <template #default="{ attrs }">
+              <select v-bind="attrs" v-model="newPerson.manager_id" class="select">
+                <option value="">{{ t('admin.noManager') }}</option>
+                <option v-for="m in people.filter((p) => p.is_active)" :key="m.id" :value="m.id">{{ m.full_name }}</option>
+              </select>
+            </template>
+          </FormField>
+        </div>
+        <label class="checkbox"><input v-model="newPerson.start_onboarding" type="checkbox" /><span>{{ t('admin.startOnboarding') }}</span></label>
         <FormField id="np-password" :label="t('admin.initialPassword')" :hint="t('admin.initialPasswordHint')" :error="newErrors.password">
           <template #default="{ attrs }"><input v-bind="attrs" v-model="newPerson.password" class="input" type="text" autocomplete="off" /></template>
+        </FormField>
+      </form>
+    </BaseModal>
+
+    <BaseModal
+      :open="resetTarget !== null"
+      :title="t('admin.resetPasswordTitle', { name: resetTarget?.full_name ?? '' })"
+      :description="t('admin.resetPasswordText')"
+      :confirm-label="t('admin.resetPassword')"
+      :busy="saving"
+      @close="resetTarget = null"
+      @confirm="resetPassword"
+    >
+      <form novalidate @submit.prevent="resetPassword">
+        <FormField id="reset-password" :label="t('admin.initialPassword')" :hint="t('admin.initialPasswordHint')" :error="resetError">
+          <template #default="{ attrs }"><input v-bind="attrs" v-model="resetPasswordValue" class="input" type="text" autocomplete="off" /></template>
         </FormField>
       </form>
     </BaseModal>

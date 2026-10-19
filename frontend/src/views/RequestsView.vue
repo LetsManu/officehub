@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SectionContact from '@/components/SectionContact.vue'
 import RequestRow from '@/components/RequestRow.vue'
 import { api } from '@/lib/api'
 import { DONE_STATUSES, OPEN_STATUSES } from '@/lib/requestTypes'
@@ -81,5 +82,7 @@ onMounted(load)
         <EmptyState icon="inbox" :message="t('requests.empty')" :action-label="t('requests.createFirst')" action-to="/requests/new" />
       </section>
     </LoadState>
+
+    <SectionContact section="requests" />
   </div>
 </template>
