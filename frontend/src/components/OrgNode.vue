@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // One person in the org chart, with their direct reports in a collapsible list.
 import { computed } from 'vue'
+import UserAvatar from './UserAvatar.vue'
 import { t } from '@/lib/i18n'
 import type { DirectoryEntry } from '@/lib/types'
 
@@ -15,6 +16,7 @@ const teamLabel = computed(() => (reports.value.length === 1 ? t('people.teamOne
   <li class="org-item">
     <details v-if="reports.length" :open="open || undefined" class="org-branch">
       <summary class="org-card">
+        <UserAvatar :id="person.id" :name="person.full_name" :photo-version="person.photo_version" :size="40" class="org-avatar" />
         <span class="org-name">{{ person.full_name }}</span>
         <span class="muted small">{{ person.job_title }}<template v-if="person.job_title && person.department"> · </template>{{ person.department }}</span>
         <span class="org-team small">{{ teamLabel }}</span>
@@ -24,6 +26,7 @@ const teamLabel = computed(() => (reports.value.length === 1 ? t('people.teamOne
       </ul>
     </details>
     <div v-else class="org-card leaf">
+      <UserAvatar :id="person.id" :name="person.full_name" :photo-version="person.photo_version" :size="40" class="org-avatar" />
       <span class="org-name">{{ person.full_name }}</span>
       <span class="muted small">{{ person.job_title }}<template v-if="person.job_title && person.department"> · </template>{{ person.department }}</span>
     </div>
@@ -37,6 +40,8 @@ const teamLabel = computed(() => (reports.value.length === 1 ? t('people.teamOne
 
 .org-card {
   display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-3);
   gap: 2px;
   padding: var(--space-3) var(--space-4);
   margin: var(--space-2) 0;
@@ -87,5 +92,16 @@ summary.org-card::after {
   margin: 0 0 0 var(--space-4);
   padding: 0 0 0 var(--space-4);
   border-left: 2px solid var(--color-border);
+}
+</style>
+
+<style scoped>
+.org-avatar {
+  grid-row: span 3;
+  align-self: center;
+}
+
+.org-card > :not(.org-avatar) {
+  grid-column: 2;
 }
 </style>

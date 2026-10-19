@@ -6,6 +6,7 @@ import LoadState from '@/components/LoadState.vue'
 import RequestRow from '@/components/RequestRow.vue'
 import SectionContact from '@/components/SectionContact.vue'
 import StatTile from '@/components/StatTile.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import { api } from '@/lib/api'
 import { portalSettings } from '@/lib/portal'
 import { currentUser, isApprover } from '@/lib/session'
@@ -13,8 +14,10 @@ import { errorText, formatDate, formatDateLong, formatPeriod, locale, t } from '
 import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
 import { refreshSummary, summary } from '@/lib/summary'
 import { DEFAULT_TILES, tileByKey, type TileDefinition } from '@/lib/tiles'
+import { hours } from '@/lib/time'
 import type {
   Absence, ActivityItem, Announcement, AppNotification, Booking, Celebration, Checklist, NotificationList, OfficeRequest, RequestList, Review,
+  TimeStatus,
   VacationBalance,
 } from '@/lib/types'
 import { todayIso } from '@/lib/workdays'
@@ -39,6 +42,7 @@ const away = ref<Absence[]>([])
 const celebrations = ref<Celebration[]>([])
 const companyFeed = ref<ActivityItem[]>([])
 const vacation = ref<VacationBalance | null>(null)
+const timeStatus = ref<TimeStatus | null>(null)
 
 const awayToday = computed(() => away.value.filter((a) => a.start_date <= todayIso() && a.end_date >= todayIso()))
 const awayLater = computed(() => away.value.filter((a) => a.start_date > todayIso()))
@@ -133,6 +137,20 @@ const attention = computed<AttentionItem[]>(() => {
       text: count === 1 ? t('dashboard.personalOne') : t('dashboard.personal', { count }),
     })
   }
+  if (summary.value.trainings_due > 0) {
+    const count = summary.value.trainings_due
+    items.push({
+      key: 'trainings', icon: 'graduation', tone: 'warning', to: '/trainings', action: t('dashboard.trainingsOpen'),
+      text: count === 1 ? t('dashboard.trainingsOne') : t('dashboard.trainings', { count }),
+    })
+  }
+  if (summary.value.surveys_open > 0) {
+    const count = summary.value.surveys_open
+    items.push({
+      key: 'surveys', icon: 'chart', tone: 'info', to: '/surveys', action: t('dashboard.surveysOpen'),
+      text: count === 1 ? t('dashboard.surveysOne') : t('dashboard.surveys', { count }),
+    })
+  }
   const visitors = summary.value.visitors_today
   if (visitors > 0) {
     items.push({
@@ -155,7 +173,7 @@ async function load() {
     openTotal.value = requests.total
     announcements.value = news
     // Optional extras: the dashboard still works if one of them fails.
-    const [bookings, reviews, checklist, notes, absences, parties, feed, balance] = await Promise.allSettled([
+    const [bookings, reviews, checklist, notes, absences, parties, feed, balance, time] = await Promise.allSettled([
       api.get<Booking[]>('/api/rooms/bookings/mine'),
       api.get<Review[]>('/api/reviews'),
       api.get<Checklist>(`/api/onboarding/${currentUser.value?.id}`),
@@ -164,8 +182,10 @@ async function load() {
       api.get<Celebration[]>('/api/team/celebrations?days=14'),
       api.get<ActivityItem[]>('/api/activity?limit=5'),
       api.get<VacationBalance>('/api/me/vacation'),
+      api.get<TimeStatus>('/api/time/status'),
       refreshSummary(true),
     ])
+    if (time.status === 'fulfilled') timeStatus.value = time.value
     if (absences.status === 'fulfilled') away.value = absences.value
     if (parties.status === 'fulfilled') celebrations.value = parties.value.slice(0, 5)
     if (feed.status === 'fulfilled') companyFeed.value = feed.value
@@ -210,10 +230,17 @@ onMounted(load)
       <h2 id="stats-title" class="visually-hidden">{{ t('dashboard.atAGlance') }}</h2>
       <div class="stats">
         <StatTile v-if="isApprover" to="/approvals" icon="checkCircle" :tone="summary.approvals_pending ? 'warning' : 'neutral'" :value="summary.approvals_pending" :label="t('dashboard.statApprovals')" />
+        <StatTile
+          v-if="timeStatus"
+          to="/time"
+          icon="clock"
+          :tone="timeStatus.running ? 'success' : 'neutral'"
+          :value="hours(timeStatus.today_worked)"
+          :label="timeStatus.running ? t('dashboard.statTimeRunning') : t('dashboard.statTime')"
+        />
         <StatTile to="/requests" icon="inbox" :value="openTotal" :label="t('dashboard.statOpenRequests')" />
         <StatTile v-if="vacation" to="/requests/new/vacation" icon="sun" tone="success" :value="vacation.remaining" :label="t('dashboard.statVacation', { total: vacation.entitlement })" />
-        <StatTile to="/rooms" icon="door" tone="neutral" :value="bookingsToday.length" :label="t('dashboard.statBookings')" />
-        <StatTile v-if="isApprover || !vacation" to="/visitors" icon="badge" tone="neutral" :value="summary.visitors_today" :label="t('dashboard.statVisitors')" />
+        <StatTile v-if="!timeStatus" to="/rooms" icon="door" tone="neutral" :value="bookingsToday.length" :label="t('dashboard.statBookings')" />
       </div>
     </section>
 
@@ -305,7 +332,7 @@ onMounted(load)
                 <p class="away-label small">{{ t('dashboard.today') }}</p>
                 <ul v-if="awayToday.length" class="people-chips">
                   <li v-for="a in awayToday" :key="`${a.person.id}-${a.start_date}`" class="chip" :class="`chip-${a.type}`">
-                    <span class="mini-avatar" aria-hidden="true">{{ a.person.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2) }}</span>
+                    <UserAvatar :id="a.person.id" :name="a.person.full_name" :photo-version="a.person.photo_version" :size="32" />
                     <span>
                       {{ a.person.full_name }}
                       <span class="chip-sub">{{ t(`calendar.kinds.${a.type}`) }}<template v-if="a.end_date !== todayIso()"> · {{ t('dashboard.until', { date: formatDate(a.end_date) }) }}</template></span>

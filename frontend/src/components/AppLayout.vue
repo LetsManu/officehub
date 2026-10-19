@@ -4,10 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import CommandPalette from './CommandPalette.vue'
 import NotificationBell from './NotificationBell.vue'
+import UserAvatar from './UserAvatar.vue'
+import { branding, logoUrl } from '@/lib/branding'
+import { canInstall, installApp } from '@/lib/install'
 import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
-import { navGroups } from '@/lib/navigation'
+import { allPages, navGroups } from '@/lib/navigation'
 import { refreshSummary, startSummary, stopSummary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -21,14 +24,17 @@ const drawer = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
-function isActive(to: string): boolean {
-  return to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`)
-}
-
-const initials = computed(() => {
-  const u = currentUser.value
-  return u ? `${u.first_name[0] ?? ''}${u.last_name[0] ?? ''}`.toUpperCase() : ''
+/** The most specific menu entry that matches the current page (so /admin/audit does not also mark /admin). */
+const activePath = computed(() => {
+  const matches = [...allPages.value.map((p) => p.to), '/profile'].filter((to) =>
+    to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`),
+  )
+  return matches.sort((a, b) => b.length - a.length)[0] ?? null
 })
+
+function isActive(to: string): boolean {
+  return activePath.value === to
+}
 
 function toggleTheme() {
   applyTheme(theme.value === 'dark' ? 'light' : 'dark')
@@ -113,7 +119,11 @@ watch(
       @keydown="menuOpen && onDrawerKeydown($event)"
     >
       <div class="sidebar-top">
-        <RouterLink to="/" class="brand"><span class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>OfficeHub</RouterLink>
+        <RouterLink to="/" class="brand">
+          <img v-if="branding.logo_version" :src="logoUrl()" alt="" class="logo-img" />
+          <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>
+          <span class="brand-text">{{ branding.company_name || 'OfficeHub' }}</span>
+        </RouterLink>
         <button v-if="menuOpen" type="button" class="btn btn-ghost btn-icon" :aria-label="t('app.closeMenu')" @click="menuOpen = false">
           <AppIcon name="close" />
         </button>
@@ -157,7 +167,7 @@ watch(
           :aria-current="isActive('/profile') ? 'page' : undefined"
           :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`"
         >
-          <span class="avatar" aria-hidden="true">{{ initials }}</span>
+          <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" />
           <span class="who-text">
             <span class="who-name">{{ currentUser.full_name }}</span>
             <span class="who-role">{{ t(`roles.${currentUser.role}`) }}</span>
@@ -167,6 +177,10 @@ watch(
           <button type="button" class="btn btn-ghost nav-action mobile-only" @click="toggleTheme">
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
             {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
+          </button>
+          <button v-if="canInstall" type="button" class="btn btn-ghost nav-action" @click="installApp">
+            <AppIcon name="download" />
+            {{ t('app.install') }}
           </button>
           <button type="button" class="btn btn-ghost nav-action" @click="logout">
             <AppIcon name="logout" />
@@ -192,7 +206,11 @@ watch(
         >
           <AppIcon name="menu" :size="24" />
         </button>
-        <RouterLink to="/" class="brand mobile-brand"><span class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>OfficeHub</RouterLink>
+        <RouterLink to="/" class="brand mobile-brand">
+          <img v-if="branding.logo_version" :src="logoUrl()" alt="" class="logo-img" />
+          <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>
+          <span class="brand-text">{{ branding.company_name || 'OfficeHub' }}</span>
+        </RouterLink>
 
         <button type="button" class="search-trigger" aria-haspopup="dialog" :aria-label="t('search.trigger')" @click="searchOpen = true">
           <AppIcon name="search" :size="20" />
@@ -212,7 +230,7 @@ watch(
           </button>
           <NotificationBell />
           <RouterLink v-if="currentUser" to="/profile" class="header-avatar desktop-only" :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`">
-            <span class="avatar" aria-hidden="true">{{ initials }}</span>
+            <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" :size="34" />
           </RouterLink>
         </div>
       </header>
@@ -258,6 +276,20 @@ watch(
   font-size: var(--text-lg);
   letter-spacing: -0.01em;
   text-decoration: none;
+}
+
+.logo-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 170px;
 }
 
 .logo {
