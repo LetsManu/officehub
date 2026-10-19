@@ -1,10 +1,13 @@
 """Colleague directory, org chart and phone list (one data source for all three)."""
 
 from fastapi import APIRouter, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 
 from ..deps import DB, CurrentUser
+from ..errors import not_found
+from ..files import MIME_TYPES, resolve
 from ..models import User
 
 router = APIRouter(prefix="/api/directory", tags=["directory"])
@@ -22,6 +25,7 @@ class DirectoryEntry(BaseModel):
     phone: str
     mobile: str
     manager_id: int | None
+    photo_version: str | None = None
 
 
 def _escape_like(term: str) -> str:
@@ -43,6 +47,7 @@ def to_entry(person: User, viewer: User) -> DirectoryEntry:
         phone=person.phone if (person.show_phone or is_self_or_hr) else "",
         mobile=person.mobile if (person.show_mobile or is_self_or_hr) else "",
         manager_id=person.manager_id,
+        photo_version=person.photo_version,
     )
 
 
@@ -77,3 +82,13 @@ def list_people(
 def departments(user: CurrentUser, db: DB) -> list[str]:
     rows = db.scalars(select(User.department).where(User.is_active.is_(True), User.department != "").distinct())
     return sorted(rows)
+
+
+@router.get("/{person_id}/photo")
+def photo(person_id: int, user: CurrentUser, db: DB) -> FileResponse:
+    person = db.get(User, person_id)
+    if person is None or not person.photo_path:
+        raise not_found("Photo")
+    file_type = person.photo_path.rsplit(".", 1)[-1]
+    # The URL carries the photo version, so the browser may keep it for a day.
+    return FileResponse(resolve(person.photo_path), media_type=MIME_TYPES.get(file_type), headers={"Cache-Control": "private, max-age=86400"})

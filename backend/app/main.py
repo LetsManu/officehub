@@ -17,9 +17,11 @@ from .routers import (
     admin,
     announcements,
     auth,
+    branding,
     directory,
     documents,
     help,
+    holidays,
     notifications,
     onboarding,
     personal,
@@ -108,7 +110,12 @@ def health() -> dict:
 @app.get("/api/config", tags=["system"])
 def public_config() -> dict:
     """Public settings the sign-in page needs. Demo accounts are only listed in demo mode."""
-    config: dict = {"demo_mode": settings.demo_mode, "max_upload_mb": settings.max_upload_mb, "version": settings.app_version}
+    config: dict = {
+        "demo_mode": settings.demo_mode,
+        "max_upload_mb": settings.max_upload_mb,
+        "version": settings.app_version,
+        "mail_enabled": settings.mail_enabled,
+    }
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
         config["demo_password"] = seed.DEMO_PASSWORD
@@ -133,5 +140,7 @@ for router in (
     team.router,
     personal.router,
     help.router,
+    branding.router,
+    holidays.router,
 ):
     app.include_router(router)

@@ -23,6 +23,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas import UtcDateTime
+from ..services.requests import deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
 
@@ -52,6 +53,7 @@ class Summary(BaseModel):
     visitors_today: int
     must_read_open: int
     personal_documents_new: int
+    acting_deputy: bool
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -111,8 +113,12 @@ def summary(user: CurrentUser, db: DB) -> Summary:
         return db.scalar(select(func.count()).select_from(query.subquery())) or 0
 
     approvals = 0
+    deputy_managers = deputy_for(db, user)
     if user.is_approver:
         approvals = count(select(Request.id).where(Request.status.in_(PENDING_STATUSES), Request.requester_id != user.id))
+    elif deputy_managers:
+        team = select(User.id).where(User.manager_id.in_(deputy_managers), User.id != user.id)
+        approvals = count(select(Request.id).where(Request.status.in_(PENDING_STATUSES), Request.requester_id.in_(team)))
     reviews = count(
         select(Review.id).where(
             Review.status == "preparation",
@@ -133,6 +139,7 @@ def summary(user: CurrentUser, db: DB) -> Summary:
         visitors_today=count(visitors),
         must_read_open=open_must_read(db, user),
         personal_documents_new=personal_new,
+        acting_deputy=bool(deputy_managers),
     )
 
 

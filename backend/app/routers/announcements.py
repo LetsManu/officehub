@@ -11,6 +11,7 @@ from ..errors import ApiError, forbidden, not_found
 from ..models import Announcement, AnnouncementRead, PollVote, User
 from ..schemas import AnnouncementIn, AnnouncementOut, AnnouncementUpdate, PollOut, UtcDateTime
 from ..services import notifications
+from ..services.audit import audit
 
 router = APIRouter(prefix="/api/announcements", tags=["announcements"])
 
@@ -138,6 +139,7 @@ def create_announcement(body: AnnouncementIn, user: Admin, db: DB) -> Announceme
     db.add(item)
     db.flush()
     _announce_must_read(db, item, user)
+    audit(db, user, "announcement_created", item.title)
     db.commit()
     return to_out(db, item, user)
 
@@ -161,6 +163,7 @@ def update_announcement(announcement_id: int, body: AnnouncementUpdate, user: Ad
         db.query(PollVote).filter(PollVote.announcement_id == item.id).delete()
     if item.must_read and not was_must_read:
         _announce_must_read(db, item, user)
+    audit(db, user, "announcement_updated", item.title, fields=", ".join(body.model_dump(exclude_unset=True)))
     db.commit()
     return to_out(db, item, user)
 

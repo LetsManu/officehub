@@ -13,6 +13,8 @@ from ..models import PENDING_STATUSES, REQUEST_STATUSES, REQUEST_TYPES, Request,
 from ..schemas import CommentIn, DecisionIn, RequestCreate, RequestDetail, RequestList, RequestUpdate
 from ..services import notifications
 from ..services import requests as service
+from ..services.audit import audit
+from ..services.holidays import holiday_dates
 
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
@@ -65,9 +67,15 @@ def list_requests(
 ) -> RequestList:
     query = select(Request)
     if scope == "all":
-        if not user.is_approver:
-            raise forbidden()
-        query = query.where((Request.status != "draft") | (Request.requester_id == user.id))
+        if user.is_approver:
+            query = query.where((Request.status != "draft") | (Request.requester_id == user.id))
+        else:
+            # Someone standing in for a manager sees that manager's team.
+            managers = service.deputy_for(db, user)
+            if not managers:
+                raise forbidden()
+            team = select(User.id).where(User.manager_id.in_(managers), User.id != user.id)
+            query = query.where(Request.status != "draft", Request.requester_id.in_(team))
         if requester_id:
             query = query.where(Request.requester_id == requester_id)
     else:
@@ -94,7 +102,8 @@ def list_requests(
 
 @router.post("", response_model=RequestDetail, status_code=201)
 def create_request(body: RequestCreate, user: CurrentUser, db: DB) -> RequestDetail:
-    values = service.validate_fields(body.type, body.model_dump())
+    data = body.model_dump()
+    values = service.validate_fields(body.type, data, holidays=holiday_dates(db, data.get("start_date"), data.get("end_date")))
     now = utcnow()
     req = Request(
         type=body.type,
@@ -128,7 +137,8 @@ def update_request(request_id: int, body: RequestUpdate, user: CurrentUser, db: 
         if not perms.can_edit:
             raise ApiError(409, "not_editable", "Only drafts can be changed. Please add a comment instead.")
         merged = service.current_values(req) | changes
-        for field, value in service.validate_fields(req.type, merged).items():
+        holidays = holiday_dates(db, merged.get("start_date"), merged.get("end_date"))
+        for field, value in service.validate_fields(req.type, merged, holidays=holidays).items():
             setattr(req, field, value)
         service.add_event(db, req, user, "edited")
 
@@ -136,7 +146,8 @@ def update_request(request_id: int, body: RequestUpdate, user: CurrentUser, db: 
         if not perms.can_submit:
             raise ApiError(409, "invalid_status", "This request has already been sent.")
         # Re-check the stored values, e.g. a draft whose dates are now in the past.
-        service.validate_fields(req.type, service.current_values(req))
+        current = service.current_values(req)
+        service.validate_fields(req.type, current, holidays=holiday_dates(db, current.get("start_date"), current.get("end_date")))
         req.status = "submitted"
         req.submitted_at = utcnow()
         service.add_event(db, req, user, "submitted")
@@ -184,7 +195,7 @@ def add_comment(request_id: int, body: CommentIn, user: CurrentUser, db: DB) -> 
 
 def _decide(request_id: int, body: DecisionIn, user: User, db: Session, outcome: str) -> RequestDetail:
     req = _load(db, request_id, user)
-    if req.requester_id == user.id and user.is_approver:
+    if req.requester_id == user.id:
         raise forbidden("You cannot decide on your own request.")
     if not service.permissions(user, req).can_decide:
         if req.status not in PENDING_STATUSES and user.is_approver:
@@ -203,6 +214,7 @@ def _decide(request_id: int, body: DecisionIn, user: User, db: Session, outcome:
     req.decided_at = utcnow()
     req.updated_at = req.decided_at
     service.add_event(db, req, user, outcome)
+    audit(db, user, f"request_{outcome}", f"#{req.id} {req.title}", requester=req.requester.full_name)
     notifications.notify_many(
         db, [req.requester_id], user, f"request_{outcome}", notifications.request_params(req, user), f"/requests/{req.id}"
     )

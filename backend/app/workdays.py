@@ -1,16 +1,16 @@
-"""Working-day calculation (Monday to Friday; public holidays are not considered)."""
+"""Working-day calculation: Monday to Friday, minus the public and company holidays passed in."""
 
-from datetime import date
+from collections.abc import Collection
+from datetime import date, timedelta
 
 
-def count_working_days(start: date, end: date) -> int:
+def count_working_days(start: date, end: date, holidays: Collection[date] = ()) -> int:
     if end < start:
         return 0
-    total_days = (end - start).days + 1
-    full_weeks, remainder = divmod(total_days, 7)
-    days = full_weeks * 5
-    first_weekday = start.weekday()
-    for offset in range(remainder):
-        if (first_weekday + offset) % 7 < 5:
+    days = 0
+    current = start
+    while current <= end:
+        if current.weekday() < 5 and current not in holidays:
             days += 1
+        current += timedelta(days=1)
     return days

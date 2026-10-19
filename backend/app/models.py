@@ -52,12 +52,37 @@ class User(Base):
     show_birthday: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     # Vacation days per calendar year
     vacation_days: Mapped[int] = mapped_column(Integer, default=25, server_default=text("25"))
+    # Contracted working time per week in minutes (40 h = 2400), Monday to Friday
+    weekly_minutes: Mapped[int] = mapped_column(Integer, default=2400, server_default=text("2400"))
+    # Profile photo (square JPEG/PNG in the upload folder)
+    photo_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Managers: who decides for them while they are away
+    deputy_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    deputy_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Two-factor sign-in (authenticator app codes)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    recovery_codes: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))
+    # E-mail copies of important notifications
+    email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
 
-    manager: Mapped["User | None"] = relationship(remote_side=[id])
+    manager: Mapped["User | None"] = relationship(remote_side=[id], foreign_keys=[manager_id])
+    deputy: Mapped["User | None"] = relationship(remote_side=[id], foreign_keys=[deputy_id])
 
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def photo_version(self) -> str | None:
+        """Changes whenever a new photo is uploaded, so browsers fetch the new one."""
+        return self.photo_path.rsplit("/", 1)[-1].split(".")[0][:12] if self.photo_path else None
+
+    def active_deputy(self, today: date | None = None) -> "User | None":
+        deputy = self.deputy
+        if deputy is None or not deputy.is_active or self.deputy_until is None:
+            return None
+        return deputy if self.deputy_until >= (today or date.today()) else None
 
     @property
     def is_approver(self) -> bool:
@@ -407,3 +432,49 @@ class HelpArticle(Base):
     helpful_yes: Mapped[int] = mapped_column(Integer, default=0)
     helpful_no: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# ---------- Holidays, audit log ----------
+
+
+class CompanyHoliday(Base):
+    """Extra days off for the whole company (e.g. 24 December), added by HR."""
+
+    __tablename__ = "company_holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+
+
+class AuditEvent(Base):
+    """Who changed what. Written by the server only; nobody can edit it."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    target: Mapped[str] = mapped_column(String(150), default="")
+    details: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    actor: Mapped[User | None] = relationship()
+
+
+# ---------- Time tracking ----------
+
+
+class TimeEntry(Base):
+    """One block of work. A running entry has no end yet (clocked in)."""
+
+    __tablename__ = "time_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)  # local date of the start
+    start_at: Mapped[datetime] = mapped_column(DateTime)  # UTC
+    end_at: Mapped[datetime | None] = mapped_column(DateTime)  # UTC, empty while running
+    note: Mapped[str] = mapped_column(String(200), default="")
+    edited: Mapped[bool] = mapped_column(Boolean, default=False)  # entered or changed by hand
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

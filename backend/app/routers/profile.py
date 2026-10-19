@@ -1,10 +1,20 @@
-from fastapi import APIRouter
+import json
+from datetime import date
+from typing import Annotated
 
+import segno
+from fastapi import APIRouter, File, UploadFile
+from pydantic import BaseModel, StringConstraints
+
+from .. import totp
 from ..deps import DB, CurrentUser
-from ..errors import ApiError
+from ..errors import ApiError, forbidden
+from ..files import delete_quietly, save_upload
 from ..models import User
 from ..schemas import PasswordChange, ProfileUpdate, UserOut
-from ..security import hash_password, verify_password
+from ..security import hash_password, hash_token, verify_password
+from ..services.security import two_factor_required
+from .branding import current_branding
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
@@ -43,3 +53,120 @@ def change_password(body: PasswordChange, user: CurrentUser, db: DB) -> None:
         raise ApiError(422, "wrong_password", "Your current password is not correct.")
     user.password_hash = hash_password(body.new_password)
     db.commit()
+
+
+# ---------- Photo ----------
+
+PHOTO_TYPES = {"png", "jpg", "jpeg"}
+MAX_PHOTO_BYTES = 1024 * 1024
+
+
+@router.post("/photo", response_model=UserOut)
+async def upload_photo(user: CurrentUser, db: DB, file: UploadFile = File(...)) -> User:
+    """The browser crops and scales the photo to a small square before uploading."""
+    stored = await save_upload(file, PHOTO_TYPES, "photos")
+    if stored.size > MAX_PHOTO_BYTES:
+        delete_quietly(stored.relative_path)
+        raise ApiError(422, "file_too_large", "The photo can be at most 1 MB.")
+    old, user.photo_path = user.photo_path, stored.relative_path
+    db.commit()
+    delete_quietly(old)
+    return user
+
+
+@router.delete("/photo", response_model=UserOut)
+def delete_photo(user: CurrentUser, db: DB) -> User:
+    old, user.photo_path = user.photo_path, None
+    db.commit()
+    delete_quietly(old)
+    return user
+
+
+# ---------- Deputy ----------
+
+
+class DeputyIn(BaseModel):
+    deputy_id: int | None = None
+    until: date | None = None
+
+
+@router.put("/deputy", response_model=UserOut)
+def set_deputy(body: DeputyIn, user: CurrentUser, db: DB) -> User:
+    """Managers choose who decides for their team while they are away (until a date)."""
+    if not user.is_approver:
+        raise forbidden()
+    if body.deputy_id is None:
+        user.deputy_id, user.deputy_until = None, None
+    else:
+        deputy = db.get(User, body.deputy_id)
+        if deputy is None or not deputy.is_active or deputy.id == user.id:
+            raise _field_error("deputy_id", "deputy_invalid", "Please choose an active colleague.")
+        if body.until is None or body.until < date.today():
+            raise _field_error("until", "until_past", "Please choose today or a later date.")
+        user.deputy_id, user.deputy_until = deputy.id, body.until
+    db.commit()
+    return user
+
+
+# ---------- Two-factor sign-in ----------
+
+
+class TwoFactorSetup(BaseModel):
+    secret: str
+    otpauth_url: str
+    qr_svg: str
+
+
+class CodeIn(BaseModel):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)]
+
+
+class PasswordIn(BaseModel):
+    password: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+
+
+class RecoveryCodes(BaseModel):
+    recovery_codes: list[str]
+
+
+def _field_error(field: str, code: str, message: str) -> ApiError:
+    error = ApiError(422, code, message)
+    error.field = field  # type: ignore[attr-defined]
+    return error
+
+
+@router.post("/2fa/setup", response_model=TwoFactorSetup)
+def two_factor_setup(user: CurrentUser, db: DB) -> TwoFactorSetup:
+    """Creates a new secret. It only becomes active after a correct code was entered."""
+    if user.totp_enabled:
+        raise ApiError(409, "two_factor_active", "Two-factor sign-in is already switched on.")
+    user.totp_secret = totp.new_secret()
+    db.commit()
+    issuer = current_branding(db).company_name or "OfficeHub"
+    uri = totp.provisioning_uri(user.totp_secret, user.email, issuer)
+    svg = segno.make(uri, error="m").svg_inline(scale=5, border=2, dark="#111827", light="#ffffff")
+    return TwoFactorSetup(secret=user.totp_secret, otpauth_url=uri, qr_svg=svg)
+
+
+@router.post("/2fa/enable", response_model=RecoveryCodes)
+def two_factor_enable(body: CodeIn, user: CurrentUser, db: DB) -> RecoveryCodes:
+    if user.totp_enabled:
+        raise ApiError(409, "two_factor_active", "Two-factor sign-in is already switched on.")
+    if not user.totp_secret or not totp.verify(user.totp_secret, body.code):
+        raise _field_error("code", "code_invalid", "The code is not correct. Please try the current code.")
+    codes = totp.new_recovery_codes()
+    user.recovery_codes = json.dumps([hash_token(c) for c in codes])
+    user.totp_enabled = True
+    db.commit()
+    return RecoveryCodes(recovery_codes=codes)
+
+
+@router.post("/2fa/disable", response_model=UserOut)
+def two_factor_disable(body: PasswordIn, user: CurrentUser, db: DB) -> User:
+    if not verify_password(body.password, user.password_hash):
+        raise _field_error("password", "wrong_password", "Your current password is not correct.")
+    if two_factor_required(db, user):
+        raise ApiError(409, "two_factor_required", "Two-factor sign-in is required for your role.")
+    user.totp_enabled, user.totp_secret, user.recovery_codes = False, None, "[]"
+    db.commit()
+    return user
