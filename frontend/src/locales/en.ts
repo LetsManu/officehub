@@ -596,7 +596,7 @@ const en: Messages = {
     craft: { wordcraft: 'WordCraft', deckcraft: 'DeckCraft' },
     leaveTitle: 'Go back without saving?',
     live: 'Together',
-    liveHint: 'Everyone who opens this presentation edits it at the same time. Changes are saved automatically.',
+    liveHint: 'Everyone who opens this file edits it at the same time. Changes are saved automatically.',
     leaveText: {
       together: 'Your last changes are still being saved. Wait a moment, or they will be lost.',
       wordcraft: 'There are changes that are not saved yet. Save with Ctrl+S first, or they will be lost.',

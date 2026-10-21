@@ -594,7 +594,7 @@ const de = {
     craft: { wordcraft: 'WordCraft', deckcraft: 'DeckCraft' },
     leaveTitle: 'Ohne Speichern zurück?',
     live: 'Gemeinsam',
-    liveHint: 'Alle, die diese Präsentation öffnen, bearbeiten sie gleichzeitig. Änderungen werden automatisch gespeichert.',
+    liveHint: 'Alle, die diese Datei öffnen, bearbeiten sie gleichzeitig. Änderungen werden automatisch gespeichert.',
     leaveText: {
       together: 'Die letzten Änderungen werden gerade noch gespeichert. Warte einen Moment, sonst gehen sie verloren.',
       wordcraft: 'Es gibt Änderungen, die noch nicht gespeichert sind. Speichere zuerst mit Strg+S, sonst gehen sie verloren.',

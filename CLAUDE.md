@@ -29,7 +29,7 @@ desktop notifications use the browser's Notification API only (no outside push s
     `services/app_passwords.py`). `app/routers/craft.py` + `craft/` – WordCraft/DeckCraft web builds (optional
     container, detected like the office servers) open `?src=` and PUT Save to `?save=` with a file ticket. Check-out
     (`ensure_can_change` in `services/spaces.py`) applies to every way of saving. Built from the forks
-    LetsManu/wordcraft + LetsManu/deckcraft (branch `officehub`). DeckCraft edits together live: `services/collab.py`
+    LetsManu/wordcraft + LetsManu/deckcraft (branch `officehub`). Both edit together live: `services/collab.py`
     relays Yjs updates per file (`/api/craft/collab/<file>`, long polling like `/api/rtc`), one shared lock
     `craft:0:<token>`; automatic saves (`?auto=1`) go into one "together" version.
   - `tests/` – pytest, uses demo data; run `python -m pytest -q` in `backend/`.

@@ -1,4 +1,4 @@
-"""Editing together in DeckCraft: one live session per file, OfficeHub passes the changes between the people."""
+"""Editing together in WordCraft and DeckCraft: one live session per file, OfficeHub passes the changes between the people."""
 
 import base64
 import dataclasses
@@ -125,7 +125,8 @@ def test_bad_messages_are_refused(anna, deck_together):
     assert _call(url.replace("token=", "token=x"), "hello").status_code == 401
 
 
-def test_wordcraft_still_one_person_at_a_time(anna, lukas, deck_together):
+def test_builds_that_cannot_edit_together_keep_one_person_at_a_time(anna, lukas, deck_together):
+    # (the fixture lets only DeckCraft edit together, like an older WordCraft image)
     space, _item = deck_together
     doc = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("Brief.docx", _docx())}).json()
     first = anna.post(f"/api/craft/open/{doc['id']}").json()

@@ -47,7 +47,7 @@ interface CraftOpen {
   /** While we may save: the lock that keeps others read-only. Renewed every minute, given back on leaving. */
   lock: string | null
   editing_by: string | null
-  /** Everyone who opens the file edits together, live (DeckCraft saves it by itself) */
+  /** Everyone who opens the file edits together, live (the program saves it by itself) */
   together: boolean
 }
 
@@ -88,7 +88,7 @@ function releaseLock() {
  * check (same site, so we can ask it); DeckCraft cannot tell, so we ask the person. */
 function maybeUnsaved(): boolean {
   if (!craft.value?.can_write) return false
-  // DeckCraft on its own cannot tell; editing together it saves by itself and answers like WordCraft
+  // DeckCraft alone cannot tell; editing together both save by themselves and answer the same way
   if (craft.value.app === 'deckcraft' && !craft.value.together) return true
   try {
     const check = new Event('beforeunload', { cancelable: true })

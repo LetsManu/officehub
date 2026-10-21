@@ -6,10 +6,10 @@ one to read the file and one to save it. Check-out, editor locks, file type and 
 While someone has a file open with saving allowed, it carries a short lock that the page renews every minute; it
 ends when the page closes, or two minutes after the last renewal (closed laptop, lost network).
 
-- Programs that edit together (DeckCraft) share one session lock ("craft:0:<token>"): everyone who opens the file
-  joins the same live session (`services/collab.py`, endpoints below) and their changes reach the others at once.
-- Programs that cannot yet (WordCraft) lock the file for one person ("craft:<user>:<token>"); everyone else opens it
-  read-only and sees who is editing.
+- Builds that edit together (`craft.together`) share one session lock ("craft:0:<token>"): everyone who opens the
+  file joins the same live session (`services/collab.py`, endpoints below) and their changes reach the others at once.
+- Older builds lock the file for one person ("craft:<user>:<token>"); everyone else opens it read-only and sees who
+  is editing.
 
 The office editors ("Edit together" in Collabora/ONLYOFFICE) and the network drive wait while either lock is held.
 """
@@ -51,7 +51,7 @@ class CraftOpen(BaseModel):
     lock: str | None = None
     # Name of the person editing it right now, when that is why it opened read-only ("" = an office editor)
     editing_by: str | None = None
-    # Everyone who opens it edits together, live (DeckCraft)
+    # Everyone who opens it edits together, live
     together: bool = False
 
 
@@ -194,7 +194,7 @@ async def craft_save(file_id: int, request: Request, db: DB, token: str = Query(
     return Response(status_code=204)
 
 
-# ---------- live editing together (DeckCraft) ----------
+# ---------- live editing together ----------
 
 MAX_UPDATE_BYTES = 150 * 1024 * 1024  # the first update carries the whole presentation with its pictures
 

@@ -12,12 +12,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '3.6.0',
     date: '2026-10-21',
     de: [
-      'DeckCraft gemeinsam, live: Alle, die eine Präsentation öffnen, bearbeiten sie gleichzeitig – neue Folien, Formen und Text erscheinen sofort bei den anderen, auch beim Tippen im selben Textfeld. Du siehst, wer noch da ist und was markiert ist. Gespeichert wird automatisch; Rückgängig nimmt nur deine eigenen Änderungen zurück.',
-      'In WordCraft bearbeitet (noch) eine Person ein Dokument: Alle anderen sehen, wer gerade daran arbeitet, und können es so lange nur ansehen. Nichts wird mehr aus Versehen überschrieben.',
+      'WordCraft und DeckCraft gemeinsam, live – wie in Google Docs: Alle, die ein Dokument oder eine Präsentation öffnen, bearbeiten es gleichzeitig, auch im selben Absatz oder Textfeld. Du siehst die Cursor der anderen mit Namen (WordCraft) bzw. was sie markiert haben (DeckCraft). Gespeichert wird automatisch; Rückgängig nimmt nur deine eigenen Änderungen zurück.',
     ],
     en: [
-      'DeckCraft together, live: everyone who opens a presentation edits it at the same time – new slides, shapes and text appear for the others right away, even when typing in the same text box. You see who else is there and what they selected. It saves by itself; Undo takes back only your own changes.',
-      'In WordCraft one person edits a document (for now): everyone else sees who is working on it and can only look at it meanwhile. Nothing gets overwritten by accident any more.',
+      'WordCraft and DeckCraft together, live – like Google Docs: everyone who opens a document or presentation edits it at the same time, even in the same paragraph or text box. You see the others\' carets with their names (WordCraft) or what they selected (DeckCraft). It saves by itself; Undo takes back only your own changes.',
     ],
   },
   {
