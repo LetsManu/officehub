@@ -201,3 +201,16 @@ index dabad8a..771de9d 100644
  /// Trigger a browser download of `bytes` named after the last component of `path`.
  fn download(path: &str, bytes: &[u8]) -> Result<(), String> {
      let js = |e: wasm_bindgen::JsValue| format!("{e:?}");
+diff --git a/crates/engine/src/recovery.rs b/crates/engine/src/recovery.rs
+index 6996cda..7f5517d 100644
+--- a/crates/engine/src/recovery.rs
++++ b/crates/engine/src/recovery.rs
+@@ -44,6 +44,8 @@ pub fn instance_id() -> u64 {
+     *ID.get_or_init(|| {
+         use std::hash::{BuildHasher, Hasher};
+         let mut h = std::collections::hash_map::RandomState::new().build_hasher();
++        // There are no process ids in the browser (std::process::id panics there)
++        #[cfg(not(target_arch = "wasm32"))]
+         h.write_u32(std::process::id());
+         #[cfg(not(target_arch = "wasm32"))]
+         if let Ok(d) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
