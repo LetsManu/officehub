@@ -724,6 +724,8 @@ export interface OfficeConfig {
   engines: ('collabora' | 'onlyoffice')[]
   default: 'collabora' | 'onlyoffice' | null
   editable: Record<string, string[]>
+  craft?: ('wordcraft' | 'deckcraft')[]
+  prefer_craft?: boolean
 }
 
 export interface OfficeOpen {

@@ -167,3 +167,25 @@ def test_open_in_wordcraft_and_save_back(anna, lukas, monkeypatch):
     assert anna.post(f"/api/craft/open/{deck['id']}").json()["app"] == "deckcraft"
     note = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("a.txt", b"hallo")}).json()
     assert anna.post(f"/api/craft/open/{note['id']}").json()["code"] == "craft_unavailable"
+
+
+def test_word_and_powerpoint_open_in_craft_by_default(anna, monkeypatch):
+    import dataclasses
+
+    from app import config
+    from app.services import craft
+
+    from conftest import make_client
+
+    assert anna.get("/api/office/config").json()["prefer_craft"] is False  # not running
+    monkeypatch.setattr(craft, "settings", dataclasses.replace(config.settings, craft_internal_url="http://craft:8080"))
+    monkeypatch.setattr(craft, "reachable", lambda url: True)
+    data = anna.get("/api/office/config").json()
+    assert data["craft"] == ["wordcraft", "deckcraft"] and data["prefer_craft"] is True
+
+    # HR can choose the office editor again (and back)
+    hr = make_client("julia.weber@example.com")
+    assert anna.put("/api/office/config", json={"prefer_craft": False}).status_code == 403
+    assert hr.put("/api/office/config", json={"prefer_craft": False}).json()["prefer_craft"] is False
+    assert anna.get("/api/office/config").json()["prefer_craft"] is False
+    assert hr.put("/api/office/config", json={"prefer_craft": True}).json()["prefer_craft"] is True
