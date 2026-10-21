@@ -483,7 +483,8 @@ def download(file_id: int, user: CurrentUser, db: DB, version: int | None = None
     disposition = "inline" if inline and item.file_type in INLINE_TYPES else "attachment"
     response = FileResponse(path, media_type=MIME_TYPES.get(item.file_type, "application/octet-stream"),
                             filename=item.name, content_disposition_type=disposition)
-    response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'"
+    if item.file_type != "pdf":  # browsers' PDF viewers do not run in a sandbox
+        response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 

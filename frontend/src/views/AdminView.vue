@@ -12,6 +12,7 @@ import QuickLinksPanel from '@/components/admin/QuickLinksPanel.vue'
 import RoomsPanel from '@/components/admin/RoomsPanel.vue'
 import BrandingPanel from '@/components/admin/BrandingPanel.vue'
 import HolidaysPanel from '@/components/admin/HolidaysPanel.vue'
+import OfficePanel from '@/components/admin/OfficePanel.vue'
 import SecurityPanel from '@/components/admin/SecurityPanel.vue'
 import { api, query } from '@/lib/api'
 import { REQUEST_TYPES } from '@/lib/requestTypes'
@@ -335,6 +336,10 @@ onMounted(load)
         <details class="disclosure">
           <summary>{{ t('admin.security') }}</summary>
           <div class="disclosure-body"><SecurityPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.office') }}</summary>
+          <div class="disclosure-body"><OfficePanel /></div>
         </details>
       </template>
     </LoadState>

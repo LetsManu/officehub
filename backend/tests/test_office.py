@@ -36,7 +36,7 @@ def office(monkeypatch):
 
     def fake_urlopen(url, timeout=0):
         calls.append(url)
-        if url.endswith("/hosting/discovery"):
+        if url.endswith("/collabora/hosting/discovery"):
             return FakeResponse(DISCOVERY)
         return FakeResponse(b"PK edited by onlyoffice")
 
@@ -67,7 +67,7 @@ def test_office_disabled_without_servers(anna):
 def test_collabora_wopi_round_trip(anna, lukas, office):
     item = _docx(anna)
     opened = anna.post(f"/api/office/open/{item['id']}", json={"engine": "collabora", "origin": "http://localhost:8080"}).json()
-    assert opened["action_url"].startswith("/collabora/browser/abc/cool.html?WOPISrc=http%3A%2F%2Fbackend%3A8000%2Fwopi%2Ffiles%2F")
+    assert opened["action_url"].startswith("/collabora/browser/abc/cool.html?lang=en&WOPISrc=http%3A%2F%2Fbackend%3A8000%2Fwopi%2Ffiles%2F")
     token = opened["access_token"]
     wopi = TestClient(app)  # the office server: no cookie, no CSRF header
     info = wopi.get(f"/wopi/files/{item['id']}?access_token={token}").json()

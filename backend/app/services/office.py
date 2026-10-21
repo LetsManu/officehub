@@ -124,8 +124,13 @@ def jwt_decode(token: str, secret: str) -> dict:
 @lru_cache(maxsize=4)
 def _discovery(url: str, _bucket: int) -> dict[str, dict[str, str]]:
     """{extension: {action: urlsrc}} from Collabora's discovery file (cached for an hour)."""
-    with urllib.request.urlopen(f"{url}/hosting/discovery", timeout=10) as response:  # noqa: S310 - own server
-        root = ElementTree.fromstring(response.read())
+    # Collabora runs with net.service_root=/collabora so that it can share the portal's address
+    try:
+        with urllib.request.urlopen(f"{url}/collabora/hosting/discovery", timeout=10) as response:  # noqa: S310 - own server
+            root = ElementTree.fromstring(response.read())
+    except OSError:
+        with urllib.request.urlopen(f"{url}/hosting/discovery", timeout=10) as response:  # noqa: S310
+            root = ElementTree.fromstring(response.read())
     actions: dict[str, dict[str, str]] = {}
     for action in root.iter("action"):
         ext, name, urlsrc = action.get("ext"), action.get("name"), action.get("urlsrc")

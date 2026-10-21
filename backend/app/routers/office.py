@@ -97,7 +97,7 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
     token, expires = make_token(db, item.id, user.id, can_write, body.origin)
     if engine == "collabora":
         return OpenOut(engine=engine, can_write=can_write, file_name=item.name,
-                       action_url=collabora_action(item.file_type, can_write) + "WOPISrc="
+                       action_url=collabora_action(item.file_type, can_write) + f"lang={user.language}&WOPISrc="
                        + urllib.request.quote(f"{settings.backend_internal_url}/wopi/files/{item.id}", safe=""),
                        access_token=token, access_token_ttl=expires)
     kind = ONLYOFFICE_KIND.get(item.file_type)

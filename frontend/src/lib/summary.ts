@@ -4,7 +4,7 @@ import { ref } from 'vue'
 import { api } from './api'
 import type { Summary } from './types'
 
-const EMPTY: Summary = { unread: 0, approvals_pending: 0, reviews_todo: 0, visitors_today: 0, must_read_open: 0, personal_documents_new: 0, acting_deputy: false, trainings_due: 0, surveys_open: 0, time_months_pending: 0 }
+const EMPTY: Summary = { unread: 0, approvals_pending: 0, reviews_todo: 0, visitors_today: 0, must_read_open: 0, personal_documents_new: 0, acting_deputy: false, trainings_due: 0, surveys_open: 0, time_months_pending: 0, chat_unread: 0, cards_due: 0 }
 const INTERVAL_MS = 60_000
 
 export const summary = ref<Summary>({ ...EMPTY })
