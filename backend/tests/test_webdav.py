@@ -15,7 +15,7 @@ from app.main import app
 def _docx() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as z:
-        z.writestr("word/document.xml", "<w:document/>")
+        z.writestr(zipfile.ZipInfo("word/document.xml", (2026, 1, 1, 0, 0, 0)), "<w:document/>")  # same bytes every time
     return buffer.getvalue()
 
 
@@ -158,6 +158,8 @@ def test_open_in_wordcraft_and_save_back(anna, lukas, monkeypatch):
 
     # checked out by someone else: the ticket cannot save
     anna.post(f"/api/spaces/{space['id']}/members", json={"user_id": lukas.get("/api/auth/me").json()["id"], "role": "member"})
+    assert lukas.post(f"/api/spaces/files/{item['id']}/checkout").json()["code"] == "file_locked"  # Anna edits
+    anna.delete(f"/api/craft/lock/{item['id']}?lock={opened['lock']}")  # she closes the page
     lukas.post(f"/api/spaces/files/{item['id']}/checkout")
     assert plain.put(query["save"][0], content=_docx()).status_code == 423
     assert anna.post(f"/api/craft/open/{item['id']}").json()["can_write"] is False
@@ -189,3 +191,59 @@ def test_word_and_powerpoint_open_in_craft_by_default(anna, monkeypatch):
     assert hr.put("/api/office/config", json={"prefer_craft": False}).json()["prefer_craft"] is False
     assert anna.get("/api/office/config").json()["prefer_craft"] is False
     assert hr.put("/api/office/config", json={"prefer_craft": True}).json()["prefer_craft"] is True
+
+
+def test_only_one_person_edits_in_craft(anna, lukas, monkeypatch):
+    import dataclasses
+    from datetime import timedelta
+    from urllib.parse import parse_qs, urlparse
+
+    from app import config
+    from app.db import SessionLocal
+    from app.models import SpaceFile
+    from app.services import craft
+
+    monkeypatch.setattr(craft, "settings", dataclasses.replace(config.settings, craft_internal_url="http://craft:8080"))
+    monkeypatch.setattr(craft, "reachable", lambda url: True)
+    space = _space(anna, "Gemeinsam")
+    anna.post(f"/api/spaces/{space['id']}/members", json={"user_id": lukas.get("/api/auth/me").json()["id"], "role": "member"})
+    item = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("Plan.docx", _docx())}).json()
+
+    first = anna.post(f"/api/craft/open/{item['id']}").json()
+    assert first["can_write"] is True and first["lock"]
+    assert anna.get(f"/api/spaces/{space['id']}/files").json()["files"][0]["locked"] is True
+
+    # Lukas sees who is editing and gets a read-only copy; a new version from him waits as well
+    second = lukas.post(f"/api/craft/open/{item['id']}").json()
+    assert second["can_write"] is False and second["editing_by"] == "Anna Mayer" and second["lock"] is None
+    assert "save=" not in second["url"]
+    again = lukas.post(f"/api/spaces/{space['id']}/files", files={"file": ("Plan.docx", _docx())})
+    assert again.json()["code"] == "file_locked"
+    assert lukas.post(f"/api/craft/lock/{item['id']}", json={"lock": "x"}).json()["code"] == "file_locked"
+    # editing together in the office editor is blocked too
+    import sys
+    monkeypatch.setattr(sys.modules["app.routers.office"], "available", lambda: ["onlyoffice"])
+    together = lukas.post(f"/api/office/open/{item['id']}", json={"engine": "onlyoffice", "origin": "http://testserver"})
+    assert together.status_code == 200, together.text
+    together = together.json()
+    assert together["can_write"] is False and together["editing_by"] == "Anna Mayer"
+
+    # Anna keeps editing and saves; her own lock does not stop her
+    assert anna.post(f"/api/craft/lock/{item['id']}", json={"lock": first["lock"]}).status_code == 204
+    plain = TestClient(app, headers={"X-Requested-With": "OfficeHub"})
+    save = parse_qs(urlparse(first["url"]).query)["save"][0]
+    assert plain.put(save, content=_docx()).status_code == 204
+
+    # closing the page frees it at once; Lukas can edit now and Anna's old page can no longer save
+    assert anna.delete(f"/api/craft/lock/{item['id']}?lock={first['lock']}").status_code == 204
+    third = lukas.post(f"/api/craft/open/{item['id']}").json()
+    assert third["can_write"] is True
+    assert plain.put(save, content=_docx()).json()["code"] == "file_locked"
+    assert anna.post(f"/api/craft/lock/{item['id']}", json={"lock": first["lock"]}).json()["code"] == "file_locked"
+
+    # a page that stopped renewing (closed laptop) lets go after two minutes
+    with SessionLocal() as db:
+        row = db.get(SpaceFile, item["id"])
+        row.lock_expires = row.lock_expires - timedelta(minutes=3)
+        db.commit()
+    assert anna.post(f"/api/craft/open/{item['id']}").json()["can_write"] is True

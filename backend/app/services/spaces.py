@@ -110,12 +110,29 @@ def checked_out_by_other(item: SpaceFile, user: User | None) -> bool:
     return item.checked_out_by_id is not None and (user is None or item.checked_out_by_id != user.id)
 
 
+def lock_owner_id(item: SpaceFile) -> int | None:
+    """Who holds the editing lock: "dav:<user>:<token>" (network drive) and "craft:<user>:<token>" (WordCraft,
+    DeckCraft) name the person; the office servers' own locks do not (None). Also None without an active lock."""
+    if not (item.lock_id and item.lock_expires and item.lock_expires > utcnow()):
+        return None
+    kind, _, rest = item.lock_id.partition(":")
+    owner = rest.split(":", 1)[0]
+    return int(owner) if kind in ("dav", "craft") and owner.isdigit() else None
+
+
+def locked_by_other(item: SpaceFile, user: User | None) -> bool:
+    """Someone else (or an office server) has the file open for editing right now."""
+    if not (item.lock_id and item.lock_expires and item.lock_expires > utcnow()):
+        return False
+    return user is None or lock_owner_id(item) != user.id
+
+
 def ensure_can_change(item: SpaceFile, user: User | None) -> None:
     """Nobody but the person who checked a file out may save it, rename, move or delete it."""
     if checked_out_by_other(item, user):
         name = item.checked_out_by.full_name if item.checked_out_by else "?"
         raise ApiError(423, "file_checked_out", f"{name} has checked out this file. It can be changed again after check-in.")
-    if item.lock_id and item.lock_expires and item.lock_expires > utcnow():
+    if locked_by_other(item, user):
         raise ApiError(409, "file_locked", "Someone is editing this file right now. Please try again later.")
 
 

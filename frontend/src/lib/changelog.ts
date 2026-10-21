@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.6.0',
+    date: '2026-10-21',
+    de: [
+      'Nur eine Person bearbeitet eine Datei in WordCraft oder DeckCraft: Alle anderen sehen, wer gerade daran arbeitet, und können sie so lange nur ansehen. Nichts wird mehr aus Versehen überschrieben.',
+    ],
+    en: [
+      'Only one person edits a file in WordCraft or DeckCraft: everyone else sees who is working on it and can only look at it meanwhile. Nothing gets overwritten by accident any more.',
+    ],
+  },
+  {
     version: '3.4.0',
     date: '2026-10-21',
     de: [

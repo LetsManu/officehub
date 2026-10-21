@@ -590,6 +590,9 @@ const en: Messages = {
     back: 'Back',
     loading: 'Opening the document …',
     readOnly: 'Read only',
+    editingBy: '{name} is editing this file right now. You can look at it; saving works again once {name} closes it.',
+    editingBySomeone: 'This file is being edited right now. You can look at it; saving works again once it is closed.',
+    lockLost: 'Someone else is editing the file now. You can no longer save your changes – download them so nothing is lost.',
     craft: { wordcraft: 'WordCraft', deckcraft: 'DeckCraft' },
     leaveTitle: 'Go back without saving?',
     leaveText: {

@@ -588,6 +588,9 @@ const de = {
     back: 'Zurück',
     loading: 'Dokument wird geöffnet …',
     readOnly: 'Nur lesen',
+    editingBy: '{name} bearbeitet diese Datei gerade. Du kannst sie ansehen; speichern geht wieder, sobald {name} sie schließt.',
+    editingBySomeone: 'Diese Datei wird gerade bearbeitet. Du kannst sie ansehen; speichern geht wieder, sobald sie geschlossen ist.',
+    lockLost: 'Jemand anderes bearbeitet die Datei jetzt. Deine Änderungen kannst du nicht mehr speichern – lade sie herunter, damit nichts verloren geht.',
     craft: { wordcraft: 'WordCraft', deckcraft: 'DeckCraft' },
     leaveTitle: 'Ohne Speichern zurück?',
     leaveText: {
