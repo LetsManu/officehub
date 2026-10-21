@@ -542,14 +542,14 @@ const en: Messages = {
   },
   officeAdmin: {
     intro: 'Word, Excel and PowerPoint files in spaces can be edited right in the browser – together and at the same time. An office server runs next to OfficeHub in your own stack. No files are sent to outside services.',
-    none: 'No office server is set up yet. Files can still be uploaded and downloaded.',
+    none: 'The office server is not running right now – it starts with the portal and switches itself on. Files can still be uploaded and downloaded.',
     default: 'Default editor',
     about: {
       collabora: 'Collabora Online (LibreOffice in the browser). Good for OpenDocument files.',
       onlyoffice: 'ONLYOFFICE Docs. Looks very much like Microsoft Office.',
     },
     saved: 'Office editor saved',
-    setupHint: 'Set-up: see the guide "Deploying with Portainer", section office editing.',
+    setupHint: 'A second editor (ONLYOFFICE) can be added: see the guide "Deploying with Portainer".',
   },
   board: {
     show: 'Show',
@@ -874,7 +874,7 @@ const en: Messages = {
     unmuteMic: 'Unmute microphone',
     joinNow: 'Join now',
     joining: 'Connecting …',
-    privacy: "The meeting runs on the company's own server. Nothing is recorded.",
+    privacy: 'Video and sound stay inside the company – no outside service, nothing is recorded.',
     connecting: 'Connecting to the meeting …',
     connectFailed: 'Could not connect to the meeting. Please try again.',
     libraryMissing: 'The meeting server is not answering right now. Please try again later.',
@@ -1271,7 +1271,7 @@ const en: Messages = {
     body_required: 'Please enter a text.',
   },
   errors: {
-    meetings_unavailable: 'Video meetings are not set up yet. Please contact IT.',
+    meeting_full: 'This meeting is full. For bigger meetings IT can switch on the meeting server.',
     meeting_cancelled: 'This meeting has been cancelled.',
     notes_conflict: 'Someone else just changed the notes.',
     too_many_guests: 'Too many guests are waiting right now. Please try again in a moment.',
@@ -1776,6 +1776,8 @@ const en: Messages = {
   },
   appointmentTopics: { hr: 'HR department', it: 'IT', manager: 'My manager', other: 'Someone else' },
   people: {
+    call: 'Call',
+    message: 'Message',
     title: 'People',
     subtitle: 'Find colleagues and their contact details.',
     viewList: 'List',

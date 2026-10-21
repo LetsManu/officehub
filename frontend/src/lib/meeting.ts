@@ -1,9 +1,12 @@
 /**
- * A video meeting on the company's own Jitsi server, driven by lib-jitsi-meet with OfficeHub's own interface.
- * The library is served by the Jitsi server through the portal (/jitsi/libs/…), so nothing loads from outside.
+ * A video meeting with OfficeHub's own interface. Two ways underneath, chosen by the portal:
+ * - built in (lib/rtc.ts): browsers connect directly, no meeting server needed;
+ * - the company's own Jitsi server via lib-jitsi-meet, served through the portal (/jitsi/libs/…).
+ * Nothing loads from outside either way.
  */
 
 import { reactive, shallowRef } from 'vue'
+import { builtinSession, createRtcTracks } from './rtc'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet has no type definitions here */
 type Track = any
@@ -15,10 +18,25 @@ declare global {
   }
 }
 
+export type MeetingMode = 'builtin' | 'jitsi'
+
 export interface JoinInfo {
   meeting_id: number
   title: string
-  connection: { room: string; token: string; display_name: string; domain: string; muc: string; websocket: string; library: string }
+  connection: {
+    mode: MeetingMode
+    room: string
+    token: string
+    display_name: string
+    // Jitsi
+    domain?: string
+    muc?: string
+    websocket?: string
+    library?: string
+    // built in
+    signal?: string
+    ice_servers?: RTCIceServer[]
+  }
 }
 
 export interface Tile {
@@ -43,6 +61,8 @@ export interface ChatLine {
 }
 
 export type MeetingStatus = 'idle' | 'connecting' | 'joined' | 'failed' | 'left'
+
+export const JITSI_LIBRARY = '/jitsi/libs/lib-jitsi-meet.min.js'
 
 let libraryPromise: Promise<any> | null = null
 
@@ -95,9 +115,14 @@ export async function listDevices(): Promise<{ cameras: MediaDeviceInfo[]; mics:
   }
 }
 
-/** One meeting session: connection, conference, the people in it and the chat. */
-export function useMeeting() {
-  const state = reactive({
+/** Camera and microphone before joining, for the way the meeting will run. */
+export async function previewTracks(mode: MeetingMode, devices: ('audio' | 'video')[], ids: { camera?: string; mic?: string } = {}): Promise<Track[]> {
+  if (mode === 'builtin') return createRtcTracks(devices, ids)
+  return createLocalTracks(await loadLibrary(JITSI_LIBRARY), devices, ids)
+}
+
+function newState() {
+  return reactive({
     status: 'idle' as MeetingStatus,
     error: '',
     tiles: [] as Tile[],
@@ -109,6 +134,47 @@ export function useMeeting() {
     hand: false,
     dominant: '' as string,
   })
+}
+
+export type MeetingState = ReturnType<typeof newState>
+
+function tileFinder(state: MeetingState, nameOf: (id: string) => string = () => '') {
+  return (id: string, name?: string): Tile => {
+    let t = state.tiles.find((x) => x.id === id)
+    if (!t) {
+      t = reactive({ id, name: name ?? (id === 'local' ? '' : nameOf(id)), local: id === 'local', audio: null, video: null, audioMuted: true, videoMuted: true, screen: false, speaking: false, hand: false })
+      state.tiles.push(t)
+    } else if (name) {
+      t.name = name
+    }
+    return t
+  }
+}
+
+type Session = ReturnType<typeof builtinSession>
+
+/** One meeting: the people in it, the chat and the controls; the way underneath follows the join info. */
+export function useMeeting() {
+  const state = newState()
+  let session: Session | null = null
+  const run = <K extends keyof Session>(key: K) => ((...args: Parameters<Session[K]>) => (session?.[key] as (...a: unknown[]) => unknown)?.(...args)) as Session[K]
+  return {
+    state,
+    join(info: JoinInfo, localTracks: Track[], displayName: string) {
+      session = info.connection.mode === 'builtin' ? builtinSession(state, tileFinder(state)) : jitsiSession(state)
+      return session.join(info, localTracks, displayName)
+    },
+    leave: () => session?.leave() ?? Promise.resolve(),
+    toggleMic: run('toggleMic'),
+    toggleCam: run('toggleCam'),
+    startShare: run('startShare'),
+    stopShare: run('stopShare'),
+    toggleHand: run('toggleHand'),
+    send: run('send'),
+  }
+}
+
+function jitsiSession(state: MeetingState) {
   const conference = shallowRef<Conference | null>(null)
   let lib: any = null
   let connection: any = null
@@ -117,15 +183,7 @@ export function useMeeting() {
   let cameraTrack: Track | null = null
   let chatId = 0
 
-  function tile(id: string): Tile {
-    let t = state.tiles.find((x) => x.id === id)
-    if (!t) {
-      const name = id === 'local' ? '' : conference.value?.getParticipantById(id)?.getDisplayName() ?? ''
-      t = reactive({ id, name, local: id === 'local', audio: null, video: null, audioMuted: true, videoMuted: true, screen: false, speaking: false, hand: false })
-      state.tiles.push(t)
-    }
-    return t
-  }
+  const tile = tileFinder(state, (id) => conference.value?.getParticipantById(id)?.getDisplayName() ?? '')
 
   function placeTrack(track: Track) {
     const id = track.isLocal() ? 'local' : track.getParticipantId()
@@ -143,7 +201,7 @@ export function useMeeting() {
   async function join(info: JoinInfo, localTracks: Track[], displayName: string) {
     state.status = 'connecting'
     state.error = ''
-    lib = await loadLibrary(info.connection.library)
+    lib = await loadLibrary(info.connection.library ?? JITSI_LIBRARY)
     const c = info.connection
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const options = {
@@ -319,5 +377,5 @@ export function useMeeting() {
     state.status = 'left'
   }
 
-  return { state, join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send }
+  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send }
 }

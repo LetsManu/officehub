@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..errors import ApiError
+from .probe import reachable
 from .settings import get_setting, set_setting
 
 ENGINES = ("collabora", "onlyoffice")
@@ -41,7 +42,13 @@ ONLYOFFICE_KIND = {
 
 
 def available() -> list[str]:
-    return [e for e, url in (("collabora", settings.collabora_url), ("onlyoffice", settings.onlyoffice_url)) if url]
+    """Office servers that are set up and running right now (they switch on by themselves when started)."""
+    engines = []
+    if settings.collabora_url and reachable(f"{settings.collabora_url}/collabora/hosting/discovery"):
+        engines.append("collabora")
+    if settings.onlyoffice_url and reachable(f"{settings.onlyoffice_url}/healthcheck"):
+        engines.append("onlyoffice")
+    return engines
 
 
 def default_engine(db: Session) -> str | None:

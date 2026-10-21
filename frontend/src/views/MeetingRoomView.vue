@@ -16,6 +16,12 @@ const error = ref<string | null>(null)
 const round = ref(0) // a new key joins again after leaving
 
 const callMode = computed(() => route.query.call === '1')
+/** A call is named after the caller; the caller sees who they are talking to. */
+const title = computed(() => {
+  const m = meeting.value
+  if (m?.kind === 'call' && m.is_organizer && m.invitees.length) return m.invitees.map((i) => i.person.full_name).join(', ')
+  return m?.title ?? ''
+})
 const backTo = computed(() => {
   const m = meeting.value
   if (m?.kind === 'space' && m.space_id) return `/spaces/${m.space_id}`
@@ -44,7 +50,7 @@ onMounted(async () => {
       v-else-if="meeting"
       :key="round"
       :meeting-id="meeting.id"
-      :title="meeting.title"
+      :title="title"
       :display-name="currentUser?.full_name ?? ''"
       :call-mode="callMode && round === 0"
       :guest-link="meeting.guest_link"

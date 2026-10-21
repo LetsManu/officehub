@@ -3,8 +3,10 @@
 OfficeHub is a self-hosted employee portal (requests, documents, announcements).
 It must stay simple for non-technical office employees. **Never add AI features,
 chatbots, external APIs or cloud dependencies to the application.** Office editing uses the
-company's own Collabora/ONLYOFFICE containers in the same stack (optional), never a cloud service. Meetings and
-calls use the company's own Jitsi containers (optional) with OfficeHub's own UI via lib-jitsi-meet, never meet.jit.si.
+company's own Collabora/ONLYOFFICE containers in the same stack, never a cloud service. Meetings and calls are built
+in (WebRTC between browsers, signalling via `/api/rtc`, no outside STUN) and use the company's own Jitsi containers
+when they run (OfficeHub's own UI via lib-jitsi-meet, never meet.jit.si). Nothing may need manual setup: optional
+servers are detected (`services/probe.py`) and shared passwords are generated (`config._shared_secret`).
 
 ## Layout
 
@@ -17,8 +19,8 @@ calls use the company's own Jitsi containers (optional) with OfficeHub's own UI 
   - `app/seed.py` – first admin and fictional demo data (`DEMO_MODE=true`).
   - `app/routers/spaces.py`, `boards.py`, `chat.py`, `wiki.py`, `office.py` – team spaces. `/wopi/*` and
     `/office-hooks/*` are only for the office servers inside the Docker network (not proxied by nginx).
-  - `app/routers/meetings.py`, `app/services/meetings.py` – meetings, calls, guests; hands out Jitsi JWTs. Keep these
-    endpoints app-friendly (future Windows/Android apps use them).
+  - `app/routers/meetings.py`, `app/services/meetings.py`, `app/routers/rtc.py` – meetings, calls, guests; built-in
+    signalling or Jitsi JWTs. Keep these endpoints app-friendly (future Windows/Android apps use them).
   - `tests/` – pytest, uses demo data; run `python -m pytest -q` in `backend/`.
 - `frontend/` – Vue 3 + Vite + TypeScript, no UI library.
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.

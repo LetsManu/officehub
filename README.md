@@ -40,15 +40,16 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   the month for the manager's approval
 - **Team spaces** for teams and projects, each with:
   - **Files** with folders, versions, a 30-day trash and preview; Word, Excel and PowerPoint files are edited together
-    in the browser with your own **Collabora Online** or **ONLYOFFICE** server (optional, runs in the same stack)
+    in the browser with **Collabora Online** (runs in the same stack and switches itself on; **ONLYOFFICE** optional)
   - a **task board** (Kanban) with assignees, due dates, labels and comments, plus "My tasks" across all spaces
   - **chat** channels with @mentions and file sharing, and direct messages between two people
   - a **wiki** with page history, "who is editing" and protection against overwriting each other's changes
   - a standing **meeting room** with a live "who is in it" count
-- **Meetings and calls** on your own **Jitsi** server (optional, runs in the same stack) with OfficeHub's own
-  interface: plan meetings with invitations and calendar files (.ics), accept or decline, start a call from any chat
-  (the other person's portal rings), screen sharing, raise hand, meeting chat, shared notes that can be saved to a
-  space's wiki, and guests from outside who wait until someone lets them in
+- **Meetings and calls** with OfficeHub's own interface and nothing to set up: built in, browsers connect directly
+  (calls and meetings up to 8 people); an optional **Jitsi** server in the same stack takes over larger meetings by
+  itself. Plan meetings with invitations and calendar files (.ics), accept or decline, call a colleague from the
+  people page or a chat (their portal rings), screen sharing, raise hand, meeting chat, shared notes that can be saved
+  to a space's wiki, and guests from outside who wait until someone lets them in
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
@@ -199,9 +200,13 @@ npm test && npm run build
 | `SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
 | `SMTP_USER` / `SMTP_PASSWORD` | – | Mail server login, if needed |
 | `SMTP_FROM` | – | Sender address, e.g. `officehub@your-company.example` |
-| `JITSI_APP_SECRET` | – | Shared secret with your Jitsi server; switches meetings and calls on (empty = off) |
-| `JITSI_INTERNAL_PASSWORD` | – | Password the Jitsi parts use among themselves (compose only) |
-| `JITSI_PUBLIC_IP` | – | Public IP of the server for media from outside the office network (compose only) |
+| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (larger meetings), `onlyoffice` (second editor), e.g. `jitsi,onlyoffice` |
+| `JITSI_PUBLIC_IP` | – | With Jitsi: public IP of the server for people outside the office network |
+| `ICE_SERVERS` | – | Built-in meetings: your own STUN/TURN server(s) for people outside the office, comma-separated (`ICE_USERNAME`, `ICE_PASSWORD`) |
+
+Passwords between OfficeHub and the office/meeting servers (`ONLYOFFICE_JWT_SECRET`, `JITSI_APP_SECRET`,
+`JITSI_INTERNAL_PASSWORD`) are made automatically on the first start and kept in the `shared` volume. Set them only if
+you want your own.
 
 ## User roles
 
@@ -234,9 +239,9 @@ npm test && npm run build
   that escapes all HTML first and only allows `http(s)` and `mailto` links. Text and Markdown downloads are served as `text/plain`.
 - Uploads are limited by size and extension, checked against the file signature, and stored under random names.
 - CSV exports neutralise spreadsheet formulas (CSV injection).
-- Meetings: OfficeHub decides who may join and hands out a token for exactly one conference that expires after
-  six hours; the Jitsi server rejects everyone without one. Guests get a token only after someone in the meeting
-  let them in. Nothing is recorded.
+- Meetings: OfficeHub decides who may join and hands out a signed ticket for exactly one meeting that expires after
+  six hours (built in and Jitsi alike). Guests get one only after someone in the meeting let them in. Built-in meetings
+  use no outside STUN/TURN server; audio and video are encrypted between the browsers (WebRTC). Nothing is recorded.
 - nginx sends a strict Content-Security-Policy (`default-src 'self'`), `X-Frame-Options: DENY` and `nosniff`.
 - The backend container runs as an unprivileged user.
 - No secrets are committed. Keep your `.env` file out of version control (it is in `.gitignore`).

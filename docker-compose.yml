@@ -26,15 +26,21 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      # Office editing (optional, see the Collabora / ONLYOFFICE services below)
-      COLLABORA_URL: ${COLLABORA_URL:-}
-      ONLYOFFICE_URL: ${ONLYOFFICE_URL:-}
+      # Office editing and the meeting server switch on by themselves when their containers run.
+      # Passwords between them and OfficeHub are made on the first start (in the "shared" volume).
+      COLLABORA_URL: ${COLLABORA_URL:-http://collabora:9980}
+      ONLYOFFICE_URL: ${ONLYOFFICE_URL:-http://onlyoffice}
       ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
-      # Video meetings (optional, see the Jitsi services below)
       JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
+      JITSI_INTERNAL_URL: ${JITSI_INTERNAL_URL:-http://jitsi-web}
+      # Built-in meetings need nothing. Optional: your own STUN/TURN server for people outside the office
+      ICE_SERVERS: ${ICE_SERVERS:-}
+      ICE_USERNAME: ${ICE_USERNAME:-}
+      ICE_PASSWORD: ${ICE_PASSWORD:-}
     volumes:
       - officehub-data:/data
+      - shared:/shared
     ports:
       - "${BACKEND_PORT:-8000}:8000"
 
@@ -48,12 +54,10 @@ services:
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
 
-  # ---- Optional: edit Word, Excel and PowerPoint files in the browser ----
-  # Start one (or both) with COMPOSE_PROFILES=collabora and/or onlyoffice, and set COLLABORA_URL /
-  # ONLYOFFICE_URL for the backend. They only talk to OfficeHub inside this stack.
+  # ---- Edit Word, Excel and PowerPoint files in the browser (Collabora runs by default) ----
+  # It only talks to OfficeHub inside this stack. Remove this service if you do not want it (needs ~1 GB RAM).
   collabora:
     image: collabora/code:26.04.4.2.1
-    profiles: ["collabora"]
     restart: unless-stopped
     cap_add:
       - MKNOD
@@ -61,24 +65,32 @@ services:
       aliasgroup1: http://backend:8000
       dictionaries: de_DE de_AT de_CH en_GB en_US
       extra_params: >-
-        --o:ssl.enable=false --o:ssl.termination=${COLLABORA_SSL_TERMINATION:-false}
-        --o:net.service_root=/collabora --o:net.frame_ancestors=${PORTAL_URL:-http://localhost:8080}
+        --o:ssl.enable=false --o:ssl.termination=false
+        --o:net.service_root=/collabora --o:net.frame_ancestors='self'
         --o:net.proto=IPv4 --o:admin_console.enable=false --o:welcome.enable=false
 
+  # Optional second editor: start with COMPOSE_PROFILES=onlyoffice (needs 2–4 GB RAM).
   onlyoffice:
     image: onlyoffice/documentserver:9.2.1
     profiles: ["onlyoffice"]
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Uses the password OfficeHub made on its first start
+    entrypoint: ["/bin/sh", "-c", "export JWT_SECRET=\"$${JWT_SECRET:-$$(cat /shared/onlyoffice_jwt_secret)}\"; exec /app/ds/run-document-server.sh"]
     environment:
       JWT_ENABLED: "true"
-      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-change-me}
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
       ALLOW_PRIVATE_IP_ADDRESS: "true"
     volumes:
       - onlyoffice-data:/var/www/onlyoffice/Data
+      - shared:/shared:ro
 
-  # ---- Optional: video meetings and calls with your own Jitsi Meet server ----
-  # Start with COMPOSE_PROFILES=jitsi (can be combined, e.g. collabora,jitsi) and set JITSI_APP_SECRET.
-  # People reach it through the portal (/jitsi/ and /colibri-ws/); audio and video use UDP port 10000.
+  # ---- Optional: Jitsi Meet for larger meetings ----
+  # Meetings and calls work without it (built in). Start it with COMPOSE_PROFILES=jitsi and OfficeHub uses it
+  # by itself; passwords are made automatically. People reach it through the portal (/jitsi/, /colibri-ws/);
+  # audio and video use UDP port 10000, and people outside the office need JITSI_PUBLIC_IP.
   jitsi-web:
     image: jitsi/web:stable-10978
     profiles: ["jitsi"]
@@ -90,7 +102,7 @@ services:
       AUTH_TYPE: jwt
       ENABLE_GUESTS: "0"
       JWT_APP_ID: officehub
-      JWT_APP_SECRET: ${JITSI_APP_SECRET:-}
+      JWT_APP_SECRET: ${JITSI_APP_SECRET:-}  # empty: the one OfficeHub made (see entrypoint)
       JWT_ACCEPTED_ISSUERS: officehub
       JWT_ACCEPTED_AUDIENCES: officehub
       XMPP_DOMAIN: meet.jitsi
@@ -100,8 +112,8 @@ services:
       XMPP_GUEST_DOMAIN: guest.meet.jitsi
       XMPP_SERVER: xmpp.meet.jitsi
       XMPP_BOSH_URL_BASE: http://xmpp.meet.jitsi:5280
-      JICOFO_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-change-me-too}
-      JVB_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-change-me-too}
+      JICOFO_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-}
+      JVB_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-}
       ENABLE_XMPP_WEBSOCKET: "1"
       ENABLE_COLIBRI_WEBSOCKET: "1"
       DISABLE_HTTPS: "1"
@@ -117,6 +129,12 @@ services:
     profiles: ["jitsi"]
     restart: unless-stopped
     environment: *jitsi
+    depends_on:
+      backend:
+        condition: service_healthy
+    entrypoint: &jitsi-secrets ["/bin/sh", "-c", "export JWT_APP_SECRET=\"$${JWT_APP_SECRET:-$$(cat /shared/jitsi_app_secret)}\" JICOFO_AUTH_PASSWORD=\"$${JICOFO_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}\" JVB_AUTH_PASSWORD=\"$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}\"; exec /init"]
+    volumes:
+      - shared:/shared:ro
     networks:
       default:
         aliases: [xmpp.meet.jitsi]
@@ -127,6 +145,9 @@ services:
     restart: unless-stopped
     environment: *jitsi
     depends_on: [jitsi-prosody]
+    entrypoint: *jitsi-secrets
+    volumes:
+      - shared:/shared:ro
 
   jitsi-jvb:
     image: jitsi/jvb:stable-10978
@@ -136,8 +157,13 @@ services:
     ports:
       - "10000:10000/udp"
     depends_on: [jitsi-prosody]
+    entrypoint: *jitsi-secrets
+    volumes:
+      - shared:/shared:ro
 
 volumes:
   # Holds the SQLite database (officehub.db) and uploaded files (uploads/).
   officehub-data:
   onlyoffice-data:
+  # Passwords OfficeHub makes on its first start for the office and meeting servers
+  shared:

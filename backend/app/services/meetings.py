@@ -1,8 +1,10 @@
-"""Video meetings with the company's own Jitsi Meet server.
+"""Video meetings without any outside service.
 
-OfficeHub decides who may join which conference and hands out a short-lived JWT for exactly that
-conference. The Jitsi server (Prosody) checks the token with the shared secret. Meetings never use
-an outside service.
+Two ways, chosen automatically:
+- built in (always available): OfficeHub introduces the browsers to each other (see services/rtc.py) and
+  audio and video go directly between them. Good for calls and small meetings.
+- the company's own Jitsi Meet server, when it runs in the stack: better for larger meetings. OfficeHub
+  hands out a short-lived JWT for exactly one conference; Prosody checks it with the shared secret.
 """
 
 import secrets
@@ -14,22 +16,28 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..errors import ApiError, not_found
+from ..errors import not_found
 from ..models import Channel, ChannelMember, Meeting, MeetingInvitee, MeetingPresence, SpaceMember, User, utcnow
 from .office import jwt_encode
+from .probe import reachable
+from .settings import get_setting, set_setting
 
 TOKEN_HOURS = 6
 PRESENCE_SECONDS = 25  # the meeting page reports every 10 seconds
 RING_SECONDS = 45  # an unanswered call counts as missed after this
 
 
-def enabled() -> bool:
-    return bool(settings.jitsi_app_secret)
+BUILTIN_MAX = 8  # people per meeting without a Jitsi server: everyone sends their video to everyone
 
 
-def require_enabled() -> None:
-    if not enabled():
-        raise ApiError(409, "meetings_unavailable", "Video meetings are not set up.")
+def jitsi_running() -> bool:
+    return bool(settings.jitsi_app_secret and settings.jitsi_internal_url
+                and reachable(f"{settings.jitsi_internal_url}/libs/lib-jitsi-meet.min.js"))
+
+
+def mode() -> str:
+    """'jitsi' when the company's Jitsi server is running, otherwise 'builtin'."""
+    return "jitsi" if jitsi_running() else "builtin"
 
 
 def new_room(prefix: str) -> str:
@@ -55,9 +63,50 @@ def jitsi_token(room: str, name: str, user_id: str, moderator: bool, avatar: str
     return jwt_encode(payload, settings.jitsi_app_secret or "")
 
 
-def connection_info(room: str, token: str, name: str) -> dict:
+def rtc_token(db: Session, room: str, name: str, who: str, host: bool) -> str:
+    """Admission to one built-in meeting room, valid for the same time as a Jitsi token."""
+    payload = {"room": room, "name": name, "who": who, "host": host, "exp": int(time.time()) + TOKEN_HOURS * 3600}
+    return jwt_encode(payload, rtc_key(db))
+
+
+def rtc_key(db: Session) -> str:
+    key = get_setting(db, "rtc_key", None)
+    if not key:
+        key = secrets.token_urlsafe(48)
+        set_setting(db, "rtc_key", key)
+        db.commit()
+    return key
+
+
+def ice_servers() -> list[dict]:
+    """No outside STUN servers: inside the office network browsers find each other directly."""
+    if not settings.ice_servers:
+        return []
+    server: dict = {"urls": list(settings.ice_servers)}
+    if settings.ice_username:
+        server.update(username=settings.ice_username, credential=settings.ice_password or "")
+    return [server]
+
+
+def connect(db: Session, meeting: Meeting, name: str, who: str, host: bool) -> dict:
     """Everything a client needs to join: the web page here, and later the desktop or Android app."""
+    if mode() == "jitsi":
+        token = jitsi_token(meeting.room, name, who, moderator=host)
+        return connection_info(meeting.room, token, name)
     return {
+        "mode": "builtin",
+        "room": meeting.room,
+        "token": rtc_token(db, meeting.room, name, who, host),
+        "display_name": name,
+        "signal": "/api/rtc",
+        "ice_servers": ice_servers(),
+        "max_people": BUILTIN_MAX,
+    }
+
+
+def connection_info(room: str, token: str, name: str) -> dict:
+    return {
+        "mode": "jitsi",
         "room": room,
         "token": token,
         "display_name": name,
