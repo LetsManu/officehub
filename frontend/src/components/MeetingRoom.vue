@@ -44,6 +44,8 @@ const notes = reactive({ text: '', version: 0, saved: '', saving: false })
 let heartbeat: number | undefined
 let ticker: number | undefined
 const mode = ref<MeetingMode | null>(null)
+/** Why there is no camera or microphone: the page is not https://, or the browser/person said no. */
+const mediaProblem = ref<'' | 'insecure' | 'blocked'>('')
 
 const tiles = computed(() => meeting.state.tiles)
 const screenTile = computed<Tile | undefined>(() => tiles.value.find((x) => x.screen))
@@ -64,7 +66,13 @@ async function refreshPreview() {
   if (prefs.mic) wanted.push('audio')
   if (prefs.cam) wanted.push('video')
   if (!wanted.length || !mode.value) return
+  if (!window.isSecureContext) {
+    mediaProblem.value = 'insecure'
+    prefs.mic = prefs.cam = false
+    return
+  }
   previewTracks.value = await makePreview(mode.value, wanted, { camera: prefs.camera || undefined, mic: prefs.micId || undefined })
+  mediaProblem.value = previewTracks.value.length ? '' : 'blocked'
   const video = previewTracks.value.find((x) => x.getType() === 'video')
   await nextTick()
   if (video && preview.value) video.attach(preview.value)
@@ -221,9 +229,16 @@ onMounted(async () => {
   ticker = window.setInterval(() => (now.value = Date.now()), 1000)
   try {
     mode.value = props.join?.connection.mode ?? (await api.get<{ mode: MeetingMode }>('/api/meetings/config')).mode
+  } catch {
+    showToast(t('meeting.connectFailed'), 'error')
+    return
+  }
+  try {
     await refreshPreview()
   } catch {
-    showToast(t('meeting.libraryMissing'), 'error')
+    // The Jitsi page could not be loaded; built in, only camera or microphone can fail
+    if (mode.value === 'jitsi') showToast(t('meeting.libraryMissing'), 'error')
+    else mediaProblem.value = 'blocked'
   }
 })
 
@@ -266,6 +281,7 @@ onBeforeUnmount(() => {
         <p class="eyebrow">{{ t('meeting.readyTo') }}</p>
         <h1 class="pre-title">{{ title }}</h1>
         <p class="muted-light">{{ t('meeting.joinAs', { name: displayName }) }}</p>
+        <p v-if="mediaProblem" class="media-note" role="status">{{ t(`meeting.media.${mediaProblem}`) }}</p>
         <label v-if="devices.cameras.length > 1" class="field">
           <span>{{ t('meeting.camera') }}</span>
           <select v-model="prefs.camera" class="select" @change="refreshPreview">
@@ -454,6 +470,8 @@ onBeforeUnmount(() => {
 }
 
 .preview.off {
+  align-content: center;
+  padding-bottom: 72px; /* room for the buttons below */
   background: var(--m-surface);
   color: var(--m-muted);
 }
@@ -496,6 +514,15 @@ onBeforeUnmount(() => {
 .eyebrow {
   color: var(--m-muted);
   font-weight: 600;
+}
+
+.media-note {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: 10px;
+  background: rgb(250 204 21 / 14%);
+  color: #fde68a;
+  font-size: var(--text-sm);
 }
 
 .pre-title {

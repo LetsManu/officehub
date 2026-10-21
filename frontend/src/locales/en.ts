@@ -878,6 +878,10 @@ const en: Messages = {
     connecting: 'Connecting to the meeting …',
     connectFailed: 'Could not connect to the meeting. Please try again.',
     libraryMissing: 'The meeting server is not answering right now. Please try again later.',
+    media: {
+      insecure: 'Camera and microphone only work when the portal is opened with https://. You can still join, listen and watch.',
+      blocked: 'Camera and microphone could not be started. Allow access in the browser (lock icon next to the address) and reload the page – or join without them.',
+    },
     duration: 'Duration',
     controls: 'Controls',
     mute: 'Mute',
