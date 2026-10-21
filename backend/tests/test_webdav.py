@@ -15,7 +15,7 @@ from app.main import app
 def _docx() -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as z:
-        z.writestr("word/document.xml", "<w:document/>")
+        z.writestr(zipfile.ZipInfo("word/document.xml", (2026, 1, 1, 0, 0, 0)), "<w:document/>")  # same bytes every time
     return buffer.getvalue()
 
 
