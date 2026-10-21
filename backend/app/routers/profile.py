@@ -5,13 +5,17 @@ from typing import Annotated
 import segno
 from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel, StringConstraints
+from sqlalchemy import select
 
 from .. import totp
 from ..deps import DB, CurrentUser
 from ..errors import ApiError, forbidden
 from ..files import delete_quietly, save_upload
-from ..models import User
-from ..schemas import PasswordChange, ProfileUpdate, UserOut
+from ..config import settings
+from ..models import AppPassword, User
+from ..schemas import PasswordChange, ProfileUpdate, UserOut, UtcDateTime
+from ..services import app_passwords
+from ..services.audit import audit
 from ..security import hash_password, hash_token, verify_password
 from ..services.security import two_factor_required
 from .branding import current_branding
@@ -170,3 +174,54 @@ def two_factor_disable(body: PasswordIn, user: CurrentUser, db: DB) -> User:
     user.totp_enabled, user.totp_secret, user.recovery_codes = False, None, "[]"
     db.commit()
     return user
+
+
+# ---------- app passwords: network drive and desktop programs ----------
+
+
+class AppPasswordOut(BaseModel):
+    id: int
+    name: str
+    created_at: UtcDateTime
+    last_used_at: UtcDateTime | None
+
+
+class AppPasswordCreated(AppPasswordOut):
+    password: str  # shown once
+    login: str
+    drive_url: str
+
+
+class AppPasswordIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+
+def _app_password_out(row: AppPassword) -> AppPasswordOut:
+    return AppPasswordOut(id=row.id, name=row.name, created_at=row.created_at, last_used_at=row.last_used_at)
+
+
+@router.get("/app-passwords", response_model=list[AppPasswordOut])
+def list_app_passwords(user: CurrentUser, db: DB) -> list[AppPasswordOut]:
+    rows = db.scalars(select(AppPassword).where(AppPassword.user_id == user.id).order_by(AppPassword.created_at.desc()))
+    return [_app_password_out(r) for r in rows]
+
+
+@router.post("/app-passwords", response_model=AppPasswordCreated, status_code=201)
+def create_app_password(body: AppPasswordIn, user: CurrentUser, db: DB) -> AppPasswordCreated:
+    if app_passwords.count(db, user) >= app_passwords.MAX_PER_USER:
+        raise ApiError(409, "too_many_app_passwords", "Please remove an app password you no longer use first.")
+    row, secret = app_passwords.create(db, user, body.name)
+    audit(db, user, "app_password_created", "user", name=body.name)
+    db.commit()
+    return AppPasswordCreated(**_app_password_out(row).model_dump(), password=secret, login=user.email,
+                              drive_url=f"{settings.portal_url}/dav/")
+
+
+@router.delete("/app-passwords/{password_id}", status_code=204)
+def delete_app_password(password_id: int, user: CurrentUser, db: DB) -> None:
+    row = db.get(AppPassword, password_id)
+    if row is None or row.user_id != user.id:
+        raise ApiError(404, "not_found", "Not found.")
+    db.delete(row)
+    audit(db, user, "app_password_deleted", "user", name=row.name)
+    db.commit()

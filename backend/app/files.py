@@ -16,7 +16,7 @@ from .errors import ApiError
 DOCUMENT_TYPES = {"pdf", "md", "txt", "docx"}
 RECEIPT_TYPES = {"pdf", "png", "jpg", "jpeg"}
 OFFICE_TYPES = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "doc", "xls", "ppt", "rtf", "csv"}
-SPACE_TYPES = OFFICE_TYPES | {"pdf", "md", "txt", "png", "jpg", "jpeg", "gif", "webp", "zip"}
+SPACE_TYPES = OFFICE_TYPES | {"pdf", "md", "txt", "png", "jpg", "jpeg", "gif", "webp", "zip", "deckcraft"}
 
 MIME_TYPES = {
     "pdf": "application/pdf",
@@ -39,11 +39,12 @@ MIME_TYPES = {
     "rtf": "application/rtf",
     "csv": "text/csv; charset=utf-8",
     "zip": "application/zip",
+    "deckcraft": "application/vnd.storyteller.deckcraft+zip",  # DeckCraft's own presentation format (a zip)
 }
 
 INLINE_TYPES = {"pdf", "png", "jpg", "jpeg", "gif", "webp", "md", "txt"}
 
-_ZIP_TYPES = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "zip"}
+_ZIP_TYPES = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "zip", "deckcraft"}
 _OLE_TYPES = {"doc", "xls", "ppt"}  # old binary Office formats
 
 

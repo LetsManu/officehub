@@ -54,6 +54,10 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   gallery and speaker view, pin and spotlight, picture-in-picture, a shared whiteboard, recording in the browser,
   breakout rooms, town halls with a stage, mute everyone and remove people, device test, push to talk and the
   browser's noise suppression
+- **Files on the computer and open-source office programs**: spaces as a **network drive** (WebDAV, sign-in with app
+  passwords) for Explorer, Finder and desktop programs; **check out / check in** like SharePoint; optional browser
+  versions of **WordCraft** (documents) and **DeckCraft** (presentations) that open a file and save it back as a new
+  version
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
@@ -211,7 +215,7 @@ npm test && npm run build
 | `SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
 | `SMTP_USER` / `SMTP_PASSWORD` | – | Mail server login, if needed |
 | `SMTP_FROM` | – | Sender address, e.g. `officehub@your-company.example` |
-| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (larger meetings), `onlyoffice` (second editor), e.g. `jitsi,onlyoffice` |
+| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (meeting server), `onlyoffice` (second editor), `craft` (WordCraft and DeckCraft in the browser), e.g. `jitsi,craft` |
 | `JITSI_PUBLIC_IP` | – | With Jitsi: public IP of the server for people outside the office network |
 | `ICE_SERVERS` | – | Built-in meetings: your own STUN/TURN server(s) for people outside the office, comma-separated (`ICE_USERNAME`, `ICE_PASSWORD`) |
 

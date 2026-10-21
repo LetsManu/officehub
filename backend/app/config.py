@@ -78,6 +78,8 @@ class Settings:
     ice_servers: tuple[str, ...]
     ice_username: str | None
     ice_password: str | None
+    # WordCraft / DeckCraft in the browser (optional container): how the backend checks that it runs
+    craft_internal_url: str | None
 
     @property
     def mail_enabled(self) -> bool:
@@ -125,6 +127,7 @@ def load_settings() -> Settings:
         ice_servers=tuple(u.strip() for u in os.getenv("ICE_SERVERS", "").split(",") if u.strip()),
         ice_username=os.getenv("ICE_USERNAME") or None,
         ice_password=os.getenv("ICE_PASSWORD") or None,
+        craft_internal_url=(os.getenv("CRAFT_INTERNAL_URL") or "").rstrip("/") or None,
     )
 
 

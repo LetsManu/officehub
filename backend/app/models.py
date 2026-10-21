@@ -773,8 +773,12 @@ class SpaceFile(Base):
     # Lock held by an office editor (WOPI) while someone edits the file
     lock_id: Mapped[str | None] = mapped_column(String(1024))
     lock_expires: Mapped[datetime | None] = mapped_column(DateTime)
+    # Checked out like in SharePoint: only this person can save new versions until they check it in again
+    checked_out_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    checked_out_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+    checked_out_by: Mapped[User | None] = relationship(foreign_keys=[checked_out_by_id])
     versions: Mapped[list["FileVersion"]] = relationship(
         back_populates="file", cascade="all, delete-orphan", order_by="FileVersion.number.desc()"
     )
@@ -1086,3 +1090,17 @@ class MeetingGuest(Base):
     status: Mapped[str] = mapped_column(String(10), default="waiting")  # waiting, admitted, denied
     decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AppPassword(Base):
+    """A password for one program (network drive, WordCraft/DeckCraft …), so the real password and the second
+    factor stay in the browser. Only a hash is stored; it can be removed at any time."""
+
+    __tablename__ = "app_passwords"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    secret_hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256 of a long random secret
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

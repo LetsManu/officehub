@@ -22,6 +22,7 @@ from .routers import (
     branding,
     calendar,
     chat,
+    craft,
     directory,
     documents,
     help,
@@ -47,6 +48,7 @@ from .routers import (
     time_tracking,
     trainings,
     visitors,
+    webdav,
     wiki,
 )
 
@@ -175,5 +177,7 @@ for router in (
     office.router,
     office.wopi,
     office.hooks,
+    webdav.router,
+    craft.router,
 ):
     app.include_router(router)

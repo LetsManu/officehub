@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 
 from ..config import settings
 from ..deps import DB, CurrentUser
-from ..errors import ApiError, not_found
+from ..errors import ApiError, forbidden, not_found
 from ..files import INLINE_TYPES, MIME_TYPES, SPACE_TYPES, delete_quietly, extension, matches_signature, resolve, safe_display_name
 from ..models import (
     PROJECT_COLORS,
@@ -33,7 +33,9 @@ from ..services.audit import audit
 from ..services.notifications import notify
 from ..services.spaces import (
     add_version,
+    checked_out_by_other,
     current_path,
+    ensure_can_change,
     folder_path,
     get_file,
     get_folder,
@@ -45,6 +47,7 @@ from ..services.spaces import (
     template_bytes,
     unique_name,
 )
+from .webdav import drive_path
 
 router = APIRouter(prefix="/api/spaces", tags=["spaces"])
 
@@ -118,11 +121,15 @@ class FileOut(BaseModel):
     updated_at: UtcDateTime
     deleted_at: UtcDateTime | None = None
     locked: bool = False
+    checked_out_by_id: int | None = None
+    checked_out_by: str | None = None
+    checked_out_at: UtcDateTime | None = None
 
 
 class FileDetail(FileOut):
     versions: list[VersionOut]
     path: list[FolderOut]
+    drive_path: str | None = None  # on the network drive (WebDAV), for desktop programs
 
 
 class Listing(BaseModel):
@@ -182,6 +189,8 @@ def _file_out(f: SpaceFile) -> FileOut:
         id=f.id, space_id=f.space_id, folder_id=f.folder_id, name=f.name, file_type=f.file_type, size=f.size,
         version=f.version, updated_by=f.updated_by.full_name if f.updated_by else None, updated_at=f.updated_at,
         deleted_at=f.deleted_at, locked=bool(f.lock_id and f.lock_expires and f.lock_expires > utcnow()),
+        checked_out_by_id=f.checked_out_by_id, checked_out_at=f.checked_out_at,
+        checked_out_by=f.checked_out_by.full_name if f.checked_out_by else None,
     )
 
 
@@ -429,8 +438,7 @@ async def upload_file(space_id: int, user: CurrentUser, db: DB, file: UploadFile
         SpaceFile.folder_id.is_(None) if folder_id is None else SpaceFile.folder_id == folder_id,
     ))
     if existing is not None:
-        if existing.lock_id and existing.lock_expires and existing.lock_expires > utcnow():
-            raise ApiError(409, "file_locked", "Someone is editing this file right now. Please try again later.")
+        ensure_can_change(existing, user)
         add_version(db, existing, data, user, "upload")
         db.commit()
         return _file_out(existing)
@@ -483,6 +491,7 @@ def file_detail(file_id: int, user: CurrentUser, db: DB) -> FileDetail:
                              created_by=v.created_by.full_name if v.created_by else None, created_at=v.created_at)
                   for v in item.versions],
         path=[_folder_out(f) for f in folder_path(db, db.get(Folder, item.folder_id) if item.folder_id else None)],
+        drive_path=drive_path(db, user, item),
     )
 
 
@@ -508,6 +517,8 @@ def download(file_id: int, user: CurrentUser, db: DB, version: int | None = None
 @router.put("/files/{file_id}", response_model=FileOut)
 def move_file(file_id: int, body: MoveIn, user: CurrentUser, db: DB) -> FileOut:
     item = get_file(db, user, file_id, write=True)
+    if checked_out_by_other(item, user):
+        ensure_can_change(item, user)
     get_folder(db, item.space_id, body.folder_id)
     name = safe_display_name(body.name)
     if extension(name) != item.file_type:
@@ -521,8 +532,7 @@ def move_file(file_id: int, body: MoveIn, user: CurrentUser, db: DB) -> FileOut:
 @router.delete("/files/{file_id}", status_code=204)
 def delete_file(file_id: int, user: CurrentUser, db: DB) -> None:
     item = get_file(db, user, file_id, write=True)
-    if item.lock_id and item.lock_expires and item.lock_expires > utcnow():
-        raise ApiError(409, "file_locked", "Someone is editing this file right now. Please try again later.")
+    ensure_can_change(item, user)
     item.deleted_at = utcnow()
     db.commit()
 
@@ -533,9 +543,33 @@ def restore_version(file_id: int, user: CurrentUser, db: DB, version: int) -> Fi
     match = next((v for v in item.versions if v.number == version), None)
     if match is None:
         raise not_found("Version")
-    if item.lock_id and item.lock_expires and item.lock_expires > utcnow():
-        raise ApiError(409, "file_locked", "Someone is editing this file right now. Please try again later.")
+    ensure_can_change(item, user)
     add_version(db, item, resolve(match.path).read_bytes(), user, "restore")
+    db.commit()
+    return _file_out(item)
+
+
+# ---------- check out and check in (like SharePoint) ----------
+
+
+@router.post("/files/{file_id}/checkout", response_model=FileOut)
+def check_out(file_id: int, user: CurrentUser, db: DB) -> FileOut:
+    """Only I can save new versions until I check the file in again – e.g. while working on it in a program."""
+    item = get_file(db, user, file_id, write=True)
+    ensure_can_change(item, user)
+    if item.checked_out_by_id is None:
+        item.checked_out_by_id, item.checked_out_at = user.id, utcnow()
+        db.commit()
+    return _file_out(item)
+
+
+@router.post("/files/{file_id}/checkin", response_model=FileOut)
+def check_in(file_id: int, user: CurrentUser, db: DB) -> FileOut:
+    """Give the file free again. Managers of the space can do this for someone who forgot."""
+    item = get_file(db, user, file_id, write=True)
+    if item.checked_out_by_id not in (None, user.id) and role_in(db, user, db.get(Space, item.space_id)) != "manager":
+        raise forbidden("Only the person who checked the file out, or a manager of the space, can check it in.")
+    item.checked_out_by_id, item.checked_out_at = None, None
     db.commit()
     return _file_out(item)
 

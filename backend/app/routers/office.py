@@ -31,7 +31,7 @@ from ..services.office import (
     read_token,
 )
 from ..services.settings import set_setting
-from ..services.spaces import add_version, current_path, get_file, role_in
+from ..services.spaces import add_version, checked_out_by_other, current_path, get_file, role_in
 
 router = APIRouter(prefix="/api/office", tags=["office"])
 wopi = APIRouter(prefix="/wopi", tags=["office (internal)"])
@@ -93,7 +93,7 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
         raise ApiError(409, "office_unavailable", "Office editing is not set up.")
     space = db.get(Space, item.space_id)
     can_write = (role_in(db, user, space) is not None and not space.archived
-                 and item.file_type in EDITABLE[engine])
+                 and item.file_type in EDITABLE[engine] and not checked_out_by_other(item, user))
     token, expires = make_token(db, item.id, user.id, can_write, body.origin)
     if engine == "collabora":
         return OpenOut(engine=engine, can_write=can_write, file_name=item.name,
@@ -188,7 +188,7 @@ def get_file_contents(file_id: int, db: DB, access_token: str = Query(...)) -> R
 async def put_file(file_id: int, request: Request, db: DB, access_token: str = Query(...),
                    x_wopi_lock: str | None = Header(None), x_cool_wopi_timestamp: str | None = Header(None)) -> Response:
     item, user, data = _wopi_file(db, file_id, access_token)
-    if not data.get("w"):
+    if not data.get("w") or checked_out_by_other(item, user):
         return Response(status_code=401)
     if _lock_active(item) and item.lock_id != x_wopi_lock:
         return _conflict(item)
@@ -280,6 +280,8 @@ async def onlyoffice_callback(file_id: int, request: Request, db: DB, token: str
             return {"error": 1}
         users = body.get("users") or [data["u"]]
         author = db.get(User, int(users[0])) if str(users[0]).isdigit() else db.get(User, data["u"])
+        if checked_out_by_other(item, author):
+            return {"error": 1}
         with urllib.request.urlopen(onlyoffice_download_url(body["url"]), timeout=60) as response:  # noqa: S310
             content = response.read()
         add_version(db, item, content, author, "editor")
