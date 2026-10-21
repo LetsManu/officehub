@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { photoUrl } from '@/lib/branding'
 import { t } from '@/lib/i18n'
-import { presence, watchPresence } from '@/lib/presence'
+import { activityText, presence, watchPresence } from '@/lib/presence'
 
 const props = withDefaults(
   defineProps<{ id: number; name: string; photoVersion?: string | null; size?: number; status?: boolean }>(),
@@ -21,7 +21,11 @@ watch(
 )
 onBeforeUnmount(() => stop?.())
 const state = computed(() => (props.status ? presence.get(props.id) : undefined))
-const stateLabel = computed(() => (state.value ? `${t(`presence.states.${state.value.state}`)}${state.value.text ? ` – ${state.value.text}` : ''}` : ''))
+const stateLabel = computed(() => {
+  if (!state.value) return ''
+  const activity = activityText(state.value)
+  return `${t(`presence.states.${state.value.state}`)}${state.value.text ? ` – ${state.value.text}` : ''}${activity ? ` · ${activity}` : ''}`
+})
 
 const failed = ref(false)
 watch(() => props.photoVersion, () => (failed.value = false))

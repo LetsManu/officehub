@@ -136,10 +136,11 @@ def mark_all_read(user: CurrentUser, db: DB) -> None:
 
 
 @router.get("/me/summary", response_model=Summary)
-def summary(user: CurrentUser, db: DB, idle: bool = False) -> Summary:
+def summary(user: CurrentUser, db: DB, idle: bool = False,
+            activity: str = Query("", max_length=40, pattern=r"^((file|meeting):\d+)?$")) -> Summary:
     """Small counts for the badges in the navigation. The open portal asks every 30 seconds, which also tells
     OfficeHub that the person is online (and whether they stepped away from the computer)."""
-    user.last_seen_at, user.idle = utcnow(), idle
+    user.last_seen_at, user.idle, user.activity = utcnow(), idle, activity
     db.commit()
 
     def count(query) -> int:

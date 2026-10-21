@@ -70,6 +70,8 @@ class User(Base):
     status_text: Mapped[str] = mapped_column(String(120), default="", server_default=text("''"))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # an open portal reports in
     idle: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    # Rich presence: what the person is doing in OfficeHub right now ("file:12", "meeting:4"), refreshed by the heartbeat
+    activity: Mapped[str] = mapped_column(String(40), default="", server_default=text("''"))
     # Last working day once offboarding has started
     last_day: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -876,6 +878,9 @@ class ChannelMember(Base):
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     last_read_id: Mapped[int] = mapped_column(Integer, default=0)
+    # Like Discord: be notified for "all" messages, only "mentions", or "none"; or mute for a while
+    notify: Mapped[str] = mapped_column(String(10), default="all", server_default=text("'all'"))
+    muted_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (UniqueConstraint("channel_id", "user_id"),)
 
@@ -892,10 +897,57 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Replies in a thread point to the first message of the thread
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True, nullable=True)
+    kind: Mapped[str] = mapped_column(String(10), default="text", server_default=text("'text'"))  # text, poll, voice
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    mention_ids: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))  # ",3,17," for quick lookups
+    poll_multi: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    poll_closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    audio_path: Mapped[str | None] = mapped_column(String(200), nullable=True)  # voice message, under uploads/voice
+    audio_type: Mapped[str] = mapped_column(String(40), default="", server_default=text("''"))
+    audio_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    # Last change to reactions, votes, replies, pin or text – the open chat fetches changed messages again
+    changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
     author: Mapped[User | None] = relationship()
     file: Mapped[SpaceFile | None] = relationship()
     meeting: Mapped["Meeting | None"] = relationship()
+    reactions: Mapped[list["Reaction"]] = relationship(cascade="all, delete-orphan")
+    options: Mapped[list["ChatPollOption"]] = relationship(cascade="all, delete-orphan", order_by="ChatPollOption.position")
+
+
+class Reaction(Base):
+    __tablename__ = "message_reactions"
+    __table_args__ = (UniqueConstraint("message_id", "user_id", "emoji"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    emoji: Mapped[str] = mapped_column(String(16))
+
+    user: Mapped[User] = relationship()
+
+
+class ChatPollOption(Base):
+    __tablename__ = "chat_poll_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
+    text: Mapped[str] = mapped_column(String(120))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    votes: Mapped[list["ChatPollVote"]] = relationship(cascade="all, delete-orphan")
+
+
+class ChatPollVote(Base):
+    __tablename__ = "chat_poll_votes"
+    __table_args__ = (UniqueConstraint("option_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    option_id: Mapped[int] = mapped_column(ForeignKey("chat_poll_options.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+
+    user: Mapped[User] = relationship()
 
 
 class WikiPage(Base):

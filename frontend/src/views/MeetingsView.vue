@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
@@ -11,12 +11,13 @@ import { errorText, formatDateLong, locale, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { Meeting, MeetingDetail } from '@/lib/types'
 
+const route = useRoute()
 const router = useRouter()
 const meetings = ref<Meeting[]>([])
 const past = ref(false)
 const loading = ref(true)
 const error = ref<string | null>(null)
-const formOpen = ref(false)
+const formOpen = ref(route.query.new === '1') // "/meeting" in the chat opens the form right away
 const starting = ref(false)
 
 async function load() {

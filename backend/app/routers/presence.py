@@ -16,6 +16,7 @@ class PresenceOut(BaseModel):
     state: str  # available, busy, in_meeting, dnd, away, ooo, offline
     text: str
     manual: str  # what the person chose ("auto" = OfficeHub decides)
+    activity: dict | None = None  # {kind: editing | meeting, label, link} – what they are doing in OfficeHub
 
 
 class PresenceIn(BaseModel):
@@ -29,7 +30,7 @@ def presence(user: CurrentUser, db: DB, ids: str = Query(..., max_length=2000)) 
         wanted = sorted({int(x) for x in ids.split(",") if x.strip()})[:200]
     except ValueError:
         raise ApiError(422, "invalid_ids", "Please send person numbers.") from None
-    return {uid: PresenceOut(**s) for uid, s in states(db, wanted).items()}
+    return {uid: PresenceOut(**s) for uid, s in states(db, wanted, user).items()}
 
 
 @router.put("/me/presence", response_model=PresenceOut)

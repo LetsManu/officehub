@@ -91,7 +91,8 @@ onBeforeUnmount(() => window.clearInterval(timer))
               </span>
               <span class="conv-side">
                 <span v-if="c.last" class="muted tiny">{{ formatDateTime(c.last.at) }}</span>
-                <span v-if="c.unread" class="badge">{{ c.unread }}</span>
+                <span v-if="c.muted || c.notify === 'none'" class="muted tiny">{{ t('chat.mutedLabel') }}</span>
+                <span v-if="c.unread" class="badge" :class="{ quiet: c.muted }">{{ c.unread }}</span>
               </span>
             </RouterLink>
           </li>
@@ -222,6 +223,11 @@ onBeforeUnmount(() => window.clearInterval(timer))
 .tiny {
   font-size: 0.7rem;
   white-space: nowrap;
+}
+
+.badge.quiet {
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
 }
 
 .badge {

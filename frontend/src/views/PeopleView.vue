@@ -12,6 +12,7 @@ import { api, query } from '@/lib/api'
 import { messagePerson, startCall } from '@/lib/calls'
 import { downloadCsv } from '@/lib/csv'
 import { errorText, t } from '@/lib/i18n'
+import { activityText, presence } from '@/lib/presence'
 import { currentUser } from '@/lib/session'
 import type { DirectoryEntry } from '@/lib/types'
 
@@ -162,6 +163,7 @@ onMounted(() => {
               <div class="person-names">
                 <p class="person-name">{{ person.full_name }}</p>
                 <p class="muted small">{{ person.job_title }}<template v-if="person.job_title && person.department"> · </template>{{ person.department }}</p>
+                <p v-if="activityText(presence.get(person.id))" class="activity small"><span class="activity-dot" aria-hidden="true" />{{ activityText(presence.get(person.id)) }}</p>
               </div>
             </div>
             <ul class="contact-list">
@@ -217,6 +219,22 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.activity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--color-primary-text);
+  font-weight: 600;
+}
+
+.activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .filters {
   display: grid;
   gap: var(--space-3);

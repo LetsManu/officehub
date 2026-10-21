@@ -70,3 +70,29 @@ export function renderMarkdown(source: string): string {
   flushList()
   return out.join('\n')
 }
+
+/**
+ * Chat messages: like the renderer above, but line breaks stay, ```code blocks```, ~~strike~~, bare links become
+ * clickable and @mentions of members are highlighted. Everything is escaped first.
+ */
+export function renderChat(source: string, names: string[] = []): string {
+  const blocks = source.replace(/\r\n?/g, '\n').split(/```/)
+  const html = blocks
+    .map((block, i) => {
+      if (i % 2 === 1) return `<pre><code>${escapeHtml(block.replace(/^\n|\n$/g, ''))}</code></pre>`
+      return block
+        .split('\n')
+        .map((line) => {
+          const bullet = /^\s*[-*]\s+/.test(line)
+          let out = inline(bullet ? line.replace(/^\s*[-*]\s+/, '') : line)
+          out = out.replace(/~~([^~]+)~~/g, '<s>$1</s>')
+          out = out.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, '$1<a href="$2" rel="noopener noreferrer" target="_blank">$2</a>')
+          return bullet ? `• ${out}` : out
+        })
+        .join('<br>')
+    })
+    .join('')
+  if (!names.length) return html
+  const escaped = [...names].sort((a, b) => b.length - a.length).map((n) => escapeHtml(`@${n}`).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return html.replace(new RegExp(`(${escaped.join('|')})`, 'g'), '<span class="mention">$1</span>')
+}
