@@ -44,6 +44,13 @@ function editable(f: SpaceFile) {
 const craft = ref<CraftConfig>({ apps: [], types: {} })
 const craftFor = (f: SpaceFile) => craftApp(craft.value, f.file_type)
 
+/** Word and PowerPoint open in WordCraft / DeckCraft (one person at a time); this opens the office editor instead,
+ * where several people work in the same file at once. */
+function canEditTogether(f: SpaceFile) {
+  const engine = office.value.default
+  return !!office.value.prefer_craft && !!craftFor(f) && !!engine && (office.value.editable[engine] ?? []).includes(f.file_type)
+}
+
 /** Open the file in the browser version of WordCraft or DeckCraft (a new tab, like Word online). */
 async function openInCraft(f: SpaceFile) {
   const tab = window.open('', '_blank')
@@ -414,6 +421,7 @@ onMounted(async () => {
                 <td class="num hide-sm muted small">{{ fileSize(f.size) }}</td>
                 <td class="actions">
                   <RouterLink v-if="editable(f)" :to="`/office/${f.id}`" class="btn btn-ghost btn-icon" :aria-label="`${t('files.edit')}: ${f.name}`" :title="t('files.edit')"><AppIcon name="edit" :size="18" /></RouterLink>
+                  <RouterLink v-if="canEditTogether(f)" :to="`/office/${f.id}?together=1`" class="btn btn-ghost btn-icon" :aria-label="`${t('files.editTogether')}: ${f.name}`" :title="t('files.editTogetherHint')"><AppIcon name="users" :size="18" /></RouterLink>
                   <button v-if="craftFor(f) && !office.prefer_craft" type="button" class="btn btn-ghost btn-icon" :aria-label="`${t(`files.openIn.${craftFor(f)}`)}: ${f.name}`" :title="t(`files.openIn.${craftFor(f)}`)" @click="openInCraft(f)"><AppIcon name="external" :size="18" /></button>
                   <a class="btn btn-ghost btn-icon" :href="`/api/spaces/files/${f.id}/download`" download :aria-label="`${t('files.download')}: ${f.name}`" :title="t('files.download')"><AppIcon name="download" :size="18" /></a>
                   <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.details')}: ${f.name}`" :title="t('files.details')" @click="showDetail(f.id)"><AppIcon name="history" :size="18" /></button>

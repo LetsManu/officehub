@@ -538,6 +538,8 @@ const en: Messages = {
     sources: { upload: 'Uploaded', editor: 'Saved in the editor', restore: 'Restored', new: 'Created', drive: 'Saved from a computer', wordcraft: 'Saved in WordCraft', deckcraft: 'Saved in DeckCraft' },
     details: 'Details and versions',
     openIn: { wordcraft: 'Open in WordCraft', deckcraft: 'Open in DeckCraft' },
+    editTogether: 'Edit together',
+    editTogetherHint: 'Edit together: several people in the file at the same time (in the office editor)',
     craftReadOnly: 'The file is open for reading only – you cannot save it here.',
     checkOutTitle: 'Check out',
     checkOutHint: 'Whoever checks a file out is the only one who can save new versions – handy while you work on it in a program for longer.',
