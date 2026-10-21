@@ -6,8 +6,9 @@
  * PowerPoint files go there instead.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import BaseModal from '@/components/BaseModal.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { craftApp, loadCraftConfig, loadOfficeConfig } from '@/lib/spaces'
@@ -35,6 +36,41 @@ const error = ref<string | null>(null)
 const loading = ref(true)
 const form = ref<HTMLFormElement | null>(null)
 let editor: { destroyEditor: () => void } | null = null
+
+// ---------- WordCraft / DeckCraft, shown inside the portal (with this bar and its way back) ----------
+
+const craft = ref<{ app: 'wordcraft' | 'deckcraft'; url: string; can_write: boolean } | null>(null)
+const craftFrame = ref<HTMLIFrameElement | null>(null)
+const leaveTo = ref<RouteLocationRaw | null>(null)
+let leaving = false
+
+/** Does the program have changes that are not saved yet? WordCraft says so to the browser's "leave page?"
+ * check (same site, so we can ask it); DeckCraft cannot tell, so we ask the person. */
+function maybeUnsaved(): boolean {
+  if (!craft.value?.can_write) return false
+  if (craft.value.app === 'deckcraft') return true
+  try {
+    const check = new Event('beforeunload', { cancelable: true })
+    craftFrame.value?.contentWindow?.dispatchEvent(check)
+    return check.defaultPrevented
+  } catch {
+    return true
+  }
+}
+
+onBeforeRouteLeave((to) => {
+  if (leaving || !craft.value || !maybeUnsaved()) return true
+  leaveTo.value = to.fullPath
+  return false
+})
+
+function leaveAnyway() {
+  const to = leaveTo.value
+  leaveTo.value = null
+  if (!to) return
+  leaving = true
+  router.push(to)
+}
 
 const backTo = computed(() => {
   if (!file.value) return '/spaces'
@@ -111,8 +147,9 @@ onMounted(async () => {
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
     if (!together && office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
-      const opened = await api.post<{ url: string }>(`/api/craft/open/${props.id}`)
-      window.location.replace(opened.url)
+      craft.value = await api.post<{ app: 'wordcraft' | 'deckcraft'; url: string; can_write: boolean }>(`/api/craft/open/${props.id}`)
+      loading.value = false
+      setActivity(`file:${props.id}`)
       return
     }
     engine.value = office.value.default
@@ -142,9 +179,11 @@ onBeforeUnmount(() => {
       <RouterLink :to="backTo" class="btn btn-ghost back"><AppIcon name="chevronLeft" :size="18" />{{ t('office.back') }}</RouterLink>
       <h1 class="title">
         <span>{{ file?.name ?? '…' }}</span>
-        <span v-if="session && !session.can_write" class="tag">{{ t('office.readOnly') }}</span>
+        <span v-if="(session && !session.can_write) || (craft && !craft.can_write)" class="tag">{{ t('office.readOnly') }}</span>
+        <span v-if="craft" class="tag">{{ t(`office.craft.${craft.app}`) }}</span>
       </h1>
       <div class="row">
+        <RouterLink v-if="craft && office.default && (office.editable[office.default] ?? []).includes(file?.file_type ?? '')" :to="`/office/${props.id}?together=1`" class="btn btn-ghost" :title="t('files.editTogetherHint')"><AppIcon name="users" :size="18" /><span class="hide-sm">{{ t('files.editTogether') }}</span></RouterLink>
         <div v-if="office.engines.length > 1" class="segmented" role="group" :aria-label="t('office.openWith')">
           <button v-for="e in office.engines" :key="e" type="button" :aria-pressed="engine === e" @click="switchEngine(e)">{{ t(`office.engines.${e}`) }}</button>
         </div>
@@ -167,8 +206,11 @@ onBeforeUnmount(() => {
           <iframe name="office-frame" class="frame" :title="file?.name ?? t('office.editor')" allow="clipboard-read *; clipboard-write *; fullscreen" allowfullscreen />
         </template>
         <div v-else-if="session?.engine === 'onlyoffice'" class="frame"><div id="office-onlyoffice" /></div>
+        <iframe v-else-if="craft" ref="craftFrame" class="frame" :src="craft.url" :title="file?.name ?? t('office.editor')" allow="clipboard-read; clipboard-write; fullscreen; local-fonts" allowfullscreen />
       </template>
     </div>
+
+    <BaseModal :open="leaveTo !== null" :title="t('office.leaveTitle')" :description="t(`office.leaveText.${craft?.app ?? 'wordcraft'}`)" :confirm-label="t('office.leaveAnyway')" :cancel-label="t('office.stay')" tone="danger" @close="leaveTo = null" @confirm="leaveAnyway" />
   </div>
 </template>
 
