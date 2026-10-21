@@ -185,14 +185,20 @@ onMounted(async () => {
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
     if (!together && office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
-      craft.value = await api.post<CraftOpen>(`/api/craft/open/${props.id}`)
-      if (craft.value.lock) {
-        lockTimer = window.setInterval(renewLock, 60_000)
-        window.addEventListener('pagehide', releaseLock)
+      const opened = await api.post<CraftOpen>(`/api/craft/open/${props.id}`)
+      // Others already work in it together in the office editor: join them there instead of a read-only copy
+      const joinTogether = !opened.can_write && opened.editing_by === '' && office.value.default
+        && (office.value.editable[office.value.default] ?? []).includes(file.value.file_type)
+      if (!joinTogether) {
+        craft.value = opened
+        if (opened.lock) {
+          lockTimer = window.setInterval(renewLock, 60_000)
+          window.addEventListener('pagehide', releaseLock)
+        }
+        loading.value = false
+        setActivity(`file:${props.id}`)
+        return
       }
-      loading.value = false
-      setActivity(`file:${props.id}`)
-      return
     }
     engine.value = office.value.default
     if (!engine.value) {
