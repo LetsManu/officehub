@@ -9,6 +9,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.3.0',
+    date: '2026-10-21',
+    de: [
+      'Neu: Video-Meetings auf dem eigenen Server der Firma – planen, einladen (mit Kalender-Einladung), zusagen und beitreten.',
+      'Anrufen direkt aus dem Chat: Bei deiner Kollegin oder deinem Kollegen klingelt das Portal.',
+      'Jeder Bereich hat einen eigenen Besprechungsraum – du siehst, wer gerade drin ist.',
+      'Im Meeting: Bildschirm teilen, melden, Chat und gemeinsame Notizen, die ins Wiki wandern können.',
+      'Gäste von außerhalb über einen Link – sie warten, bis jemand sie reinlässt.',
+    ],
+    en: [
+      "New: video meetings on the company's own server – plan, invite (with a calendar invitation), accept and join.",
+      "Call straight from the chat: your colleague's portal rings.",
+      'Every space has its own meeting room – you can see who is in it right now.',
+      'In the meeting: share your screen, raise your hand, chat and take notes together that can go into the wiki.',
+      'Guests from outside join with a link – they wait until someone lets them in.',
+    ],
+  },
+  {
     version: '3.2.0',
     date: '2026-10-21',
     de: [

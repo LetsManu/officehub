@@ -9,14 +9,14 @@ import StatTile from '@/components/StatTile.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api } from '@/lib/api'
 import { portalSettings } from '@/lib/portal'
-import { currentUser, isApprover } from '@/lib/session'
+import { currentUser, isApprover, publicConfig } from '@/lib/session'
 import { errorText, formatDate, formatDateLong, formatPeriod, locale, t } from '@/lib/i18n'
 import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
 import { refreshSummary, summary } from '@/lib/summary'
 import { DEFAULT_TILES, tileByKey, type TileDefinition } from '@/lib/tiles'
 import { hours } from '@/lib/time'
 import type {
-  Absence, ActivityItem, Announcement, AppNotification, Booking, Celebration, Checklist, NotificationList, OfficeRequest, RequestList, Review,
+  Absence, ActivityItem, Announcement, AppNotification, Booking, Celebration, Checklist, Meeting, NotificationList, OfficeRequest, RequestList, Review,
   TimeStatus,
   VacationBalance,
 } from '@/lib/types'
@@ -35,6 +35,17 @@ const openRequests = ref<OfficeRequest[]>([])
 const openTotal = ref(0)
 const announcements = ref<Announcement[]>([])
 const bookingsToday = ref<Booking[]>([])
+const meetingsToday = ref<Meeting[]>([])
+
+function clock(iso: string | null) {
+  return iso ? new Date(iso).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) : ''
+}
+
+/** From ten minutes before the start until the end. */
+function startsSoon(m: Meeting) {
+  const now = Date.now()
+  return !!m.starts_at && !!m.ends_at && new Date(m.starts_at).getTime() - 10 * 60_000 <= now && new Date(m.ends_at).getTime() >= now
+}
 const reviewTodo = ref<Review | null>(null)
 const onboarding = ref<Checklist | null>(null)
 const activity = ref<AppNotification[]>([])
@@ -187,7 +198,7 @@ async function load() {
     openTotal.value = requests.total
     announcements.value = news
     // Optional extras: the dashboard still works if one of them fails.
-    const [bookings, reviews, checklist, notes, absences, parties, feed, balance, time] = await Promise.allSettled([
+    const [bookings, reviews, checklist, notes, absences, parties, feed, balance, time, meetings] = await Promise.allSettled([
       api.get<Booking[]>('/api/rooms/bookings/mine'),
       api.get<Review[]>('/api/reviews'),
       api.get<Checklist>(`/api/onboarding/${currentUser.value?.id}`),
@@ -197,8 +208,13 @@ async function load() {
       api.get<ActivityItem[]>('/api/activity?limit=5'),
       api.get<VacationBalance>('/api/me/vacation'),
       api.get<TimeStatus>('/api/time/status'),
+      publicConfig.value?.meetings_enabled ? api.get<Meeting[]>('/api/meetings') : Promise.resolve([] as Meeting[]),
       refreshSummary(true),
     ])
+    if (meetings.status === 'fulfilled') {
+      const today = new Date().toDateString()
+      meetingsToday.value = meetings.value.filter((m) => !m.cancelled && m.my_response !== 'declined' && m.starts_at && new Date(m.starts_at).toDateString() === today)
+    }
     if (time.status === 'fulfilled') timeStatus.value = time.value
     if (absences.status === 'fulfilled') away.value = absences.value
     if (parties.status === 'fulfilled') celebrations.value = parties.value.slice(0, 5)
@@ -398,6 +414,23 @@ onMounted(load)
             <EmptyState v-else icon="megaphone" :message="t('dashboard.noNews')" />
           </section>
 
+          <section v-if="meetingsToday.length" class="card card-flush" aria-labelledby="meetings-title">
+            <div class="section-head">
+              <h2 id="meetings-title">{{ t('dashboard.meetingsToday') }}</h2>
+              <RouterLink to="/meetings" class="btn btn-ghost">{{ t('nav.meetings') }}</RouterLink>
+            </div>
+            <ul class="list">
+              <li v-for="m in meetingsToday" :key="m.id" class="event">
+                <span class="time-chip">{{ clock(m.starts_at) }}</span>
+                <RouterLink :to="`/meetings/${m.id}`" class="stack-sm grow plain-link">
+                  <span class="news-title">{{ m.title }}</span>
+                  <span class="muted small">{{ clock(m.starts_at) }} – {{ clock(m.ends_at) }}<template v-if="m.live.length"> · {{ t('meetings.liveNow', { n: m.live.length }) }}</template></span>
+                </RouterLink>
+                <RouterLink v-if="m.live.length || startsSoon(m)" :to="`/meetings/${m.id}/room`" class="btn btn-primary"><AppIcon name="video" :size="18" />{{ t('meetings.join') }}</RouterLink>
+              </li>
+            </ul>
+          </section>
+
           <section v-if="bookingsToday.length" class="card card-flush" aria-labelledby="bookings-title">
             <div class="section-head">
               <h2 id="bookings-title">{{ t('dashboard.myBookings') }}</h2>
@@ -570,6 +603,16 @@ onMounted(load)
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
   flex-shrink: 0;
+}
+
+.plain-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.plain-link:hover .news-title {
+  color: var(--color-primary);
+  text-decoration: underline;
 }
 
 .grow {

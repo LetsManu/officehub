@@ -7,8 +7,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import BaseModal from './BaseModal.vue'
 import UserAvatar from './UserAvatar.vue'
+import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { errorText, formatDateLong, locale, t } from '@/lib/i18n'
+import { publicConfig } from '@/lib/session'
 import { refreshSummary } from '@/lib/summary'
 import { fileIcon, fileSize, fileTone, findMentions, isOffice } from '@/lib/spaces'
 import { showToast } from '@/lib/toast'
@@ -18,6 +20,8 @@ const props = defineProps<{ channelId: number }>()
 const emit = defineEmits<{ updated: [conversation: Conversation] }>()
 
 const POLL_MS = 3000
+const router = useRouter()
+const calling = ref(false)
 const messages = ref<ChatMessage[]>([])
 const members = ref<ChatPage['members']>([])
 const conversation = ref<Conversation | null>(null)
@@ -61,6 +65,19 @@ function parts(body: string) {
   if (!names.length) return [{ text: body, mention: false }]
   const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   return body.split(new RegExp(`(${escaped.join('|')})`, 'g')).filter(Boolean).map((p) => ({ text: p, mention: names.includes(p) }))
+}
+
+/** Start a call here: a direct chat rings the other person, a channel gets a "join" message. */
+async function startCall() {
+  calling.value = true
+  try {
+    const call = await api.post<{ meeting_id: number }>('/api/calls', { channel_id: props.channelId })
+    router.push({ path: `/meetings/${call.meeting_id}/room`, query: { call: conversation.value?.kind === 'direct' ? '1' : undefined, from: router.currentRoute.value.fullPath } })
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  } finally {
+    calling.value = false
+  }
 }
 
 function atBottom() {
@@ -278,6 +295,9 @@ onBeforeUnmount(() => {
           <template v-if="conversation.space_name">{{ conversation.space_name }} · </template>{{ t('chat.people', { n: members.length }) }}
         </p>
       </div>
+      <button v-if="publicConfig?.meetings_enabled" type="button" class="btn btn-secondary call-btn" :disabled="calling" @click="startCall">
+        <AppIcon name="video" :size="18" /><span>{{ conversation.kind === 'direct' ? t('chat.call') : t('chat.startCall') }}</span>
+      </button>
     </header>
 
     <div ref="scroller" class="messages" role="log" aria-live="polite" :aria-busy="loading">
@@ -297,6 +317,11 @@ onBeforeUnmount(() => {
             </p>
             <p v-if="row.message.deleted" class="muted deleted">{{ t('chat.deleted') }}</p>
             <template v-else>
+              <div v-if="row.message.meeting" class="call-card" :class="{ over: !row.message.meeting.active }">
+                <span class="call-icon"><AppIcon :name="row.message.meeting.active ? 'video' : 'phoneOff'" :size="18" /></span>
+                <span class="call-text">{{ row.message.meeting.active ? t('chat.callActive') : t('chat.callEnded') }}</span>
+                <RouterLink v-if="row.message.meeting.active" :to="{ path: `/meetings/${row.message.meeting.id}/room`, query: { from: router.currentRoute.value.fullPath } }" class="btn btn-primary">{{ t('chat.joinCall') }}</RouterLink>
+              </div>
               <p v-if="row.message.body" class="text"><span v-for="(p, i) in parts(row.message.body)" :key="i" :class="{ mention: p.mention }">{{ p.text }}</span><span v-if="row.message.edited" class="muted small"> ({{ t('chat.edited') }})</span></p>
               <div v-if="row.message.file" class="file">
                 <span class="ficon" :class="`pc-${fileTone(row.message.file.file_type)}`"><AppIcon :name="fileIcon(row.message.file.file_type)" :size="18" /></span>
@@ -364,6 +389,52 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--color-border);
+}
+
+.call-btn {
+  margin-left: auto;
+}
+
+@media (max-width: 560px) {
+  .call-btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.call-card {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.call-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.call-card.over .call-icon {
+  background: var(--color-neutral-soft);
+  color: var(--color-text-muted);
+}
+
+.call-text {
+  font-weight: 600;
 }
 
 .hash {

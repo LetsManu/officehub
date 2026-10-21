@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /** Layout of one space: header, tabs and the active tab below (files, board, chat, wiki …). */
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import LoadState from '@/components/LoadState.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
+import { publicConfig } from '@/lib/session'
 import { provideSpace } from '@/lib/spaceContext'
-import type { SpaceDetail } from '@/lib/types'
+import type { Meeting, SpaceDetail } from '@/lib/types'
 
 const props = defineProps<{ id: string }>()
 const route = useRoute()
@@ -41,11 +42,32 @@ async function reload() {
   }
 }
 
+/** The space's standing meeting room and who is in it right now. */
+const room = ref<Meeting | null>(null)
+let roomTimer: number | undefined
+
+async function loadRoom() {
+  window.clearTimeout(roomTimer)
+  if (!publicConfig.value?.meetings_enabled) return
+  if (document.visibilityState === 'visible') {
+    try {
+      room.value = await api.get<Meeting>(`/api/spaces/${props.id}/meeting`)
+    } catch {
+      room.value = null // not a member
+      return
+    }
+  }
+  roomTimer = window.setTimeout(loadRoom, 20_000)
+}
+onBeforeUnmount(() => window.clearTimeout(roomTimer))
+
 provideSpace({ space, reload })
 watch(() => props.id, () => {
   loading.value = true
   space.value = null
+  room.value = null
   reload()
+  loadRoom()
 }, { immediate: true })
 </script>
 
@@ -68,6 +90,10 @@ watch(() => props.id, () => {
               <UserAvatar v-for="m in space.members.slice(0, 5)" :id="m.person.id" :key="m.person.id" :name="m.person.full_name" :photo-version="m.person.photo_version" :size="32" />
               <span v-if="space.members.length > 5" class="more">+{{ space.members.length - 5 }}</span>
             </div>
+            <RouterLink v-if="room && !space.archived" :to="`/meetings/${room.id}/room`" class="btn room-btn" :class="room.live.length ? 'btn-primary' : 'btn-secondary'">
+              <AppIcon name="video" :size="18" />
+              <span>{{ room.live.length ? t('spaces.roomLive', { n: room.live.length }) : t('spaces.room') }}</span>
+            </RouterLink>
           </div>
           <p v-if="space.archived" class="notice notice-warning small">{{ t('spaces.archivedHint') }}</p>
           <nav class="tabs" :aria-label="space.name">
@@ -203,5 +229,13 @@ watch(() => props.id, () => {
   .people {
     display: none;
   }
+
+  .title-row {
+    flex-wrap: wrap;
+  }
+}
+
+.room-btn {
+  flex: none;
 }
 </style>

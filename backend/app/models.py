@@ -883,12 +883,14 @@ class Message(Base):
     author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     body: Mapped[str] = mapped_column(Text, default="")
     file_id: Mapped[int | None] = mapped_column(ForeignKey("space_files.id", ondelete="SET NULL"))
+    meeting_id: Mapped[int | None] = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"))  # "join the call"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     author: Mapped[User | None] = relationship()
     file: Mapped[SpaceFile | None] = relationship()
+    meeting: Mapped["Meeting | None"] = relationship()
 
 
 class WikiPage(Base):
@@ -935,3 +937,77 @@ class WikiEditor(Base):
     user: Mapped[User] = relationship()
 
     __table_args__ = (UniqueConstraint("page_id", "user_id"),)
+
+
+# ---------- Meetings and calls (video through the company's own Jitsi server) ----------
+
+MEETING_KINDS = ("scheduled", "space", "call")
+
+
+class Meeting(Base):
+    """A video meeting: planned with a time, the standing room of a space, or a call started from the chat."""
+
+    __tablename__ = "meetings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), default="scheduled")
+    title: Mapped[str] = mapped_column(String(150))
+    description: Mapped[str] = mapped_column(Text, default="")
+    room: Mapped[str] = mapped_column(String(64), unique=True)  # name of the Jitsi conference
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)  # UTC
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime)
+    space_id: Mapped[int | None] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    organizer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    guest_token: Mapped[str | None] = mapped_column(String(64), unique=True)  # set = guests may ask to join
+    notes: Mapped[str] = mapped_column(Text, default="")
+    notes_version: Mapped[int] = mapped_column(Integer, default=0)
+    cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime)  # calls only
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    organizer: Mapped[User | None] = relationship()
+    invitees: Mapped[list["MeetingInvitee"]] = relationship(back_populates="meeting", cascade="all, delete-orphan")
+
+
+class MeetingInvitee(Base):
+    __tablename__ = "meeting_invitees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # pending, accepted, declined – for calls: ringing, accepted, declined, missed
+    response: Mapped[str] = mapped_column(String(10), default="pending")
+
+    meeting: Mapped[Meeting] = relationship(back_populates="invitees")
+    user: Mapped[User] = relationship()
+
+    __table_args__ = (UniqueConstraint("meeting_id", "user_id"),)
+
+
+class MeetingPresence(Base):
+    """Who is in a meeting right now (the meeting page reports every few seconds)."""
+
+    __tablename__ = "meeting_presence"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    guest_id: Mapped[int | None] = mapped_column(ForeignKey("meeting_guests.id", ondelete="CASCADE"))
+    seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User | None] = relationship()
+
+
+class MeetingGuest(Base):
+    """Someone without an account who asked to join through the guest link and waits to be let in."""
+
+    __tablename__ = "meeting_guests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    secret: Mapped[str] = mapped_column(String(64), unique=True)
+    status: Mapped[str] = mapped_column(String(10), default="waiting")  # waiting, admitted, denied
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

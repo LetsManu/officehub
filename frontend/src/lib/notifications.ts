@@ -16,6 +16,9 @@ export const NOTIFICATION_ICONS: Record<string, string> = {
   must_read_reminder: 'megaphone',
   personal_document: 'file',
   welcome: 'star',
+  meeting_invite: 'video',
+  meeting_cancelled: 'calendar',
+  call_missed: 'phone',
 }
 
 export function notificationText(item: AppNotification): string {

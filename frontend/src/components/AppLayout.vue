@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import CommandPalette from './CommandPalette.vue'
+import IncomingCall from './IncomingCall.vue'
 import NotificationBell from './NotificationBell.vue'
 import UserAvatar from './UserAvatar.vue'
 import { branding, logoUrl } from '@/lib/branding'
@@ -241,6 +242,7 @@ watch(
     </div>
 
     <CommandPalette :open="searchOpen" @close="searchOpen = false" />
+    <IncomingCall v-if="publicConfig?.meetings_enabled" />
   </div>
 </template>
 

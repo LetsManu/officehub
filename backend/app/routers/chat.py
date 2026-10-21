@@ -27,6 +27,7 @@ class LastMessage(BaseModel):
     body: str
     author: str | None
     at: UtcDateTime
+    call: bool = False
 
 
 class Conversation(BaseModel):
@@ -56,6 +57,7 @@ class MessageOut(BaseModel):
     edited: bool
     deleted: bool
     mine: bool
+    meeting: dict | None = None  # a call started in this conversation: {id, active}
 
 
 class Messages(BaseModel):
@@ -160,7 +162,8 @@ def _conversation(db: Session, user: User, channel: Channel) -> Conversation:
         space_id=space.id if space else None, space_name=space.name if space else None,
         other=UserBrief.model_validate(other) if other else None, unread=_unread(db, channel.id, user.id),
         last=LastMessage(body=(last.body or (last.file.name if last.file else ""))[:120],
-                         author=last.author.first_name if last.author else None, at=last.created_at) if last else None,
+                         author=last.author.first_name if last.author else None, at=last.created_at,
+                         call=last.meeting_id is not None) if last else None,
     )
 
 
@@ -172,6 +175,7 @@ def _message_out(message: Message, user: User) -> MessageOut:
         if message.file and not message.deleted and message.file.deleted_at is None else None,
         created_at=message.created_at, edited=message.edited_at is not None, deleted=message.deleted,
         mine=message.author_id == user.id,
+        meeting={"id": message.meeting.id, "active": message.meeting.ended_at is None} if message.meeting else None,
     )
 
 

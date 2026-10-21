@@ -26,6 +26,7 @@ from .routers import (
     help,
     holidays,
     ideas,
+    meetings,
     notifications,
     office,
     onboarding,
@@ -126,6 +127,7 @@ def public_config() -> dict:
         "max_upload_mb": settings.max_upload_mb,
         "version": settings.app_version,
         "mail_enabled": settings.mail_enabled,
+        "meetings_enabled": bool(settings.jitsi_app_secret),
     }
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
@@ -163,6 +165,7 @@ for router in (
     boards.router,
     chat.router,
     wiki.router,
+    meetings.router,
     office.router,
     office.wopi,
     office.hooks,

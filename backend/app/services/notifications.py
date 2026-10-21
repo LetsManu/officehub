@@ -27,12 +27,13 @@ NOTIFICATION_KINDS = (
 )
 
 
-def notify(db: Session, user_id: int, kind: str, params: dict | None = None, link: str = "") -> None:
+def notify(db: Session, user_id: int, kind: str, params: dict | None = None, link: str = "",
+           attachment: tuple[str, bytes, str] | None = None) -> None:
     db.add(Notification(user_id=user_id, kind=kind, params=json.dumps(params or {}), link=link))
     if kind in EMAIL_KINDS:
         person = db.get(User, user_id)
         if person is not None and person.is_active and person.email_notifications:
-            queue_mail(db, person.email, person.language, kind, params or {}, link)
+            queue_mail(db, person.email, person.language, kind, params or {}, link, attachment)
 
 
 def notify_many(db: Session, user_ids, actor: User | None, kind: str, params: dict | None = None, link: str = "") -> None:

@@ -253,6 +253,33 @@ downloaded and uploaded again.
 
 ---
 
+## Meetings and calls
+
+If your company has set up its meeting server, **Meetings** appears in the menu. Meetings run on the company's own
+server; nothing is recorded.
+
+- **Plan a meeting**: give it a title, day and time, and pick who is joining. Everyone invited gets a notification
+  and a calendar invitation by e-mail. Choose a space to save the notes in its wiki later.
+- **Accept or decline** on the meeting page or in the list. **Add to my calendar** downloads the appointment.
+- **Meet now** starts a meeting right away – copy the guest link or invite people from the meeting.
+- **Join**: first you see yourself and can switch camera and microphone on or off. Click **Join now**.
+- In the meeting: **Mute**, **Camera off**, **Share screen**, **Raise hand**, a **chat** just for this meeting,
+  **People** (who is there) and **Notes** that everyone from the company can write together. Keys: **M** for the
+  microphone, **V** for the camera.
+
+### Calls from the chat
+
+Click **Call** at the top of a direct conversation – your colleague's portal rings and they can accept or decline.
+In a space chat, **Start a meeting** posts a "Join" message for everyone. Missed calls show up as a notification.
+Every space also has a **Meeting room** at the top that anyone in the space can join at any time.
+
+### Guests from outside
+
+Tick **Allow guests from outside** when planning a meeting and send them the **guest link**. A guest enters a name
+and waits; someone in the meeting sees "… would like to join" and clicks **Let in** or **Decline**.
+
+---
+
 ## Planning
 
 **Planning** shows who works on which project and when: one row per person, one column per day, projects as

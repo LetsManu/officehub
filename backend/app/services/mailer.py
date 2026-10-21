@@ -37,6 +37,8 @@ TEXTS = {
         "personal_document": "Neues Dokument für dich: {title}",
         "training_due": "Schulung fällig: {title}",
         "survey_new": "Neue anonyme Umfrage: {title}",
+        "meeting_invite": "{name} lädt dich ein: {title} ({when})",
+        "meeting_cancelled": "Abgesagt: {title} ({when})",
         "test": "Test-E-Mail von OfficeHub – der Versand funktioniert.",
     },
     "en": {
@@ -49,6 +51,8 @@ TEXTS = {
         "personal_document": "New document for you: {title}",
         "training_due": "Training due: {title}",
         "survey_new": "New anonymous survey: {title}",
+        "meeting_invite": "{name} invites you: {title} ({when})",
+        "meeting_cancelled": "Cancelled: {title} ({when})",
         "test": "Test e-mail from OfficeHub – sending works.",
     },
 }
@@ -64,7 +68,8 @@ class _Default(dict):
         return ""
 
 
-def build_message(to: str, language: str, kind: str, params: dict, link: str) -> EmailMessage:
+def build_message(to: str, language: str, kind: str, params: dict, link: str,
+                  attachment: tuple[str, bytes, str] | None = None) -> EmailMessage:
     lang = language if language in TEXTS else "de"
     values = _Default(params)
     if "type" in values:
@@ -75,6 +80,10 @@ def build_message(to: str, language: str, kind: str, params: dict, link: str) ->
     message["From"] = settings.smtp_from
     message["To"] = to
     message.set_content(f"{text}\n\n" + FOOTER[lang].format(link=f"{settings.portal_url}{link or '/'}"))
+    if attachment is not None:  # e.g. a calendar invitation (.ics)
+        filename, data, mime = attachment
+        maintype, subtype = mime.split("/", 1)
+        message.add_attachment(data, maintype=maintype, subtype=subtype, filename=filename)
     return message
 
 
@@ -106,10 +115,11 @@ def _send_in_background(messages: list[EmailMessage]) -> None:
     threading.Thread(target=run, name="officehub-mail", daemon=True).start()
 
 
-def queue_mail(db: Session, to: str, language: str, kind: str, params: dict, link: str) -> None:
+def queue_mail(db: Session, to: str, language: str, kind: str, params: dict, link: str,
+               attachment: tuple[str, bytes, str] | None = None) -> None:
     if not settings.mail_enabled or kind not in EMAIL_KINDS or not to:
         return
-    db.info.setdefault("mail_outbox", []).append(build_message(to, language, kind, params, link))
+    db.info.setdefault("mail_outbox", []).append(build_message(to, language, kind, params, link, attachment))
 
 
 @event.listens_for(Session, "after_commit")
