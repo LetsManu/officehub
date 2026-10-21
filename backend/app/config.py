@@ -47,6 +47,11 @@ class Settings:
     onlyoffice_url: str | None  # how the backend reaches ONLYOFFICE, e.g. http://onlyoffice
     onlyoffice_jwt_secret: str | None
     backend_internal_url: str  # how the office servers reach the backend, e.g. http://backend:8000
+    # Video meetings (optional): your own Jitsi Meet server in the same stack
+    jitsi_app_secret: str | None  # shared with Prosody (JWT_APP_SECRET); set = meetings switched on
+    jitsi_app_id: str
+    jitsi_domain: str  # XMPP domain of the Jitsi stack
+    jitsi_muc: str
 
     @property
     def mail_enabled(self) -> bool:
@@ -84,6 +89,10 @@ def load_settings() -> Settings:
         onlyoffice_url=(os.getenv("ONLYOFFICE_URL") or "").rstrip("/") or None,
         onlyoffice_jwt_secret=os.getenv("ONLYOFFICE_JWT_SECRET") or None,
         backend_internal_url=os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000").rstrip("/"),
+        jitsi_app_secret=os.getenv("JITSI_APP_SECRET") or None,
+        jitsi_app_id=os.getenv("JITSI_APP_ID", "officehub"),
+        jitsi_domain=os.getenv("JITSI_XMPP_DOMAIN", "meet.jitsi"),
+        jitsi_muc=os.getenv("JITSI_MUC_DOMAIN", "muc.meet.jitsi"),
     )
 
 

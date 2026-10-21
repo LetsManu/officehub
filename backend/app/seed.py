@@ -799,3 +799,31 @@ def _seed_spaces(db: Session, lang: str, today: date, anna, lukas, sara, tom, ju
     db.add(page)
     db.flush()
     db.add(WikiRevision(page_id=page.id, version=1, title=page.title, body=page.body, author_id=anna.id))
+
+    _seed_meetings(db, lang, today, anna, lukas, tom, max_, marketing, relaunch)
+
+
+def _seed_meetings(db: Session, lang: str, today: date, anna, lukas, tom, max_, marketing, relaunch) -> None:
+    """A few planned video meetings (they only start when a Jitsi server is set up)."""
+    import secrets as _secrets
+
+    from .models import Meeting, MeetingInvitee
+
+    de = lang == "de"
+    now = datetime.now(timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0)
+    plans = [
+        ("Wochenstart Marketing" if de else "Marketing weekly kick-off", now + timedelta(hours=2), 30, marketing, anna,
+         [lukas, tom], "accepted"),
+        ("Abnahme Startseite" if de else "Home page review", now + timedelta(days=1, hours=1), 60, relaunch, max_,
+         [anna, lukas, tom], "pending"),
+        ("Messe-Nachbesprechung" if de else "Trade fair debrief", now - timedelta(days=2), 45, marketing, tom,
+         [anna, lukas], "accepted"),
+    ]
+    for title, start, minutes, space, organizer, people, response in plans:
+        meeting = Meeting(kind="scheduled", title=title, room=f"m-{_secrets.token_hex(8)}", starts_at=start,
+                          ends_at=start + timedelta(minutes=minutes), space_id=space.id, organizer_id=organizer.id,
+                          notes="- Budget passt\n- Fotos bis Freitag" if start < now and de else "")
+        db.add(meeting)
+        db.flush()
+        for person in people:
+            db.add(MeetingInvitee(meeting_id=meeting.id, user_id=person.id, response=response))

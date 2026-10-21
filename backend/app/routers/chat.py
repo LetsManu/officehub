@@ -56,6 +56,7 @@ class MessageOut(BaseModel):
     edited: bool
     deleted: bool
     mine: bool
+    meeting: dict | None = None  # a call started in this conversation: {id, active}
 
 
 class Messages(BaseModel):
@@ -172,6 +173,7 @@ def _message_out(message: Message, user: User) -> MessageOut:
         if message.file and not message.deleted and message.file.deleted_at is None else None,
         created_at=message.created_at, edited=message.edited_at is not None, deleted=message.deleted,
         mine=message.author_id == user.id,
+        meeting={"id": message.meeting.id, "active": message.meeting.ended_at is None} if message.meeting else None,
     )
 
 
