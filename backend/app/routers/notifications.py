@@ -1,7 +1,7 @@
 """Notification centre, badge counts and the global search."""
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -12,23 +12,32 @@ from ..errors import not_found
 from ..models import (
     PENDING_STATUSES,
     Announcement,
+    Board,
+    BoardColumn,
+    Card,
+    CardAssignee,
     Document,
     Notification,
     PersonalDocument,
     QuickLink,
     Request,
     Review,
+    Space,
+    SpaceFile,
+    SpaceMember,
     Survey,
     SurveyParticipation,
     TimeMonth,
     User,
     Visitor,
+    WikiPage,
     utcnow,
 )
 from ..schemas import UtcDateTime
 from ..services.requests import deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
+from .chat import unread_total
 from .time_tracking import team_ids
 from .trainings import open_trainings
 
@@ -62,6 +71,8 @@ class Summary(BaseModel):
     trainings_due: int
     surveys_open: int
     time_months_pending: int = 0
+    chat_unread: int = 0
+    cards_due: int = 0
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -151,6 +162,12 @@ def summary(user: CurrentUser, db: DB) -> Summary:
         personal_documents_new=personal_new,
         acting_deputy=bool(deputy_managers),
         time_months_pending=months_pending,
+        chat_unread=unread_total(db, user),
+        cards_due=count(
+            select(Card.id).join(CardAssignee, CardAssignee.card_id == Card.id).join(BoardColumn, BoardColumn.id == Card.column_id)
+            .where(CardAssignee.user_id == user.id, BoardColumn.is_done.is_(False), Card.due_date.is_not(None),
+                   Card.due_date <= date.today() + timedelta(days=2))
+        ),
         trainings_due=open_trainings(db, user),
         surveys_open=count(
             select(Survey.id).where(
@@ -178,6 +195,7 @@ class SearchResults(BaseModel):
     announcements: list[SearchHit]
     requests: list[SearchHit]
     links: list[SearchHit]
+    workspace: list[SearchHit] = []  # files, wiki pages and cards in the person's spaces
 
 
 def _like(term: str) -> str:
@@ -243,7 +261,26 @@ def search(user: CurrentUser, db: DB, q: str = Query(..., min_length=2, max_leng
         .limit(SEARCH_LIMIT)
     ).all()
 
+    spaces = {s.id: s.name for s in db.scalars(select(Space).where(
+        Space.archived.is_(False), Space.id.in_(select(SpaceMember.space_id).where(SpaceMember.user_id == user.id))))}
+    workspace: list[SearchHit] = []
+    if spaces:
+        for f in db.scalars(select(SpaceFile).where(SpaceFile.space_id.in_(spaces), SpaceFile.deleted_at.is_(None),
+                                                    or_(like(SpaceFile.name), like(SpaceFile.content_text))).limit(SEARCH_LIMIT)):
+            workspace.append(SearchHit(id=f.id, title=f.name, subtitle=f"file:{spaces[f.space_id]}",
+                                       link=f"/spaces/{f.space_id}/files?file={f.id}"))
+        for p in db.scalars(select(WikiPage).where(WikiPage.space_id.in_(spaces), WikiPage.deleted_at.is_(None),
+                                                   or_(like(WikiPage.title), like(WikiPage.body))).limit(SEARCH_LIMIT)):
+            workspace.append(SearchHit(id=p.id, title=p.title, subtitle=f"page:{spaces[p.space_id]}",
+                                       link=f"/spaces/{p.space_id}/wiki/{p.id}"))
+        for c, b in db.execute(select(Card, Board).join(BoardColumn, BoardColumn.id == Card.column_id)
+                               .join(Board, Board.id == BoardColumn.board_id)
+                               .where(Board.space_id.in_(spaces), like(Card.title)).limit(SEARCH_LIMIT)):
+            workspace.append(SearchHit(id=c.id, title=c.title, subtitle=f"card:{spaces[b.space_id]}",
+                                       link=f"/spaces/{b.space_id}/board?card={c.id}"))
+
     return SearchResults(
+        workspace=workspace[: SEARCH_LIMIT * 2],
         people=[to_entry(p, user) for p in people],
         documents=[SearchHit(id=d.id, title=d.title, subtitle=d.category, link=f"/documents/{d.id}") for d in documents],
         announcements=[

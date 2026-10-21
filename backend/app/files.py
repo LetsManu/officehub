@@ -15,6 +15,8 @@ from .errors import ApiError
 
 DOCUMENT_TYPES = {"pdf", "md", "txt", "docx"}
 RECEIPT_TYPES = {"pdf", "png", "jpg", "jpeg"}
+OFFICE_TYPES = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "doc", "xls", "ppt", "rtf", "csv"}
+SPACE_TYPES = OFFICE_TYPES | {"pdf", "md", "txt", "png", "jpg", "jpeg", "gif", "webp", "zip"}
 
 MIME_TYPES = {
     "pdf": "application/pdf",
@@ -24,9 +26,25 @@ MIME_TYPES = {
     "png": "image/png",
     "jpg": "image/jpeg",
     "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "odp": "application/vnd.oasis.opendocument.presentation",
+    "doc": "application/msword",
+    "xls": "application/vnd.ms-excel",
+    "ppt": "application/vnd.ms-powerpoint",
+    "rtf": "application/rtf",
+    "csv": "text/csv; charset=utf-8",
+    "zip": "application/zip",
 }
 
-INLINE_TYPES = {"pdf", "png", "jpg", "jpeg", "md", "txt"}
+INLINE_TYPES = {"pdf", "png", "jpg", "jpeg", "gif", "webp", "md", "txt"}
+
+_ZIP_TYPES = {"docx", "xlsx", "pptx", "odt", "ods", "odp", "zip"}
+_OLE_TYPES = {"doc", "xls", "ppt"}  # old binary Office formats
 
 
 @dataclass
@@ -38,7 +56,7 @@ class StoredFile:
     data: bytes
 
 
-def _extension(filename: str) -> str:
+def extension(filename: str) -> str:
     return Path(filename).suffix.lower().lstrip(".")
 
 
@@ -48,16 +66,24 @@ def safe_display_name(filename: str) -> str:
     return name[:200]
 
 
-def _matches_signature(file_type: str, data: bytes) -> bool:
+def matches_signature(file_type: str, data: bytes) -> bool:
     if file_type == "pdf":
         return data.startswith(b"%PDF")
-    if file_type == "docx":
+    if file_type in _ZIP_TYPES:
         return data.startswith(b"PK")
+    if file_type in _OLE_TYPES:
+        return data.startswith(b"\xd0\xcf\x11\xe0")
+    if file_type == "rtf":
+        return data.startswith(b"{\\rtf")
+    if file_type == "gif":
+        return data.startswith(b"GIF8")
+    if file_type == "webp":
+        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
     if file_type == "png":
         return data.startswith(b"\x89PNG\r\n\x1a\n")
     if file_type in {"jpg", "jpeg"}:
         return data.startswith(b"\xff\xd8\xff")
-    if file_type in {"md", "txt"}:
+    if file_type in {"md", "txt", "csv"}:
         try:
             data.decode("utf-8")
         except UnicodeDecodeError:
@@ -67,7 +93,7 @@ def _matches_signature(file_type: str, data: bytes) -> bool:
 
 
 async def save_upload(upload: UploadFile, allowed: set[str], folder: str) -> StoredFile:
-    file_type = _extension(upload.filename or "")
+    file_type = extension(upload.filename or "")
     if file_type not in allowed:
         allowed_list = ", ".join(sorted(t.upper() for t in allowed))
         raise ApiError(422, "file_type", f"This file type is not supported. Allowed: {allowed_list}.")
@@ -76,7 +102,7 @@ async def save_upload(upload: UploadFile, allowed: set[str], folder: str) -> Sto
         raise ApiError(422, "file_too_large", f"The file is larger than {settings.max_upload_mb} MB.")
     if not data:
         raise ApiError(422, "file_empty", "The file is empty.")
-    if not _matches_signature(file_type, data):
+    if not matches_signature(file_type, data):
         raise ApiError(422, "file_invalid", "The file content does not match its file type.")
 
     relative = f"{folder}/{uuid.uuid4().hex}.{file_type}"
@@ -114,7 +140,7 @@ def delete_quietly(relative_path: str | None) -> None:
 def extract_text(file_type: str, data: bytes) -> str:
     """Best-effort plain text for search. Returns an empty string if extraction fails."""
     try:
-        if file_type in {"md", "txt"}:
+        if file_type in {"md", "txt", "csv"}:
             return data.decode("utf-8")
         if file_type == "pdf":
             from pypdf import PdfReader
