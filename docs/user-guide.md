@@ -301,8 +301,8 @@ with **New space** (you become its manager). Each space has these tabs:
 - **Check out** (under **Details and versions** of a file): only you can save new versions until you **check in** again
   – like in SharePoint. Others still read it and see "Checked out by …". Managers of the space can check a file in for
   someone who forgot.
-- **Open in WordCraft / DeckCraft** (when IT runs them): the open-source word processor (`.docx`) and presentation
-  program (`.pptx`, `.deckcraft`) open in a new tab. **Save** puts the file back here as a new version; exports such as
+- **WordCraft / DeckCraft**: Word files open in the open-source word processor WordCraft, PowerPoint files in
+  DeckCraft (`.pptx`, `.deckcraft`), right in the browser (HR can choose the office editor instead). **Save** puts the file back here as a new version; exports such as
   PDF still download.
 - **On the computer**: create an **app password** under **Profile → Programs and network drive**, then connect the
   network drive (Windows Explorer: **Map network drive**, Mac Finder: **Go → Connect to server**) with your e-mail

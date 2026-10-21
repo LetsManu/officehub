@@ -82,7 +82,11 @@ these servers are made on the first start – there is nothing to type in.
 | --- | --- |
 | `jitsi` | A **Jitsi Meet** server for larger meetings. OfficeHub uses it by itself once it runs: then every meeting and call (also between two people) goes through it; a meeting already running built in finishes that way. Open **UDP port 10000** to the server; for people outside the office network also set `JITSI_PUBLIC_IP`. About 1–2 GB of RAM. |
 | `onlyoffice` | **ONLYOFFICE Docs** as a second editor (2–4 GB of RAM, first start takes a few minutes). HR chooses the default under **Administration → Office editing**. |
-| `craft` | **WordCraft** and **DeckCraft** in the browser: open-source word processor (`.docx`) and presentation program (`.pptx`, `.deckcraft`). Static files only, a few MB of RAM. Files open with **Open in WordCraft / DeckCraft** and Save puts them back as a new version. |
+
+**WordCraft and DeckCraft:** the `craft` container runs by default. Word files then open in WordCraft and PowerPoint
+files in DeckCraft (open-source programs in the browser); Save puts them back as a new version. Excel files stay in
+Collabora/ONLYOFFICE. HR can open Word and PowerPoint in the office editor again under **Administration → Office
+editing**.
 
 **Network drive and desktop programs (WebDAV):** always on, nothing to install on the server. Everyone creates an
 **app password** under **Profile → Programs and network drive** and connects `https://<portal>/dav/` in Windows

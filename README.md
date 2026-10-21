@@ -215,7 +215,7 @@ npm test && npm run build
 | `SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
 | `SMTP_USER` / `SMTP_PASSWORD` | – | Mail server login, if needed |
 | `SMTP_FROM` | – | Sender address, e.g. `officehub@your-company.example` |
-| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (meeting server), `onlyoffice` (second editor), `craft` (WordCraft and DeckCraft in the browser), e.g. `jitsi,craft` |
+| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (meeting server), `onlyoffice` (second editor), e.g. `jitsi,onlyoffice` |
 | `JITSI_PUBLIC_IP` | – | With Jitsi: public IP of the server for people outside the office network |
 | `ICE_SERVERS` | – | Built-in meetings: your own STUN/TURN server(s) for people outside the office, comma-separated (`ICE_USERNAME`, `ICE_PASSWORD`) |
 

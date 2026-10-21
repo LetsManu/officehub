@@ -597,7 +597,12 @@ const de = {
     about: {
       collabora: 'Collabora Online (LibreOffice im Browser). Gut für OpenDocument-Dateien.',
       onlyoffice: 'ONLYOFFICE Docs. Sieht Microsoft Office sehr ähnlich.',
+      craft: 'Word-Dateien öffnen in WordCraft, PowerPoint-Dateien in DeckCraft – Open-Source-Programme im Browser. Excel-Dateien weiter im Office-Editor.',
+      officeEditor: 'Alle Dateien im Office-Editor (Collabora oder ONLYOFFICE), gemeinsam und gleichzeitig.',
     },
+    wordPowerPoint: 'Word- und PowerPoint-Dateien öffnen mit',
+    craft: 'WordCraft und DeckCraft',
+    officeEditor: 'Office-Editor',
     saved: 'Office-Editor gespeichert',
     setupHint: 'Ein zweiter Editor (ONLYOFFICE) lässt sich zuschalten: siehe Anleitung „Deployment mit Portainer“.',
   },

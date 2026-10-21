@@ -30,7 +30,8 @@ from ..services.office import (
     onlyoffice_download_url,
     read_token,
 )
-from ..services.settings import set_setting
+from ..services import craft
+from ..services.settings import get_setting, set_setting
 from ..services.spaces import add_version, checked_out_by_other, current_path, get_file, role_in
 
 router = APIRouter(prefix="/api/office", tags=["office"])
@@ -44,10 +45,13 @@ class OfficeConfig(BaseModel):
     engines: list[str]
     default: str | None
     editable: dict[str, list[str]]
+    craft: list[str] = []  # WordCraft / DeckCraft in the browser, when they run
+    prefer_craft: bool = False  # Word and PowerPoint files open there instead of the office server
 
 
 class EngineIn(BaseModel):
-    engine: str
+    engine: str | None = None
+    prefer_craft: bool | None = None
 
 
 class OpenIn(BaseModel):
@@ -72,15 +76,21 @@ class OpenOut(BaseModel):
 def office_config(user: CurrentUser, db: DB) -> OfficeConfig:
     engines = available()
     return OfficeConfig(engines=engines, default=default_engine(db),
-                        editable={e: sorted(EDITABLE[e]) for e in engines})
+                        editable={e: sorted(EDITABLE[e]) for e in engines},
+                        craft=craft.available(), prefer_craft=craft.preferred(db))
 
 
 @router.put("/config", response_model=OfficeConfig)
 def set_office_config(body: EngineIn, user: Admin, db: DB) -> OfficeConfig:
-    if body.engine not in available():
-        raise ApiError(422, "invalid_choice", "This office server is not set up.")
-    set_setting(db, "office", {"engine": body.engine})
-    audit(db, user, "settings_updated", "office", engine=body.engine)
+    stored = dict(get_setting(db, "office", {}))
+    if body.engine is not None:
+        if body.engine not in available():
+            raise ApiError(422, "invalid_choice", "This office server is not set up.")
+        stored["engine"] = body.engine
+    if body.prefer_craft is not None:
+        stored["prefer_craft"] = body.prefer_craft
+    set_setting(db, "office", stored)
+    audit(db, user, "settings_updated", "office", engine=stored.get("engine"), prefer_craft=stored.get("prefer_craft"))
     db.commit()
     return office_config(user, db)
 

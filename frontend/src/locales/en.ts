@@ -599,7 +599,12 @@ const en: Messages = {
     about: {
       collabora: 'Collabora Online (LibreOffice in the browser). Good for OpenDocument files.',
       onlyoffice: 'ONLYOFFICE Docs. Looks very much like Microsoft Office.',
+      craft: 'Word files open in WordCraft, PowerPoint files in DeckCraft – open-source programs in the browser. Excel files stay in the office editor.',
+      officeEditor: 'All files in the office editor (Collabora or ONLYOFFICE), together at the same time.',
     },
+    wordPowerPoint: 'Open Word and PowerPoint files with',
+    craft: 'WordCraft and DeckCraft',
+    officeEditor: 'Office editor',
     saved: 'Office editor saved',
     setupHint: 'A second editor (ONLYOFFICE) can be added: see the guide "Deploying with Portainer".',
   },

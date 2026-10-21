@@ -1,17 +1,19 @@
 <script setup lang="ts">
-/** Which office server opens Word, Excel and PowerPoint files (Collabora Online or ONLYOFFICE). */
+/** Which office server opens Word, Excel and PowerPoint files (Collabora Online or ONLYOFFICE), and whether Word and
+ * PowerPoint files open in WordCraft / DeckCraft instead. */
 import { onMounted, ref } from 'vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
-import { loadOfficeConfig } from '@/lib/spaces'
+import { loadCraftConfig, loadOfficeConfig } from '@/lib/spaces'
 import { showToast } from '@/lib/toast'
 import type { OfficeConfig } from '@/lib/types'
 
 const config = ref<OfficeConfig | null>(null)
 
-async function choose(engine: string) {
+async function choose(change: { engine?: string; prefer_craft?: boolean }) {
   try {
-    config.value = await api.put<OfficeConfig>('/api/office/config', { engine })
+    config.value = await api.put<OfficeConfig>('/api/office/config', change)
+    loadCraftConfig()
     await loadOfficeConfig(true)
     showToast(t('officeAdmin.saved'))
   } catch (e) {
@@ -27,11 +29,22 @@ onMounted(async () => {
 <template>
   <div v-if="config" class="stack">
     <p class="muted">{{ t('officeAdmin.intro') }}</p>
-    <p v-if="!config.engines.length" class="notice notice-info small">{{ t('officeAdmin.none') }}</p>
-    <fieldset v-else class="engines">
+    <fieldset v-if="config.craft?.length" class="engines">
+      <legend class="label">{{ t('officeAdmin.wordPowerPoint') }}</legend>
+      <label class="radio">
+        <input type="radio" name="office-craft" :checked="config.prefer_craft" @change="choose({ prefer_craft: true })" />
+        <span><strong>{{ t('officeAdmin.craft') }}</strong><span class="muted small block">{{ t('officeAdmin.about.craft') }}</span></span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="office-craft" :checked="!config.prefer_craft" :disabled="!config.engines.length" @change="choose({ prefer_craft: false })" />
+        <span><strong>{{ t('officeAdmin.officeEditor') }}</strong><span class="muted small block">{{ t('officeAdmin.about.officeEditor') }}</span></span>
+      </label>
+    </fieldset>
+    <p v-if="!config.engines.length && !config.craft?.length" class="notice notice-info small">{{ t('officeAdmin.none') }}</p>
+    <fieldset v-if="config.engines.length" class="engines">
       <legend class="label">{{ t('officeAdmin.default') }}</legend>
       <label v-for="e in config.engines" :key="e" class="radio">
-        <input type="radio" name="office-engine" :value="e" :checked="config.default === e" @change="choose(e)" />
+        <input type="radio" name="office-engine" :value="e" :checked="config.default === e" @change="choose({ engine: e })" />
         <span><strong>{{ t(`office.engines.${e}`) }}</strong><span class="muted small block">{{ t(`officeAdmin.about.${e}`) }}</span></span>
       </label>
     </fieldset>

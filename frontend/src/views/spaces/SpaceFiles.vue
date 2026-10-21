@@ -35,6 +35,7 @@ const canWrite = computed(() => listing.value?.can_write ?? false)
 const isManager = computed(() => space.value?.my_role === 'manager')
 
 function editable(f: SpaceFile) {
+  if (office.value.prefer_craft && craftFor(f)) return true // opens in WordCraft / DeckCraft
   return office.value.engines.length > 0 && isOffice(f.file_type)
 }
 
@@ -413,7 +414,7 @@ onMounted(async () => {
                 <td class="num hide-sm muted small">{{ fileSize(f.size) }}</td>
                 <td class="actions">
                   <RouterLink v-if="editable(f)" :to="`/office/${f.id}`" class="btn btn-ghost btn-icon" :aria-label="`${t('files.edit')}: ${f.name}`" :title="t('files.edit')"><AppIcon name="edit" :size="18" /></RouterLink>
-                  <button v-if="craftFor(f)" type="button" class="btn btn-ghost btn-icon" :aria-label="`${t(`files.openIn.${craftFor(f)}`)}: ${f.name}`" :title="t(`files.openIn.${craftFor(f)}`)" @click="openInCraft(f)"><AppIcon name="external" :size="18" /></button>
+                  <button v-if="craftFor(f) && !office.prefer_craft" type="button" class="btn btn-ghost btn-icon" :aria-label="`${t(`files.openIn.${craftFor(f)}`)}: ${f.name}`" :title="t(`files.openIn.${craftFor(f)}`)" @click="openInCraft(f)"><AppIcon name="external" :size="18" /></button>
                   <a class="btn btn-ghost btn-icon" :href="`/api/spaces/files/${f.id}/download`" download :aria-label="`${t('files.download')}: ${f.name}`" :title="t('files.download')"><AppIcon name="download" :size="18" /></a>
                   <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.details')}: ${f.name}`" :title="t('files.details')" @click="showDetail(f.id)"><AppIcon name="history" :size="18" /></button>
                   <template v-if="canWrite">

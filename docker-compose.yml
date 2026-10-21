@@ -88,13 +88,13 @@ services:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - shared:/shared:ro
 
-  # ---- Optional: WordCraft and DeckCraft in the browser ----
-  # Open-source word processor and presentation program (built from source, static files only). Start it with
-  # COMPOSE_PROFILES=craft and OfficeHub shows "Open in WordCraft / DeckCraft" by itself.
+  # ---- WordCraft and DeckCraft in the browser ----
+  # Open-source word processor and presentation program (built from source, static files only, a few MB of RAM).
+  # Word and PowerPoint files open there by themselves; HR can switch back to the office editor under
+  # Administration -> Office editing. Remove this service if you do not want it.
   craft:
     image: ghcr.io/letsmanu/officehub-craft:${OFFICEHUB_VERSION:-latest}
     build: ./craft
-    profiles: ["craft"]
     restart: unless-stopped
 
   # ---- Optional: Jitsi Meet: all meetings and calls go through it while it runs ----

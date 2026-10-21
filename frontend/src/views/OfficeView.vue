@@ -2,14 +2,15 @@
 /**
  * Edit a Word, Excel or PowerPoint file in the browser with the company's own Collabora Online or
  * ONLYOFFICE server. Both are reached through the portal's own address, so the page never loads
- * anything from outside.
+ * anything from outside. While WordCraft / DeckCraft run (and HR did not choose otherwise), Word and
+ * PowerPoint files go there instead.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
-import { loadOfficeConfig } from '@/lib/spaces'
+import { craftApp, loadCraftConfig, loadOfficeConfig } from '@/lib/spaces'
 import type { OfficeConfig, OfficeOpen, SpaceFileDetail } from '@/lib/types'
 import { setActivity } from '@/lib/summary'
 
@@ -105,6 +106,11 @@ onMounted(async () => {
   window.addEventListener('message', onMessage)
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
+    if (office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
+      const opened = await api.post<{ url: string }>(`/api/craft/open/${props.id}`)
+      window.location.replace(opened.url)
+      return
+    }
     engine.value = office.value.default
     if (!engine.value) {
       loading.value = false
