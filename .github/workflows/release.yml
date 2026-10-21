@@ -13,8 +13,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, e.g. v1.0.0 (the tag is created if it does not exist)"
+        description: "Version to release, e.g. v1.0.0 – must be higher than every earlier release"
         required: true
+      rebuild:
+        description: "Rebuild an existing version from its own tag (only to repair a broken release)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write # create the release and tag
@@ -24,10 +28,68 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # Never overwrite a release by accident: a new version must not exist yet and must be the highest one, so
+  # ":latest" always points to the newest code. A rebuild uses the version's own tag, never other code.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      ref: ${{ steps.check.outputs.ref }}
+      latest: ${{ steps.check.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check the version
+        id: check
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REBUILD: ${{ github.event.inputs.rebuild }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${INPUT_VERSION:-$REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::\"$VERSION\" is not a version like v1.2.3."; exit 1
+          fi
+          git fetch --tags --force --quiet
+          HIGHEST="$(git tag -l 'v*.*.*' | grep -Ev "^${VERSION}\$" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          REF="$GITHUB_SHA"
+          LATEST=true
+          if [ "$REBUILD" = "true" ]; then
+            if ! git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+              echo "::error::$VERSION does not exist yet, so there is nothing to rebuild."; exit 1
+            fi
+            REF="$(git rev-list -n 1 "$VERSION")"
+          elif [ "$EVENT" = "workflow_dispatch" ] && git rev-parse -q --verify "refs/tags/$VERSION" > /dev/null; then
+            NEWEST="$(git tag -l 'v*.*.*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+            echo "::error::$VERSION was already released. Choose a version higher than $NEWEST."; exit 1
+          elif [ "$EVENT" = "push" ] && gh release view "$VERSION" > /dev/null 2>&1; then
+            echo "::error::$VERSION was already released."; exit 1
+          fi
+          if [ -n "$HIGHEST" ] && [ "$(printf '%s\n%s\n' "$HIGHEST" "$VERSION" | sort -V | tail -1)" != "$VERSION" ]; then
+            if [ "$REBUILD" != "true" ]; then
+              echo "::error::$VERSION is lower than $HIGHEST. Choose a version higher than $HIGHEST."; exit 1
+            fi
+            LATEST=false # an older version keeps ":latest" on the newest one
+          fi
+          if ! git show "$REF:frontend/src/lib/changelog.ts" | grep -q "version: '${VERSION#v}'"; then
+            echo "::warning::frontend/src/lib/changelog.ts has no entry for ${VERSION#v}, so \"What's new\" will not mention it."
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION from $REF (latest: $LATEST)" >> "$GITHUB_STEP_SUMMARY"
+
   test:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -47,20 +109,20 @@ jobs:
           npm run build
 
   images:
-    needs: test
+    needs: [check, test]
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service: [backend, frontend, craft]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.ref }}
 
       - name: Work out version and image name
         id: vars
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=${{ needs.check.outputs.version }}" >> "$GITHUB_OUTPUT"
           echo "image=${REGISTRY}/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/officehub-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v3
@@ -79,7 +141,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=${{ steps.vars.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.vars.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ needs.check.outputs.latest }}
           labels: |
             org.opencontainers.image.title=OfficeHub ${{ matrix.service }}
             org.opencontainers.image.description=OfficeHub employee self-service portal (${{ matrix.service }})
@@ -97,16 +159,17 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   release:
-    needs: images
+    needs: [check, images]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.ref }}
 
       - name: Prepare release files
         id: vars
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          case "$VERSION" in v*) ;; *) VERSION="v$VERSION" ;; esac
+          VERSION="${{ needs.check.outputs.version }}"
           OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p dist
@@ -135,7 +198,7 @@ jobs:
           Images:
           - \`ghcr.io/${OWNER}/officehub-backend:${VERSION#v}\`
           - \`ghcr.io/${OWNER}/officehub-frontend:${VERSION#v}\`
-          - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (optional, profile \`craft\`)
+          - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (WordCraft and DeckCraft in the browser)
 
           Full guide: \`DEPLOYMENT.md\` (also in the repository under \`docs/deployment-portainer.md\`).
           NOTES
@@ -146,6 +209,6 @@ jobs:
               --title "OfficeHub $VERSION" \
               --notes-file notes.md \
               --generate-notes \
-              --target "${{ github.sha }}" \
+              --target "${{ needs.check.outputs.ref }}" \
               dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip
           fi

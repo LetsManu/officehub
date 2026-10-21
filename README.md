@@ -167,7 +167,10 @@ Every release publishes ready-built images (`ghcr.io/letsmanu/officehub-backend`
 and a Portainer stack file. See **[docs/deployment-portainer.md](docs/deployment-portainer.md)** and the
 [latest release](https://github.com/LetsManu/officehub/releases/latest).
 
-To publish a new release: `git tag v1.1.0 && git push origin v1.1.0` (or Actions → Release → Run workflow).
+To publish a new release: `git tag v1.1.0 && git push origin v1.1.0` (or Actions → Release → Run workflow). The
+version must be new and higher than every earlier release, so `:latest` always is the newest code; add its "What's new"
+entry to `frontend/src/lib/changelog.ts` first. To repair a broken release, run the workflow with **Rebuild** ticked:
+it builds that version again from its own tag and leaves `:latest` alone when a newer version exists.
 
 ### Running in production mode
 
