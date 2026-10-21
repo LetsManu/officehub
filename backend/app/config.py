@@ -1,6 +1,7 @@
 """Application settings, read once from environment variables."""
 
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,25 @@ def _bool(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _shared_secret(name: str) -> str | None:
+    """A random secret shared with the office and meeting servers of the stack, made on the first start.
+
+    The compose file mounts one small volume at /shared into the backend (writable) and into those servers
+    (read-only), so nobody has to invent and copy passwords. Outside Docker the folder does not exist.
+    """
+    folder = Path(os.getenv("SHARED_DIR", "/shared"))
+    path = folder / name
+    try:
+        if not path.exists():
+            if not folder.is_dir():
+                return None
+            path.write_text(secrets.token_urlsafe(32))
+            path.chmod(0o644)
+        return path.read_text().strip() or None
+    except OSError:
+        return None
 
 
 def _int(name: str, default: int) -> int:
@@ -48,10 +68,16 @@ class Settings:
     onlyoffice_jwt_secret: str | None
     backend_internal_url: str  # how the office servers reach the backend, e.g. http://backend:8000
     # Video meetings (optional): your own Jitsi Meet server in the same stack
-    jitsi_app_secret: str | None  # shared with Prosody (JWT_APP_SECRET); set = meetings switched on
+    jitsi_app_secret: str | None  # shared with Prosody (JWT_APP_SECRET)
+    jitsi_internal_password: str | None
     jitsi_app_id: str
     jitsi_domain: str  # XMPP domain of the Jitsi stack
     jitsi_muc: str
+    jitsi_internal_url: str | None  # how the backend checks that Jitsi is running, e.g. http://jitsi-web
+    # Built-in meetings (no extra server): optional STUN/TURN servers of your own for people outside the office
+    ice_servers: tuple[str, ...]
+    ice_username: str | None
+    ice_password: str | None
 
     @property
     def mail_enabled(self) -> bool:
@@ -87,12 +113,18 @@ def load_settings() -> Settings:
         timezone=os.getenv("TIMEZONE", "Europe/Vienna"),
         collabora_url=(os.getenv("COLLABORA_URL") or "").rstrip("/") or None,
         onlyoffice_url=(os.getenv("ONLYOFFICE_URL") or "").rstrip("/") or None,
-        onlyoffice_jwt_secret=os.getenv("ONLYOFFICE_JWT_SECRET") or None,
+        onlyoffice_jwt_secret=os.getenv("ONLYOFFICE_JWT_SECRET") or _shared_secret("onlyoffice_jwt_secret"),
         backend_internal_url=os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000").rstrip("/"),
-        jitsi_app_secret=os.getenv("JITSI_APP_SECRET") or None,
+        jitsi_app_secret=os.getenv("JITSI_APP_SECRET") or _shared_secret("jitsi_app_secret"),
+        # Not used by OfficeHub itself; made here so the Jitsi parts find it (see docker-compose.yml)
+        jitsi_internal_password=os.getenv("JITSI_INTERNAL_PASSWORD") or _shared_secret("jitsi_internal_password"),
         jitsi_app_id=os.getenv("JITSI_APP_ID", "officehub"),
         jitsi_domain=os.getenv("JITSI_XMPP_DOMAIN", "meet.jitsi"),
         jitsi_muc=os.getenv("JITSI_MUC_DOMAIN", "muc.meet.jitsi"),
+        jitsi_internal_url=(os.getenv("JITSI_INTERNAL_URL") or "").rstrip("/") or None,
+        ice_servers=tuple(u.strip() for u in os.getenv("ICE_SERVERS", "").split(",") if u.strip()),
+        ice_username=os.getenv("ICE_USERNAME") or None,
+        ice_password=os.getenv("ICE_PASSWORD") or None,
     )
 
 

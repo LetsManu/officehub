@@ -1,14 +1,14 @@
 <script setup lang="ts">
 /**
- * OfficeHub's own meeting screen on top of lib-jitsi-meet: check camera and microphone, then the video grid
- * with controls, chat, people (and guests waiting to be let in) and shared notes.
+ * OfficeHub's own meeting screen (built in, or on the company's Jitsi server): check camera and microphone,
+ * then the video grid with controls, chat, people (and guests waiting to be let in) and shared notes.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import VideoTile from './VideoTile.vue'
 import { ApiError, api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
-import { createLocalTracks, listDevices, loadLibrary, useMeeting, type JoinInfo, type Tile } from '@/lib/meeting'
+import { listDevices, previewTracks as makePreview, useMeeting, type JoinInfo, type MeetingMode, type Tile } from '@/lib/meeting'
 import { renderMarkdown } from '@/lib/markdown'
 import { showToast } from '@/lib/toast'
 
@@ -43,7 +43,7 @@ const now = ref(Date.now())
 const notes = reactive({ text: '', version: 0, saved: '', saving: false })
 let heartbeat: number | undefined
 let ticker: number | undefined
-let lib: any = null
+const mode = ref<MeetingMode | null>(null)
 
 const tiles = computed(() => meeting.state.tiles)
 const screenTile = computed<Tile | undefined>(() => tiles.value.find((x) => x.screen))
@@ -63,8 +63,8 @@ async function refreshPreview() {
   const wanted: ('audio' | 'video')[] = []
   if (prefs.mic) wanted.push('audio')
   if (prefs.cam) wanted.push('video')
-  if (!wanted.length || !lib) return
-  previewTracks.value = await createLocalTracks(lib, wanted, { camera: prefs.camera || undefined, mic: prefs.micId || undefined })
+  if (!wanted.length || !mode.value) return
+  previewTracks.value = await makePreview(mode.value, wanted, { camera: prefs.camera || undefined, mic: prefs.micId || undefined })
   const video = previewTracks.value.find((x) => x.getType() === 'video')
   await nextTick()
   if (video && preview.value) video.attach(preview.value)
@@ -77,6 +77,11 @@ async function enter() {
   joining.value = true
   try {
     const info = props.join ?? (await api.post<JoinInfo>(`/api/meetings/${props.meetingId}/join`))
+    if (info.connection.mode !== mode.value) {
+      // The meeting server was started or stopped in the meantime: get camera and microphone the other way
+      mode.value = info.connection.mode
+      await refreshPreview()
+    }
     phase.value = 'room'
     started.value = Date.now()
     await meeting.join(info, previewTracks.value, info.connection.display_name || props.displayName)
@@ -89,7 +94,8 @@ async function enter() {
     if (props.callMode) watchCall()
   } catch (e) {
     phase.value = 'prejoin'
-    showToast(e instanceof ApiError ? errorText(e) : t('meeting.connectFailed'), 'error')
+    const code = (e as { code?: string })?.code
+    showToast(e instanceof ApiError ? errorText(e) : code === 'meeting_full' ? t('errors.meeting_full') : t('meeting.connectFailed'), 'error')
   } finally {
     joining.value = false
   }
@@ -205,7 +211,7 @@ watch(() => meeting.state.chat.length, () => {
   }
 })
 watch(() => meeting.state.status, (s) => {
-  if (s === 'failed') showToast(t('meeting.connectFailed'), 'error')
+  if (s === 'failed' && !joining.value) showToast(t('meeting.connectFailed'), 'error')
   if (s === 'left' && phase.value === 'room') hangUp()
 })
 
@@ -214,8 +220,7 @@ onMounted(async () => {
   window.addEventListener('beforeunload', onUnload)
   ticker = window.setInterval(() => (now.value = Date.now()), 1000)
   try {
-    const info = props.join
-    lib = await loadLibrary(info?.connection.library ?? '/jitsi/libs/lib-jitsi-meet.min.js')
+    mode.value = props.join?.connection.mode ?? (await api.get<{ mode: MeetingMode }>('/api/meetings/config')).mode
     await refreshPreview()
   } catch {
     showToast(t('meeting.libraryMissing'), 'error')
@@ -223,8 +228,10 @@ onMounted(async () => {
 })
 
 function onUnload() {
-  if (phase.value === 'room' && !props.guest) {
-    // Tell the portal right away that we left (keepalive survives the page closing)
+  if (phase.value !== 'room') return
+  // Tell the others and the portal right away that we left (keepalive survives the page closing)
+  meeting.leave()
+  if (!props.guest) {
     fetch(`/api/meetings/${props.meetingId}/presence`, { method: 'DELETE', keepalive: true, headers: { 'X-Requested-With': 'OfficeHub' } }).catch(() => undefined)
   }
 }

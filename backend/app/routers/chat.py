@@ -191,7 +191,12 @@ def conversations(user: CurrentUser, db: DB) -> list[Conversation]:
 
 @router.post("/direct", response_model=Conversation)
 def direct(body: DirectIn, user: CurrentUser, db: DB) -> Conversation:
-    other = db.get(User, body.user_id)
+    return _conversation(db, user, direct_channel(db, user, body.user_id))
+
+
+def direct_channel(db: DB, user: User, other_id: int) -> Channel:
+    """The one conversation between two people (made on first use)."""
+    other = db.get(User, other_id)
     if other is None or not other.is_active or other.id == user.id:
         raise ApiError(422, "person_required", "Please choose a person.")
     key = f"{min(user.id, other.id)}:{max(user.id, other.id)}"
@@ -202,7 +207,7 @@ def direct(body: DirectIn, user: CurrentUser, db: DB) -> Conversation:
         db.flush()
         db.add_all([ChannelMember(channel_id=channel.id, user_id=user.id), ChannelMember(channel_id=channel.id, user_id=other.id)])
         db.commit()
-    return _conversation(db, user, channel)
+    return channel
 
 
 @router.post("/channels", response_model=Conversation, status_code=201)

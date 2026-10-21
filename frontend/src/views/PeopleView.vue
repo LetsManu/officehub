@@ -9,8 +9,10 @@ import OrgNode from '@/components/OrgNode.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SectionContact from '@/components/SectionContact.vue'
 import { api, query } from '@/lib/api'
+import { messagePerson, startCall } from '@/lib/calls'
 import { downloadCsv } from '@/lib/csv'
 import { errorText, t } from '@/lib/i18n'
+import { currentUser } from '@/lib/session'
 import type { DirectoryEntry } from '@/lib/types'
 
 type View = 'list' | 'org' | 'phones'
@@ -171,6 +173,10 @@ onMounted(() => {
             <p v-if="person.manager_id && byId.get(person.manager_id)" class="muted small">
               {{ t('people.reportsTo', { name: byId.get(person.manager_id)!.full_name }) }}
             </p>
+            <div v-if="person.id !== currentUser?.id" class="person-actions">
+              <button type="button" class="btn btn-secondary" @click="startCall(router, { user_id: person.id })"><AppIcon name="video" :size="18" />{{ t('people.call') }}</button>
+              <button type="button" class="btn btn-ghost" @click="messagePerson(router, person.id)"><AppIcon name="chat" :size="18" />{{ t('people.message') }}</button>
+            </div>
           </li>
         </ul>
 
@@ -328,5 +334,12 @@ onMounted(() => {
     color: inherit;
     text-decoration: none;
   }
+}
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
 }
 </style>

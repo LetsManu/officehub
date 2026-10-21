@@ -1,7 +1,7 @@
 """Video meetings: planned meetings, the standing room of each space, calls from the chat and guests.
 
-The video itself runs on the company's own Jitsi server; this API decides who may join and hands out
-a token for one conference. It is the same for the web page and for later desktop or phone apps.
+This API decides who may join and hands out the connection details (built in, or the company's own Jitsi
+server when it runs). It is the same for the web page and for later desktop or phone apps.
 """
 
 import secrets
@@ -32,20 +32,19 @@ from ..models import (
 )
 from ..schemas import UserBrief, UtcDateTime
 from ..services.meetings import (
-    connection_info,
-    enabled,
+    connect,
     expire_rings,
     get_meeting,
     ics,
     is_host,
-    jitsi_token,
     mark_present,
+    mode,
     new_room,
     participants,
-    require_enabled,
     when_text,
 )
 from ..services.notifications import notify
+from .chat import direct_channel
 from ..services.spaces import get_space
 
 router = APIRouter(tags=["meetings"])
@@ -116,7 +115,8 @@ class NotesIn(BaseModel):
 
 
 class CallIn(BaseModel):
-    channel_id: int
+    channel_id: int | None = None
+    user_id: int | None = None  # call a person directly (uses your conversation with them)
 
 
 class Ringing(BaseModel):
@@ -232,7 +232,6 @@ def _invite(db: DB, user: User, meeting: Meeting, ids: set[int]) -> None:
 
 
 def _join(db: DB, user: User, meeting: Meeting) -> Join:
-    require_enabled()
     if meeting.cancelled:
         raise ApiError(409, "meeting_cancelled", "This meeting has been cancelled.")
     mark_present(db, meeting, user_id=user.id)
@@ -240,8 +239,7 @@ def _join(db: DB, user: User, meeting: Meeting) -> Join:
         if ring.user_id == user.id and ring.response in ("ringing", "pending", "missed"):
             ring.response = "accepted"
     db.commit()
-    token = jitsi_token(meeting.room, user.full_name, str(user.id), moderator=True)
-    return Join(meeting_id=meeting.id, title=meeting.title, connection=connection_info(meeting.room, token, user.full_name))
+    return Join(meeting_id=meeting.id, title=meeting.title, connection=connect(db, meeting, user.full_name, str(user.id), True))
 
 
 # ---------- config ----------
@@ -249,7 +247,7 @@ def _join(db: DB, user: User, meeting: Meeting) -> Join:
 
 @router.get("/api/meetings/config")
 def config(user: CurrentUser) -> dict:
-    return {"enabled": enabled()}
+    return {"enabled": True, "mode": mode()}
 
 
 # ---------- planned meetings ----------
@@ -422,7 +420,7 @@ def decide_guest(meeting_id: int, guest_id: int, decision: str, user: CurrentUse
 
 def _guest_meeting(db: DB, token: str) -> Meeting:
     meeting = db.scalar(select(Meeting).where(Meeting.guest_token == token))
-    if meeting is None or meeting.cancelled or not enabled():
+    if meeting is None or meeting.cancelled:
         raise not_found("Meeting")
     return meeting
 
@@ -454,15 +452,14 @@ def guest_status(secret: str, db: DB) -> GuestStatus:
     if guest is None:
         raise not_found("Guest")
     meeting = db.get(Meeting, guest.meeting_id)
-    if meeting is None or meeting.cancelled or not enabled():
+    if meeting is None or meeting.cancelled:
         raise not_found("Meeting")
     join_info = None
     if guest.status == "admitted":
         mark_present(db, meeting, guest_id=guest.id)
         db.commit()
         name = f"{guest.name} (Gast)" if meeting.organizer and meeting.organizer.language == "de" else f"{guest.name} (guest)"
-        token = jitsi_token(meeting.room, name, f"guest-{guest.id}", moderator=False)
-        join_info = Join(meeting_id=meeting.id, title=meeting.title, connection=connection_info(meeting.room, token, name))
+        join_info = Join(meeting_id=meeting.id, title=meeting.title, connection=connect(db, meeting, name, f"guest-{guest.id}", False))
     return GuestStatus(status=guest.status, secret=guest.secret, join=join_info)
 
 
@@ -488,8 +485,12 @@ def space_room(space_id: int, user: CurrentUser, db: DB) -> MeetingOut:
 @router.post("/api/calls", response_model=Join, status_code=201)
 def start_call(body: CallIn, user: CurrentUser, db: DB) -> Join:
     """Start a call in a chat: a direct conversation rings the other person, a channel posts a "join" message."""
-    require_enabled()
-    channel = db.get(Channel, body.channel_id)
+    if body.user_id is not None:
+        channel = direct_channel(db, user, body.user_id)
+    elif body.channel_id is not None:
+        channel = db.get(Channel, body.channel_id)
+    else:
+        channel = None
     if channel is None:
         raise not_found("Conversation")
     if channel.space_id is not None:

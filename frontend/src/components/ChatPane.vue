@@ -10,6 +10,7 @@ import UserAvatar from './UserAvatar.vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { errorText, formatDateLong, locale, t } from '@/lib/i18n'
+import { startCall } from '@/lib/calls'
 import { publicConfig } from '@/lib/session'
 import { refreshSummary } from '@/lib/summary'
 import { fileIcon, fileSize, fileTone, findMentions, isOffice } from '@/lib/spaces'
@@ -68,16 +69,10 @@ function parts(body: string) {
 }
 
 /** Start a call here: a direct chat rings the other person, a channel gets a "join" message. */
-async function startCall() {
+async function call() {
   calling.value = true
-  try {
-    const call = await api.post<{ meeting_id: number }>('/api/calls', { channel_id: props.channelId })
-    router.push({ path: `/meetings/${call.meeting_id}/room`, query: { call: conversation.value?.kind === 'direct' ? '1' : undefined, from: router.currentRoute.value.fullPath } })
-  } catch (e) {
-    showToast(errorText(e), 'error')
-  } finally {
-    calling.value = false
-  }
+  await startCall(router, { channel_id: props.channelId }, conversation.value?.kind === 'direct')
+  calling.value = false
 }
 
 function atBottom() {
@@ -295,7 +290,7 @@ onBeforeUnmount(() => {
           <template v-if="conversation.space_name">{{ conversation.space_name }} · </template>{{ t('chat.people', { n: members.length }) }}
         </p>
       </div>
-      <button v-if="publicConfig?.meetings_enabled" type="button" class="btn btn-secondary call-btn" :disabled="calling" @click="startCall">
+      <button v-if="publicConfig?.meetings_enabled" type="button" class="btn btn-secondary call-btn" :disabled="calling" @click="call">
         <AppIcon name="video" :size="18" /><span>{{ conversation.kind === 'direct' ? t('chat.call') : t('chat.startCall') }}</span>
       </button>
     </header>

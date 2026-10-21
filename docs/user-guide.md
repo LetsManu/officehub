@@ -246,7 +246,7 @@ with **New space** (you become its manager). Each space has these tabs:
 
 ### Editing Word, Excel and PowerPoint files
 
-If your company has set up an office server, click a document (or the pencil) to edit it right in the browser.
+Click a document (or the pencil) to edit it right in the browser.
 Several people can work in the same file at once; every save becomes a new version. If both Collabora and
 ONLYOFFICE are available, you can switch between them at the top. Without an office server, files can still be
 downloaded and uploaded again.
@@ -255,8 +255,7 @@ downloaded and uploaded again.
 
 ## Meetings and calls
 
-If your company has set up its meeting server, **Meetings** appears in the menu. Meetings run on the company's own
-server; nothing is recorded.
+Open **Meetings** in the menu. Video and sound stay inside the company; nothing is recorded.
 
 - **Plan a meeting**: give it a title, day and time, and pick who is joining. Everyone invited gets a notification
   and a calendar invitation by e-mail. Choose a space to save the notes in its wiki later.
@@ -267,9 +266,10 @@ server; nothing is recorded.
   **People** (who is there) and **Notes** that everyone from the company can write together. Keys: **M** for the
   microphone, **V** for the camera.
 
-### Calls from the chat
+### Calling a colleague
 
-Click **Call** at the top of a direct conversation – your colleague's portal rings and they can accept or decline.
+Click **Call** on a person in **People**, or at the top of a direct conversation in **Chat** – your colleague's
+portal rings and they can accept or decline.
 In a space chat, **Start a meeting** posts a "Join" message for everyone. Missed calls show up as a notification.
 Every space also has a **Meeting room** at the top that anyone in the space can join at any time.
 

@@ -540,14 +540,14 @@ const de = {
   },
   officeAdmin: {
     intro: 'Word-, Excel- und PowerPoint-Dateien in den Bereichen können direkt im Browser bearbeitet werden – gemeinsam und gleichzeitig. Dafür läuft ein Office-Server bei euch im selben Stack. Es werden keine Dateien an fremde Dienste geschickt.',
-    none: 'Es ist noch kein Office-Server eingerichtet. Dateien können trotzdem hochgeladen und heruntergeladen werden.',
+    none: 'Der Office-Server läuft gerade nicht – er startet mit dem Portal und schaltet sich von selbst ein. Dateien können trotzdem hochgeladen und heruntergeladen werden.',
     default: 'Standard-Editor',
     about: {
       collabora: 'Collabora Online (LibreOffice im Browser). Gut für OpenDocument-Dateien.',
       onlyoffice: 'ONLYOFFICE Docs. Sieht Microsoft Office sehr ähnlich.',
     },
     saved: 'Office-Editor gespeichert',
-    setupHint: 'Einrichtung: siehe Anleitung „Deployment mit Portainer“, Abschnitt Office-Bearbeitung.',
+    setupHint: 'Ein zweiter Editor (ONLYOFFICE) lässt sich zuschalten: siehe Anleitung „Deployment mit Portainer“.',
   },
   board: {
     show: 'Anzeigen',
@@ -872,7 +872,7 @@ const de = {
     unmuteMic: 'Mikrofon einschalten',
     joinNow: 'Jetzt beitreten',
     joining: 'Verbinde …',
-    privacy: 'Das Meeting läuft auf dem eigenen Server der Firma. Nichts wird aufgezeichnet.',
+    privacy: 'Bild und Ton bleiben in der Firma – kein fremder Dienst, nichts wird aufgezeichnet.',
     connecting: 'Verbinde mit dem Meeting …',
     connectFailed: 'Die Verbindung zum Meeting hat nicht geklappt. Bitte versuche es noch einmal.',
     libraryMissing: 'Der Meeting-Server antwortet gerade nicht. Bitte versuche es später noch einmal.',
@@ -1269,7 +1269,7 @@ const de = {
     body_required: 'Bitte gib einen Text ein.',
   },
   errors: {
-    meetings_unavailable: 'Video-Meetings sind noch nicht eingerichtet. Bitte wende dich an die IT.',
+    meeting_full: 'Dieses Meeting ist voll. Für größere Runden kann die IT den Meeting-Server dazuschalten.',
     meeting_cancelled: 'Dieses Meeting wurde abgesagt.',
     notes_conflict: 'Jemand anderes hat die Notizen gerade geändert.',
     too_many_guests: 'Gerade warten zu viele Gäste. Bitte versuche es gleich noch einmal.',
@@ -1774,6 +1774,8 @@ const de = {
   },
   appointmentTopics: { hr: 'Personalabteilung (HR)', it: 'IT', manager: 'Meine Führungskraft', other: 'Jemand anderes' },
   people: {
+    call: 'Anrufen',
+    message: 'Nachricht',
     title: 'Kollegium',
     subtitle: 'Finde Kolleginnen und Kollegen und ihre Kontaktdaten.',
     viewList: 'Liste',

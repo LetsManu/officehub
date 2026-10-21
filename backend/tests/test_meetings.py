@@ -15,8 +15,9 @@ SECRET = "jitsi-test-secret"
 
 @pytest.fixture
 def jitsi(monkeypatch):
-    patched = dataclasses.replace(config.settings, jitsi_app_secret=SECRET)
+    patched = dataclasses.replace(config.settings, jitsi_app_secret=SECRET, jitsi_internal_url="http://jitsi-web")
     monkeypatch.setattr(meeting_service, "settings", patched)
+    monkeypatch.setattr(meeting_service, "reachable", lambda url: True)  # the Jitsi server is running
 
 
 def _ids(client):
@@ -32,11 +33,50 @@ def _plan(client, invitees, **extra):
     return response.json()
 
 
-def test_meetings_off_without_jitsi(anna):
-    assert anna.get("/api/meetings/config").json() == {"enabled": False}
-    assert anna.get("/api/config").json()["meetings_enabled"] is False
-    meeting = _plan(anna, [])
-    assert anna.post(f"/api/meetings/{meeting['id']}/join").json()["code"] == "meetings_unavailable"
+def test_builtin_meetings_without_any_server(anna, lukas, sara):
+    """Without a Jitsi server meetings still work: OfficeHub introduces the browsers to each other."""
+    assert anna.get("/api/meetings/config").json() == {"enabled": True, "mode": "builtin"}
+    assert anna.get("/api/config").json()["meetings_enabled"] is True
+    meeting = _plan(anna, [_ids(anna)["Lukas Schmid"]])
+    a = anna.post(f"/api/meetings/{meeting['id']}/join").json()["connection"]
+    b = lukas.post(f"/api/meetings/{meeting['id']}/join").json()["connection"]
+    assert a["mode"] == "builtin" and a["room"] == b["room"] and a["ice_servers"] == []
+
+    rtc_client = TestClient(app, headers={"X-Requested-With": "OfficeHub"})  # works without a session (guests, apps)
+    first = rtc_client.post("/api/rtc/hello", headers={"X-Meeting-Token": a["token"]}).json()
+    assert first["peers"] == []
+    second = rtc_client.post("/api/rtc/hello", headers={"X-Meeting-Token": b["token"]}).json()
+    assert [p["name"] for p in second["peers"]] == ["Anna Mayer"]
+
+    # Lukas sends an offer to Anna; Anna sees that he joined and receives it
+    offer = {"sdp": {"type": "offer", "sdp": "v=0"}}
+    sent = rtc_client.post("/api/rtc/send", headers={"X-Meeting-Token": b["token"]},
+                           json={"peer_id": second["peer_id"], "to": first["peer_id"], "type": "signal", "data": offer})
+    assert sent.status_code == 204
+    rtc_client.post("/api/rtc/send", headers={"X-Meeting-Token": b["token"]},
+                    json={"peer_id": second["peer_id"], "type": "state", "data": {"audioMuted": True}})
+    got = rtc_client.post("/api/rtc/poll", headers={"X-Meeting-Token": a["token"]}, json={"peer_id": first["peer_id"]}).json()
+    assert [m["type"] for m in got["messages"]] == ["join", "signal", "state"]
+    assert got["messages"][1]["data"] == offer and got["messages"][1]["from"] == second["peer_id"]
+
+    # someone else's ticket cannot read Anna's messages; a forged ticket is refused
+    assert rtc_client.post("/api/rtc/poll", headers={"X-Meeting-Token": b["token"]},
+                           json={"peer_id": first["peer_id"]}).json()["code"] == "peer_gone"
+    assert rtc_client.post("/api/rtc/hello", headers={"X-Meeting-Token": a["token"] + "x"}).status_code == 401
+    assert sara.post(f"/api/meetings/{meeting['id']}/join").status_code == 404  # not invited
+
+    rtc_client.post("/api/rtc/bye", headers={"X-Meeting-Token": b["token"]}, json={"peer_id": second["peer_id"]})
+    after = got["messages"][-1]["seq"]
+    left = rtc_client.post("/api/rtc/poll", headers={"X-Meeting-Token": a["token"]},
+                           json={"peer_id": first["peer_id"], "after": after}).json()
+    assert [m["type"] for m in left["messages"]] == ["leave"]
+
+
+def test_call_a_person_directly(anna, lukas):
+    call = anna.post("/api/calls", json={"user_id": _ids(anna)["Lukas Schmid"]})
+    assert call.status_code == 201
+    assert [r["caller"]["full_name"] for r in lukas.get("/api/calls/incoming").json()] == ["Anna Mayer"]
+    assert anna.post("/api/calls", json={}).status_code == 404
 
 
 def test_plan_invite_respond_and_join(anna, lukas, sara, jitsi):
@@ -56,7 +96,7 @@ def test_plan_invite_respond_and_join(anna, lukas, sara, jitsi):
     claims = jwt_decode(conn["token"], SECRET)
     assert claims["room"] == conn["room"] and claims["context"]["user"]["name"] == "Lukas Schmid"
     assert claims["aud"] == "officehub" and claims["sub"] == "meet.jitsi"
-    assert conn["websocket"] == "/jitsi/xmpp-websocket"
+    assert conn["websocket"] == "/jitsi/xmpp-websocket" and conn["mode"] == "jitsi"
     live = anna.post(f"/api/meetings/{meeting['id']}/presence").json()["live"]
     assert {p["name"] for p in live} == {"Lukas Schmid", "Anna Mayer"}
 
@@ -142,3 +182,18 @@ def test_space_room(anna, sara, jitsi):
     assert room["kind"] == "space" and anna.get(f"/api/spaces/{space['id']}/meeting").json()["id"] == room["id"]
     assert anna.post(f"/api/meetings/{room['id']}/join").status_code == 200
     assert sara.post(f"/api/meetings/{room['id']}/join").status_code == 404
+
+
+def test_shared_passwords_are_made_once(tmp_path, monkeypatch):
+    """Office and meeting servers get their passwords from OfficeHub's first start – nobody types them in."""
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path))
+    first = config._shared_secret("jitsi_app_secret")
+    assert first and len(first) > 30 and config._shared_secret("jitsi_app_secret") == first
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path / "missing"))
+    assert config._shared_secret("jitsi_app_secret") is None  # outside Docker: nothing to share
+
+
+def test_jitsi_is_used_only_while_it_runs(anna, jitsi, monkeypatch):
+    assert anna.get("/api/meetings/config").json()["mode"] == "jitsi"
+    monkeypatch.setattr(meeting_service, "reachable", lambda url: False)  # container stopped
+    assert anna.get("/api/meetings/config").json()["mode"] == "builtin"
