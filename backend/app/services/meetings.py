@@ -30,6 +30,7 @@ from ..models import (
 )
 from .notifications import notify
 from .office import jwt_decode, jwt_encode
+from . import rtc
 from .probe import reachable
 from .recurrence import occurrences, rrule, skipped_days
 from .settings import get_setting, set_setting
@@ -144,7 +145,9 @@ def connect_room(db: Session, room: str, main: str, name: str, who: str, host: b
                  town_hall: bool = False) -> dict:
     """Connection details for one room: the meeting itself or one of its breakout rooms."""
     roles = {"who": who, "moderator": mod}
-    if mode() == "jitsi":
+    # While the Jitsi server runs, every meeting and call goes through it. Only a meeting that already runs built in
+    # (the server was started in the meantime) stays that way until it is empty, so nobody ends up in another room.
+    if mode() == "jitsi" and not rtc.count(room):
         token = jitsi_token(room, name, who, moderator=host, main=main, mod=mod)
         return connection_info(room, token, name) | roles
     max_people = BUILTIN_TOWN_HALL_MAX if town_hall else BUILTIN_MAX

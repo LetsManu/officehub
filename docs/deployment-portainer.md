@@ -80,7 +80,7 @@ these servers are made on the first start – there is nothing to type in.
 
 | Profile | What it adds |
 | --- | --- |
-| `jitsi` | A **Jitsi Meet** server for larger meetings. OfficeHub uses it by itself once it runs. Open **UDP port 10000** to the server; for people outside the office network also set `JITSI_PUBLIC_IP`. About 1–2 GB of RAM. |
+| `jitsi` | A **Jitsi Meet** server for larger meetings. OfficeHub uses it by itself once it runs: then every meeting and call (also between two people) goes through it; a meeting already running built in finishes that way. Open **UDP port 10000** to the server; for people outside the office network also set `JITSI_PUBLIC_IP`. About 1–2 GB of RAM. |
 | `onlyoffice` | **ONLYOFFICE Docs** as a second editor (2–4 GB of RAM, first start takes a few minutes). HR chooses the default under **Administration → Office editing**. |
 
 **People outside the office (home office, mobile data):** with built-in meetings their browsers often cannot reach

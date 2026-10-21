@@ -106,3 +106,21 @@ def test_breakout_rooms_with_jitsi(anna, lukas, jitsi):  # noqa: F811
     claims = jwt_decode(room["token"], SECRET)
     assert claims["room"] == room["room"] and claims["main"] == a["room"] and claims["mod"] is True
     breakouts.meetings.clear()
+
+
+def test_calls_go_through_the_jitsi_server_while_it_runs(anna, lukas, monkeypatch, jitsi):  # noqa: F811
+    from app.services import meetings as meeting_service
+
+    call = anna.post("/api/calls", json={"user_id": _ids(anna)["Lukas Schmid"]}).json()["connection"]
+    assert call["mode"] == "jitsi"  # also a call between two people goes through the server
+
+    # A meeting that already runs built in (server started meanwhile) stays built in until it is empty
+    monkeypatch.setattr(meeting_service, "reachable", lambda url: False)
+    meeting = _plan(anna, [_ids(anna)["Lukas Schmid"]])
+    a = anna.post(f"/api/meetings/{meeting['id']}/join").json()["connection"]
+    assert a["mode"] == "builtin"
+    peer = _hello(a["token"]).json()["peer_id"]
+    monkeypatch.setattr(meeting_service, "reachable", lambda url: True)
+    assert lukas.post(f"/api/meetings/{meeting['id']}/join").json()["connection"]["mode"] == "builtin"
+    client.post("/api/rtc/bye", headers={"X-Meeting-Token": a["token"]}, json={"peer_id": peer})
+    assert lukas.post(f"/api/meetings/{meeting['id']}/join").json()["connection"]["mode"] == "jitsi"

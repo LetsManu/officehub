@@ -456,7 +456,8 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
       if (state.status === 'joined') state.status = 'left'
     })
 
-    const room = connection.initJitsiConference(c.room, { p2p: { enabled: true }, openBridgeChannel: true })
+    // Everything goes through the company's videobridge, also calls between two people (no direct connection)
+    const room = connection.initJitsiConference(c.room, { p2p: { enabled: false }, openBridgeChannel: true })
     conference.value = room
     const ce = events.conference
     room.on(ce.TRACK_ADDED, (track: Track) => {
