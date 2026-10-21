@@ -47,6 +47,8 @@ interface CraftOpen {
   /** While we may save: the lock that keeps others read-only. Renewed every minute, given back on leaving. */
   lock: string | null
   editing_by: string | null
+  /** Everyone who opens the file edits together, live (DeckCraft saves it by itself) */
+  together: boolean
 }
 
 const craft = ref<CraftOpen | null>(null)
@@ -86,7 +88,8 @@ function releaseLock() {
  * check (same site, so we can ask it); DeckCraft cannot tell, so we ask the person. */
 function maybeUnsaved(): boolean {
   if (!craft.value?.can_write) return false
-  if (craft.value.app === 'deckcraft') return true
+  // DeckCraft on its own cannot tell; editing together it saves by itself and answers like WordCraft
+  if (craft.value.app === 'deckcraft' && !craft.value.together) return true
   try {
     const check = new Event('beforeunload', { cancelable: true })
     craftFrame.value?.contentWindow?.dispatchEvent(check)
@@ -231,9 +234,10 @@ onBeforeUnmount(() => {
         <span>{{ file?.name ?? '…' }}</span>
         <span v-if="(session && !session.can_write) || (craft && !craft.can_write)" class="tag">{{ t('office.readOnly') }}</span>
         <span v-if="craft" class="tag">{{ t(`office.craft.${craft.app}`) }}</span>
+        <span v-if="craft?.together" class="tag tag-live" :title="t('office.liveHint')"><AppIcon name="users" :size="13" />{{ t('office.live') }}</span>
       </h1>
       <div class="row">
-        <RouterLink v-if="craft && office.default && (office.editable[office.default] ?? []).includes(file?.file_type ?? '')" :to="`/office/${props.id}?together=1`" class="btn btn-ghost" :title="t('files.editTogetherHint')"><AppIcon name="users" :size="18" /><span class="hide-sm">{{ t('files.editTogether') }}</span></RouterLink>
+        <RouterLink v-if="craft && !craft.together && office.default && (office.editable[office.default] ?? []).includes(file?.file_type ?? '')" :to="`/office/${props.id}?together=1`" class="btn btn-ghost" :title="t('files.editTogetherHint')"><AppIcon name="users" :size="18" /><span class="hide-sm">{{ t('files.editTogether') }}</span></RouterLink>
         <div v-if="office.engines.length > 1" class="segmented" role="group" :aria-label="t('office.openWith')">
           <button v-for="e in office.engines" :key="e" type="button" :aria-pressed="engine === e" @click="switchEngine(e)">{{ t(`office.engines.${e}`) }}</button>
         </div>
@@ -263,7 +267,7 @@ onBeforeUnmount(() => {
       </template>
     </div>
 
-    <BaseModal :open="leaveTo !== null" :title="t('office.leaveTitle')" :description="t(`office.leaveText.${craft?.app ?? 'wordcraft'}`)" :confirm-label="t('office.leaveAnyway')" :cancel-label="t('office.stay')" tone="danger" @close="leaveTo = null" @confirm="leaveAnyway" />
+    <BaseModal :open="leaveTo !== null" :title="t('office.leaveTitle')" :description="t(`office.leaveText.${craft?.together ? 'together' : craft?.app ?? 'wordcraft'}`)" :confirm-label="t('office.leaveAnyway')" :cancel-label="t('office.stay')" tone="danger" @close="leaveTo = null" @confirm="leaveAnyway" />
   </div>
 </template>
 
@@ -297,6 +301,13 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tag.tag-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-success-soft);
 }
 
 .tag {

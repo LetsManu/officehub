@@ -1,26 +1,28 @@
-# WordCraft and DeckCraft in the browser (both MIT OR Apache-2.0, https://github.com/storytold), built from their
-# source with OfficeHub's small patch so a document opens from the portal and Save puts it back (patches/).
+# WordCraft and DeckCraft in the browser (both MIT OR Apache-2.0, https://github.com/storytold), built from the
+# OfficeHub forks (branch "officehub"): a document opens from the portal, Save puts it back, and DeckCraft edits
+# together live through OfficeHub.
 # The result is a few static files served by nginx: nothing runs on the server and nothing calls outside services.
 
 # The WebAssembly is the same on every machine: build it once on the build machine, also for arm64 images.
 FROM --platform=$BUILDPLATFORM rust:1.95-slim AS build
-ARG WORDCRAFT_COMMIT=e05b7fe86f3b85454000dffc321de638d7009817
-ARG DECKCRAFT_COMMIT=63831cdfa9e13ad503d18e6ee210767919352128
 ARG TRUNK_VERSION=0.21.14
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates pkg-config \
     && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown && cargo install trunk --version "$TRUNK_VERSION" --locked
 WORKDIR /src
-# Exact commits, so every build is the same reviewed code; each app on its own, so a change to one patch only
-# rebuilds that app
-COPY patches/wordcraft-web.patch /patches/
-RUN git init -q wordcraft && git -C wordcraft fetch -q --depth 1 https://github.com/storytold/wordcraft "$WORDCRAFT_COMMIT" \
-    && git -C wordcraft checkout -q FETCH_HEAD && git -C wordcraft apply /patches/wordcraft-web.patch \
+# Exact commits, so every build is the same reviewed code; each app on its own, so a change to one only rebuilds that
+# app. collab.json tells OfficeHub that this DeckCraft build edits together.
+ARG WORDCRAFT_REPO=https://github.com/LetsManu/wordcraft
+ARG WORDCRAFT_COMMIT=a53d7f7c9bb9342ce995b6888edda699165e296d
+RUN git init -q wordcraft && git -C wordcraft fetch -q --depth 1 "$WORDCRAFT_REPO" "$WORDCRAFT_COMMIT" \
+    && git -C wordcraft checkout -q FETCH_HEAD \
     && cd wordcraft/apps/wordcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/wordcraft
-COPY patches/deckcraft-web.patch /patches/
-RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 https://github.com/storytold/deckcraft "$DECKCRAFT_COMMIT" \
-    && git -C deckcraft checkout -q FETCH_HEAD && git -C deckcraft apply /patches/deckcraft-web.patch \
-    && cd deckcraft/apps/deckcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/deckcraft
+ARG DECKCRAFT_REPO=https://github.com/LetsManu/deckcraft
+ARG DECKCRAFT_COMMIT=50e06f7656cc7030bb912c4fa852294d431b021b
+RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 "$DECKCRAFT_REPO" "$DECKCRAFT_COMMIT" \
+    && git -C deckcraft checkout -q FETCH_HEAD \
+    && cd deckcraft/apps/deckcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/deckcraft \
+    && echo '{"together": true}' > /out/deckcraft/collab.json
 # Their licences travel with the files
 RUN for app in wordcraft deckcraft; do cp $app/LICENSE-MIT $app/LICENSE-APACHE $app/NOTICE /out/$app/; done
 

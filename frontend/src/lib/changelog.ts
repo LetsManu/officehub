@@ -12,10 +12,12 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '3.6.0',
     date: '2026-10-21',
     de: [
-      'Nur eine Person bearbeitet eine Datei in WordCraft oder DeckCraft: Alle anderen sehen, wer gerade daran arbeitet, und können sie so lange nur ansehen. Nichts wird mehr aus Versehen überschrieben.',
+      'DeckCraft gemeinsam, live: Alle, die eine Präsentation öffnen, bearbeiten sie gleichzeitig – neue Folien, Formen und Text erscheinen sofort bei den anderen, auch beim Tippen im selben Textfeld. Du siehst, wer noch da ist und was markiert ist. Gespeichert wird automatisch; Rückgängig nimmt nur deine eigenen Änderungen zurück.',
+      'In WordCraft bearbeitet (noch) eine Person ein Dokument: Alle anderen sehen, wer gerade daran arbeitet, und können es so lange nur ansehen. Nichts wird mehr aus Versehen überschrieben.',
     ],
     en: [
-      'Only one person edits a file in WordCraft or DeckCraft: everyone else sees who is working on it and can only look at it meanwhile. Nothing gets overwritten by accident any more.',
+      'DeckCraft together, live: everyone who opens a presentation edits it at the same time – new slides, shapes and text appear for the others right away, even when typing in the same text box. You see who else is there and what they selected. It saves by itself; Undo takes back only your own changes.',
+      'In WordCraft one person edits a document (for now): everyone else sees who is working on it and can only look at it meanwhile. Nothing gets overwritten by accident any more.',
     ],
   },
   {
