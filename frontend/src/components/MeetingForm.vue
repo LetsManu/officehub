@@ -21,7 +21,7 @@ const people = ref<DirectoryEntry[]>([])
 const spaces = ref<Space[]>([])
 const search = ref('')
 const busy = ref(false)
-const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false, recurrence: '' as Recurrence, until: '' })
+const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false, recurrence: '' as Recurrence, until: '', town_hall: false })
 const RECURRENCES: Recurrence[] = ['', 'daily', 'weekdays', 'weekly', 'biweekly', 'monthly']
 const errors = reactive<Record<string, string>>({})
 
@@ -49,14 +49,14 @@ function reset() {
   const m = props.meeting
   if (m?.starts_at && m.ends_at) {
     const s = localParts(new Date(m.starts_at))
-    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link, recurrence: m.recurrence ?? '', until: m.recurrence_until ?? '' })
+    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link, recurrence: m.recurrence ?? '', until: m.recurrence_until ?? '', town_hall: !!m.town_hall })
   } else {
     // The time chosen in the calendar, otherwise the next full half hour, for one hour
     const start = props.start ? new Date(props.start) : new Date()
     if (!props.start) start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0)
     const end = props.end ?? new Date(start.getTime() + 3600_000)
     const s = localParts(start)
-    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false, recurrence: '', until: '' })
+    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false, recurrence: '', until: '', town_hall: false })
   }
 }
 
@@ -91,7 +91,7 @@ async function save() {
   if (end <= start) end.setDate(end.getDate() + 1) // goes past midnight
   busy.value = true
   try {
-    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests, recurrence: form.recurrence, recurrence_until: form.recurrence && form.until ? form.until : null }
+    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests, recurrence: form.recurrence, recurrence_until: form.recurrence && form.until ? form.until : null, town_hall: form.town_hall }
     const saved = editing.value ? await api.put<MeetingDetail>(`/api/meetings/${props.meeting!.id}`, body) : await api.post<MeetingDetail>('/api/meetings', body)
     emit('saved', saved)
   } catch (e) {
@@ -304,6 +304,10 @@ watch(() => props.open, (open) => {
       <label class="checkbox">
         <input v-model="form.allow_guests" type="checkbox" />
         <span>{{ t('meetings.fields.guests') }}<span class="muted small block">{{ t('meetings.fields.guestsHint') }}</span></span>
+      </label>
+      <label class="checkbox">
+        <input v-model="form.town_hall" type="checkbox" />
+        <span>{{ t('meetings.fields.townHall') }}<span class="muted small block">{{ t('meetings.fields.townHallHint') }}</span></span>
       </label>
     </form>
   </BaseModal>

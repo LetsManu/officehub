@@ -24,6 +24,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Umfragen und Sprachnachrichten direkt im Chat. Mit „/“ erreichst du Befehle wie /umfrage, /anruf oder /status.',
       'Pro Unterhaltung einstellen, wann du benachrichtigt wirst, oder sie stummschalten. „Aktivität → Erwähnungen“ sammelt, wo du erwähnt wurdest.',
       'Kolleginnen und Kollegen sehen, woran du gerade arbeitest – z. B. „Bearbeitet gerade Budget.xlsx“ oder „In der Besprechung …“.',
+      'Meetings wie in Teams und Webex: Reaktionen, Galerie- und Sprecheransicht, Anheften, Bild im Bild und ein gemeinsames Whiteboard.',
+      'Wer ein Meeting leitet, kann alle stummschalten, jemanden hervorheben oder entfernen und Breakout-Räume mit Zeitlimit öffnen.',
+      'Town Hall für große Runden: Nur wer auf der Bühne ist, spricht – alle anderen schauen zu und können sich melden.',
+      'Meetings im Browser aufnehmen (alle sehen es), Mikrofon und Lautsprecher vorher testen, Hintergrundgeräusche dämpfen und zum Sprechen die Leertaste halten.',
     ],
     en: [
       'New menu like in Teams and Outlook: the everyday tools at the top, then "My working day", "Company" and "Office". The arrow turns it into a slim icon bar.',
@@ -38,6 +42,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Polls and voice messages right in the chat. Type "/" for commands like /poll, /call or /status.',
       'Choose per conversation when you are notified, or mute it. "Activity → Mentions" collects where you were mentioned.',
       'Colleagues see what you are working on – e.g. "Editing Budget.xlsx" or "In the meeting …".',
+      'Meetings like in Teams and Webex: reactions, gallery and speaker view, pinning, picture in picture and a shared whiteboard.',
+      'Whoever leads a meeting can mute everyone, highlight or remove someone and open breakout rooms with a time limit.',
+      'Town hall for large audiences: only the people on stage speak – everyone else watches and can raise a hand.',
+      'Record meetings in the browser (everyone sees it), test microphone and speaker beforehand, reduce background noise and hold the space bar to talk.',
     ],
   },
   {

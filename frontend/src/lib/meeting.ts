@@ -5,7 +5,7 @@
  * Nothing loads from outside either way.
  */
 
-import { reactive, shallowRef } from 'vue'
+import { reactive, ref, shallowRef } from 'vue'
 import { builtinSession, createRtcTracks } from './rtc'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet has no type definitions here */
@@ -36,6 +36,11 @@ export interface JoinInfo {
     // built in
     signal?: string
     ice_servers?: RTCIceServer[]
+    max_people?: number
+    // who I am and whether I lead the meeting (mute everyone, breakout rooms, town hall stage …)
+    who?: string
+    moderator?: boolean
+    town_hall?: boolean
   }
 }
 
@@ -50,7 +55,26 @@ export interface Tile {
   screen: boolean
   speaking: boolean
   hand: boolean
+  who: string // the person behind the tile (same in every room of the meeting)
+  mod: boolean // leads the meeting
+  reaction: string // a reaction shown for a few seconds
 }
+
+/** One line on the whiteboard; points are x,y pairs from 0 to 1000 so every screen size shows the same. */
+export interface Stroke {
+  id: string
+  color: string
+  size: number
+  points: number[]
+}
+
+/** Small messages between the people in a meeting: reactions, whiteboard, moderation. */
+export interface AppMessage {
+  kind: string
+  [key: string]: unknown
+}
+
+export type Notice = { key: number; text: string; params?: Record<string, string> }
 
 export interface ChatLine {
   id: number
@@ -63,6 +87,9 @@ export interface ChatLine {
 export type MeetingStatus = 'idle' | 'connecting' | 'joined' | 'failed' | 'left'
 
 export const JITSI_LIBRARY = '/jitsi/libs/lib-jitsi-meet.min.js'
+
+/** The loudspeaker or headset chosen in the meeting (empty: the computer's default). */
+export const speakerId = ref('')
 
 let libraryPromise: Promise<any> | null = null
 
@@ -133,6 +160,17 @@ function newState() {
     sharing: false,
     hand: false,
     dominant: '' as string,
+    me: '' as string, // my "who"
+    moderator: false,
+    townHall: false,
+    stage: [] as string[], // town hall: who may speak besides the people leading it
+    spotlight: '' as string, // who everyone sees large
+    recording: [] as string[], // tile ids of people recording
+    strokes: [] as Stroke[],
+    boardUnread: 0,
+    breakoutsChanged: 0,
+    moving: false, // switching to or from a breakout room
+    notices: [] as Notice[],
   })
 }
 
@@ -142,7 +180,7 @@ function tileFinder(state: MeetingState, nameOf: (id: string) => string = () => 
   return (id: string, name?: string): Tile => {
     let t = state.tiles.find((x) => x.id === id)
     if (!t) {
-      t = reactive({ id, name: name ?? (id === 'local' ? '' : nameOf(id)), local: id === 'local', audio: null, video: null, audioMuted: true, videoMuted: true, screen: false, speaking: false, hand: false })
+      t = reactive({ id, name: name ?? (id === 'local' ? '' : nameOf(id)), local: id === 'local', audio: null, video: null, audioMuted: true, videoMuted: true, screen: false, speaking: false, hand: false, who: '', mod: false, reaction: '' })
       state.tiles.push(t)
     } else if (name) {
       t.name = name
@@ -153,28 +191,215 @@ function tileFinder(state: MeetingState, nameOf: (id: string) => string = () => 
 
 type Session = ReturnType<typeof builtinSession>
 
+/** Kinds that only count when they come from someone leading the meeting (the server checks this too). */
+const MOD_KINDS = new Set(['mute', 'mute-all', 'spotlight', 'stage', 'lower-hand', 'sync', 'breakouts'])
+const REACTION_MS = 4000
+let noticeKey = 0
+
+function notice(state: MeetingState, text: string, params?: Record<string, string>) {
+  state.notices.push({ key: ++noticeKey, text, params })
+}
+
 /** One meeting: the people in it, the chat and the controls; the way underneath follows the join info. */
 export function useMeeting() {
   const state = newState()
   let session: Session | null = null
+  let info: JoinInfo | null = null
   const run = <K extends keyof Session>(key: K) => ((...args: Parameters<Session[K]>) => (session?.[key] as (...a: unknown[]) => unknown)?.(...args)) as Session[K]
+  const tile = (id: string) => state.tiles.find((t) => t.id === id)
+  const app = (message: AppMessage, to?: string) => session?.app(message, to)
+
+  /** In a town hall, people in the audience listen until someone leading it brings them on stage. */
+  const mayTalk = () => !state.townHall || state.moderator || state.stage.includes(state.me)
+
+  async function silence() {
+    if (state.micOn) await session?.toggleMic()
+    if (state.camOn) await session?.toggleCam()
+    if (state.sharing) await session?.stopShare()
+  }
+
+  function onApp(from: string, m: AppMessage) {
+    const sender = tile(from)
+    if (MOD_KINDS.has(m.kind) && !sender?.mod) return
+    const name = sender?.name ?? ''
+    switch (m.kind) {
+      case 'react': {
+        if (!sender || typeof m.emoji !== 'string') return
+        sender.reaction = m.emoji.slice(0, 8)
+        const shown = sender.reaction
+        window.setTimeout(() => sender.reaction === shown && (sender.reaction = ''), REACTION_MS)
+        break
+      }
+      case 'wb':
+        if (isStroke(m.stroke) && !state.strokes.some((x) => x.id === (m.stroke as Stroke).id)) {
+          state.strokes.push(m.stroke as Stroke)
+          state.boardUnread += 1
+        }
+        break
+      case 'wb-clear':
+        state.strokes = []
+        break
+      case 'wb-req':
+        sendBoard(from)
+        break
+      case 'wb-all':
+        for (const stroke of Array.isArray(m.strokes) ? m.strokes : []) {
+          if (isStroke(stroke) && !state.strokes.some((x) => x.id === stroke.id)) state.strokes.push(stroke)
+        }
+        break
+      case 'rec':
+        state.recording = state.recording.filter((id) => id !== from)
+        if (m.on) {
+          state.recording.push(from)
+          notice(state, 'meeting.recordingStarted', { name })
+        }
+        break
+      case 'sync-req':
+        if (state.moderator) app({ kind: 'sync', spotlight: state.spotlight, stage: state.stage }, from)
+        if (state.recording.includes('local')) app({ kind: 'rec', on: true }, from)
+        break
+      case 'mute':
+        if (m.to !== state.me) return
+      // falls through
+      case 'mute-all':
+        if (state.moderator && m.kind === 'mute-all') return
+        if (state.micOn) {
+          session?.toggleMic()
+          notice(state, 'meeting.mutedBy', { name })
+        }
+        break
+      case 'lower-hand':
+        if ((m.to === state.me || !m.to) && state.hand) session?.toggleHand()
+        break
+      case 'spotlight':
+      case 'sync':
+        state.spotlight = typeof m.spotlight === 'string' ? m.spotlight : ''
+        if (m.kind === 'spotlight') break
+      // falls through (sync also carries the stage)
+      case 'stage': {
+        const before = mayTalk()
+        state.stage = Array.isArray(m.stage) ? m.stage.map(String) : []
+        if (state.townHall && !state.moderator) {
+          if (!before && mayTalk()) notice(state, 'meeting.onStage')
+          if (before && !mayTalk()) {
+            silence()
+            if (m.kind === 'stage') notice(state, 'meeting.offStage')
+          }
+        }
+        break
+      }
+      case 'breakouts':
+        state.breakoutsChanged += 1
+        break
+    }
+  }
+
+  /** The whiteboard for someone who joined later, in parts small enough for one message. */
+  function sendBoard(to: string) {
+    for (let i = 0; i < state.strokes.length; i += 40) app({ kind: 'wb-all', strokes: state.strokes.slice(i, i + 40) }, to)
+  }
+
+  async function start(joinInfo: JoinInfo, localTracks: Track[], displayName: string) {
+    info = joinInfo
+    const c = joinInfo.connection
+    state.me = c.who ?? ''
+    state.moderator = !!c.moderator
+    state.townHall = !!c.town_hall
+    session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp) : jitsiSession(state, onApp)
+    const tracks = mayTalk() ? localTracks : []
+    if (!mayTalk()) for (const track of localTracks) track.dispose?.()
+    await session.join(joinInfo, tracks, displayName)
+    const me = tileFinder(state)('local')
+    me.who = state.me
+    me.mod = state.moderator
+    app({ kind: 'sync-req' })
+    app({ kind: 'wb-req' })
+  }
+
   return {
     state,
-    join(info: JoinInfo, localTracks: Track[], displayName: string) {
-      session = info.connection.mode === 'builtin' ? builtinSession(state, tileFinder(state)) : jitsiSession(state)
-      return session.join(info, localTracks, displayName)
+    mayTalk,
+    get info() {
+      return info
     },
+    join: start,
     leave: () => session?.leave() ?? Promise.resolve(),
-    toggleMic: run('toggleMic'),
-    toggleCam: run('toggleCam'),
-    startShare: run('startShare'),
+    /** Go to a breakout room (or back): leave this room and join the other with fresh camera and microphone. */
+    async move(next: JoinInfo, localTracks: Track[], displayName: string) {
+      state.moving = true
+      try {
+        await session?.leave()
+        state.strokes = []
+        state.spotlight = ''
+        state.stage = []
+        state.recording = state.recording.filter((id) => id === 'local')
+        await start(next, localTracks, displayName)
+      } finally {
+        state.moving = false
+      }
+    },
+    toggleMic: async () => {
+      if (!state.micOn && !mayTalk()) return notice(state, 'meeting.audienceOnly')
+      await session?.toggleMic()
+    },
+    toggleCam: async () => {
+      if (!state.camOn && !mayTalk()) return notice(state, 'meeting.audienceOnly')
+      await session?.toggleCam()
+    },
+    startShare: async () => {
+      if (!mayTalk()) return notice(state, 'meeting.audienceOnly')
+      await session?.startShare()
+    },
     stopShare: run('stopShare'),
     toggleHand: run('toggleHand'),
     send: run('send'),
+    setNoiseSuppression: run('setNoiseSuppression'),
+    audioTracks: () => session?.audioTracks() ?? [],
+    react(emoji: string) {
+      const me = tile('local')
+      if (me) {
+        me.reaction = emoji
+        window.setTimeout(() => me.reaction === emoji && (me.reaction = ''), REACTION_MS)
+      }
+      app({ kind: 'react', emoji })
+    },
+    draw(stroke: Stroke) {
+      state.strokes.push(stroke)
+      app({ kind: 'wb', stroke })
+    },
+    clearBoard() {
+      state.strokes = []
+      app({ kind: 'wb-clear' })
+    },
+    setRecording(on: boolean) {
+      state.recording = state.recording.filter((id) => id !== 'local')
+      if (on) state.recording.push('local')
+      app({ kind: 'rec', on })
+    },
+    // ---------- for the people leading the meeting ----------
+    muteAll: () => app({ kind: 'mute-all' }),
+    mute: (t: Tile) => session?.forceMute(t.id, t.who),
+    lowerHand: (t: Tile) => app({ kind: 'lower-hand', to: t.who }),
+    remove: (t: Tile) => session?.remove(t.id),
+    setSpotlight(who: string) {
+      state.spotlight = who
+      app({ kind: 'spotlight', spotlight: who })
+    },
+    setStage(who: string, on: boolean) {
+      state.stage = on ? [...new Set([...state.stage, who])] : state.stage.filter((w) => w !== who)
+      app({ kind: 'stage', stage: state.stage })
+    },
+    breakoutsChanged: () => app({ kind: 'breakouts' }),
   }
 }
 
-function jitsiSession(state: MeetingState) {
+function isStroke(value: unknown): value is Stroke {
+  const s = value as Stroke
+  return !!s && typeof s.id === 'string' && typeof s.color === 'string' && /^#[0-9a-f]{6}$/i.test(s.color)
+    && typeof s.size === 'number' && Array.isArray(s.points) && s.points.length <= 4000 && s.points.every((n) => typeof n === 'number')
+}
+
+function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMessage) => void) {
   const conference = shallowRef<Conference | null>(null)
   let lib: any = null
   let connection: any = null
@@ -184,6 +409,14 @@ function jitsiSession(state: MeetingState) {
   let chatId = 0
 
   const tile = tileFinder(state, (id) => conference.value?.getParticipantById(id)?.getDisplayName() ?? '')
+
+  /** Who someone is and whether they lead the meeting: shared as participant properties. Only Jitsi moderators
+   * (people with an account; guests never are) can lead, so a guest cannot pretend to. */
+  function roles(participant: any) {
+    const t = tile(participant.getId())
+    t.who = participant.getProperty?.('ohwho') ?? t.who
+    t.mod = participant.getRole?.() === 'moderator' && participant.getProperty?.('ohmod') === 'true'
+  }
 
   function placeTrack(track: Track) {
     const id = track.isLocal() ? 'local' : track.getParticipantId()
@@ -244,6 +477,17 @@ function jitsiSession(state: MeetingState) {
     })
     room.on(ce.USER_JOINED, (id: string, user: any) => {
       tile(id).name = user.getDisplayName() ?? ''
+      roles(user)
+    })
+    room.on(ce.USER_ROLE_CHANGED, (id: string) => {
+      const participant = room.getParticipantById(id)
+      if (participant) roles(participant)
+    })
+    room.on(ce.ENDPOINT_MESSAGE_RECEIVED, (participant: any, payload: any) => {
+      const message = payload?.officehub
+      if (!participant || participant.getId?.() === room.myUserId() || !message || typeof message.kind !== 'string') return
+      roles(participant)
+      onApp(participant.getId(), message)
     })
     room.on(ce.DISPLAY_NAME_CHANGED, (id: string, name: string) => {
       tile(id).name = name
@@ -262,12 +506,14 @@ function jitsiSession(state: MeetingState) {
     })
     room.on(ce.PARTICIPANT_PROPERTY_CHANGED, (participant: any, name: string, _old: unknown, value: string) => {
       if (name === 'raisedHand') tile(participant.getId()).hand = value === 'true'
+      if (name === 'ohwho' || name === 'ohmod') roles(participant)
     })
     room.on(ce.CONFERENCE_FAILED, (e: unknown) => {
       state.status = 'failed'
       state.error = String(e)
     })
     room.on(ce.KICKED, () => {
+      state.notices.push({ key: Date.now(), text: 'meeting.removed' })
       state.status = 'left'
     })
     await new Promise<void>((resolve) => {
@@ -281,6 +527,8 @@ function jitsiSession(state: MeetingState) {
       }
       const me = tile('local')
       me.name = displayName
+      room.setLocalParticipantProperty?.('ohwho', info.connection.who ?? '')
+      room.setLocalParticipantProperty?.('ohmod', String(!!info.connection.moderator))
       room.join()
     })
     state.micOn = !!localAudio && !localAudio.isMuted()
@@ -362,6 +610,32 @@ function jitsiSession(state: MeetingState) {
     state.chat.push({ id: ++chatId, from: tile('local').name, text: body, at: Date.now(), mine: true })
   }
 
+  /** Reactions, whiteboard and moderation go as JSON messages through the meeting server. */
+  function app(message: AppMessage, to?: string) {
+    try {
+      conference.value?.sendMessage({ officehub: message }, to ?? '')
+    } catch {
+      /* not connected */
+    }
+  }
+
+  function remove(id: string) {
+    conference.value?.kickParticipant?.(id)
+  }
+
+  function forceMute(id: string, who: string) {
+    conference.value?.muteParticipant?.(id, 'audio')
+    app({ kind: 'mute', to: who })
+  }
+
+  async function setNoiseSuppression(on: boolean) {
+    await localAudio?.getTrack?.()?.applyConstraints({ noiseSuppression: on, echoCancellation: true, autoGainControl: on }).catch(() => undefined)
+  }
+
+  function audioTracks(): MediaStreamTrack[] {
+    return state.tiles.map((t) => t.audio?.getTrack?.()).filter(Boolean)
+  }
+
   async function leave() {
     try {
       await conference.value?.leave()
@@ -377,5 +651,5 @@ function jitsiSession(state: MeetingState) {
     state.status = 'left'
   }
 
-  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send }
+  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks }
 }

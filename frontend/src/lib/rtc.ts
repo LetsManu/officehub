@@ -4,7 +4,7 @@
  * is meant for calls and smaller meetings; with the company's own Jitsi server larger ones work too.
  */
 
-import type { ChatLine, JoinInfo, MeetingState, Tile } from './meeting'
+import type { AppMessage, ChatLine, JoinInfo, MeetingState, Tile } from './meeting'
 
 type Kind = 'audio' | 'video'
 
@@ -61,7 +61,8 @@ export async function createRtcTracks(devices: Kind[], ids: { camera?: string; m
   if (!navigator.mediaDevices?.getUserMedia) return []
   const ask = async (audio: boolean, video: boolean) =>
     navigator.mediaDevices.getUserMedia({
-      audio: audio ? (ids.mic ? { deviceId: { exact: ids.mic }, echoCancellation: true } : { echoCancellation: true }) : false,
+      // The browser's own noise suppression (no AI, nothing leaves the computer); can be switched off in the meeting
+      audio: audio ? { ...(ids.mic ? { deviceId: { exact: ids.mic } } : {}), echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
       video: video ? { ...(ids.camera ? { deviceId: { exact: ids.camera } } : {}), width: { ideal: 1280 }, height: { ideal: 720 } } : false,
     })
   const audio = devices.includes('audio')
@@ -77,7 +78,7 @@ export async function createRtcTracks(devices: Kind[], ids: { camera?: string; m
 
 interface Message {
   seq: number
-  type: 'join' | 'leave' | 'signal' | 'state' | 'chat'
+  type: 'join' | 'leave' | 'signal' | 'state' | 'chat' | 'app' | 'removed'
   from: string
   data: Record<string, unknown>
 }
@@ -104,7 +105,7 @@ class RtcError extends Error {
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
-export function builtinSession(state: MeetingState, tile: (id: string, name?: string) => Tile) {
+export function builtinSession(state: MeetingState, tile: (id: string, name?: string) => Tile, onApp: (from: string, message: AppMessage) => void) {
   let base = '/api/rtc'
   let token = ''
   let peerId = ''
@@ -233,7 +234,9 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
   async function handle(message: Message) {
     const data = message.data
     if (message.type === 'join') {
-      tile(message.from, String(data.name ?? ''))
+      const t = tile(message.from, String(data.name ?? ''))
+      t.who = String(data.who ?? '')
+      t.mod = !!data.mod
       applyState(message.from, (data.state ?? {}) as PeerState)
     } else if (message.type === 'leave') {
       drop(message.from)
@@ -245,15 +248,22 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
       const from = state.tiles.find((t) => t.id === message.from)?.name || '?'
       state.chat.push({ id: ++chatId, from, text: String(data.text ?? ''), at: Date.now(), mine: false } satisfies ChatLine)
       state.unread += 1
+    } else if (message.type === 'app' && typeof data.kind === 'string') {
+      onApp(message.from, data as AppMessage)
+    } else if (message.type === 'removed') {
+      state.notices.push({ key: Date.now(), text: 'meeting.removed' })
+      await leave()
     }
   }
 
   async function hello() {
-    const reply = await call<{ peer_id: string; peers: { id: string; name: string; state: PeerState }[] }>('/hello')
+    const reply = await call<{ peer_id: string; peers: { id: string; name: string; who: string; mod: boolean; state: PeerState }[] }>('/hello')
     peerId = reply.peer_id
     cursor = 0
     for (const p of reply.peers) {
-      tile(p.id, p.name)
+      const t = tile(p.id, p.name)
+      t.who = p.who
+      t.mod = p.mod
       applyState(p.id, p.state)
       await offer(p.id)
     }
@@ -274,7 +284,14 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
           // The portal was restarted: say hello again and reconnect everyone
           for (const id of [...links.keys()]) drop(id)
           await sleep(500)
-          await hello().catch(() => sleep(2000))
+          await hello().catch(async (err) => {
+            if (err instanceof RtcError && err.code === 'removed_from_meeting') {
+              state.notices.push({ key: Date.now(), text: 'meeting.removed' })
+              await leave()
+            } else {
+              await sleep(2000)
+            }
+          })
         } else {
           await sleep(2000)
         }
@@ -439,6 +456,27 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
     state.chat.push({ id: ++chatId, from: tile('local').name, text: body, at: Date.now(), mine: true })
   }
 
+  function app(message: AppMessage, to?: string) {
+    if (active) call('/send', { to: to ?? null, type: 'app', data: message }).catch(() => undefined)
+  }
+
+  function remove(id: string) {
+    call('/remove', { target: id }).catch(() => undefined)
+  }
+
+  function forceMute(_id: string, who: string) {
+    app({ kind: 'mute', to: who })
+  }
+
+  async function setNoiseSuppression(on: boolean) {
+    await audio?.track.applyConstraints({ noiseSuppression: on, echoCancellation: true, autoGainControl: on }).catch(() => undefined)
+  }
+
+  /** Everyone's microphone, for a recording. */
+  function audioTracks(): MediaStreamTrack[] {
+    return state.tiles.map((t) => (t.local ? audio : (t.audio as RtcTrack | null))?.track).filter((x): x is MediaStreamTrack => !!x)
+  }
+
   async function leave() {
     if (active && peerId) call('/bye', {}, true).catch(() => undefined)
     active = false
@@ -453,5 +491,5 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
     state.status = 'left'
   }
 
-  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send }
+  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks }
 }

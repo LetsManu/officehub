@@ -1025,6 +1025,8 @@ class Meeting(Base):
     recurrence: Mapped[str] = mapped_column(String(10), default="", server_default=text("''"))
     recurrence_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     skipped: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))  # comma-separated YYYY-MM-DD
+    # Town hall: only the organizer and the people they bring on stage speak; everyone else watches
+    town_hall: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     organizer: Mapped[User | None] = relationship()

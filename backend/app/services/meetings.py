@@ -16,7 +16,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..errors import not_found
+from ..errors import ApiError, not_found
 from ..models import (
     Channel,
     ChannelMember,
@@ -29,7 +29,7 @@ from ..models import (
     utcnow,
 )
 from .notifications import notify
-from .office import jwt_encode
+from .office import jwt_decode, jwt_encode
 from .probe import reachable
 from .recurrence import occurrences, rrule, skipped_days
 from .settings import get_setting, set_setting
@@ -41,6 +41,7 @@ RING_SECONDS = 45  # an unanswered call counts as missed after this
 
 
 BUILTIN_MAX = 8  # people per meeting without a Jitsi server: everyone sends their video to everyone
+BUILTIN_TOWN_HALL_MAX = 30  # in a town hall only the few people on stage send
 
 
 def jitsi_running() -> bool:
@@ -58,7 +59,7 @@ def new_room(prefix: str) -> str:
     return f"{prefix}-{secrets.token_hex(8)}"
 
 
-def jitsi_token(room: str, name: str, user_id: str, moderator: bool, avatar: str = "") -> str:
+def jitsi_token(room: str, name: str, user_id: str, moderator: bool, avatar: str = "", main: str = "", mod: bool = False) -> str:
     now = int(time.time())
     user = {"id": user_id, "name": name}
     if avatar:
@@ -72,14 +73,37 @@ def jitsi_token(room: str, name: str, user_id: str, moderator: bool, avatar: str
         "exp": now + TOKEN_HOURS * 3600,
         "context": {"user": user},
         "moderator": moderator,
+        # OfficeHub's own claims (Prosody ignores them): the meeting this room belongs to (breakout rooms), who
+        # this is and whether they lead the meeting
+        "main": main or room,
+        "who": user_id,
+        "name": name,
+        "mod": mod,
     }
     return jwt_encode(payload, settings.jitsi_app_secret or "")
 
 
-def rtc_token(db: Session, room: str, name: str, who: str, host: bool) -> str:
+def rtc_token(db: Session, room: str, name: str, who: str, host: bool, main: str = "", mod: bool = False,
+              max_people: int = BUILTIN_MAX) -> str:
     """Admission to one built-in meeting room, valid for the same time as a Jitsi token."""
-    payload = {"room": room, "name": name, "who": who, "host": host, "exp": int(time.time()) + TOKEN_HOURS * 3600}
+    payload = {"room": room, "main": main or room, "name": name, "who": who, "host": host, "mod": mod,
+               "max": max_people, "exp": int(time.time()) + TOKEN_HOURS * 3600}
     return jwt_encode(payload, rtc_key(db))
+
+
+def ticket(db: Session, token: str) -> dict:
+    """Read a room token of either kind (built in or Jitsi) as {room, main, who, name, host, mod}."""
+    try:
+        data = jwt_decode(token, rtc_key(db))
+    except ApiError:
+        if not settings.jitsi_app_secret:
+            raise
+        data = jwt_decode(token, settings.jitsi_app_secret)
+        data = {"room": data.get("room"), "main": data.get("main"), "who": data.get("who"), "name": data.get("name"),
+                "host": bool(data.get("moderator")), "mod": bool(data.get("mod"))}
+    if not all(data.get(k) for k in ("room", "main", "who", "name")):
+        raise ApiError(401, "invalid_token", "Invalid token.")
+    return data
 
 
 def rtc_key(db: Session) -> str:
@@ -101,20 +125,38 @@ def ice_servers() -> list[dict]:
     return [server]
 
 
-def connect(db: Session, meeting: Meeting, name: str, who: str, host: bool) -> dict:
+def is_moderator(user: User | None, meeting: Meeting) -> bool:
+    """Who leads the meeting (mute everyone, remove people, breakout rooms, town hall stage): the organizer of a
+    planned meeting; in space rooms and calls everyone with an account."""
+    if user is None:
+        return False
+    return meeting.organizer_id == user.id or meeting.kind != "scheduled"
+
+
+def connect(db: Session, meeting: Meeting, name: str, who: str, host: bool, mod: bool = False) -> dict:
     """Everything a client needs to join: the web page here, and later the desktop or Android app."""
+    info = connect_room(db, meeting.room, meeting.room, name, who, host, mod, meeting.town_hall)
+    info["town_hall"] = meeting.town_hall
+    return info
+
+
+def connect_room(db: Session, room: str, main: str, name: str, who: str, host: bool, mod: bool,
+                 town_hall: bool = False) -> dict:
+    """Connection details for one room: the meeting itself or one of its breakout rooms."""
+    roles = {"who": who, "moderator": mod}
     if mode() == "jitsi":
-        token = jitsi_token(meeting.room, name, who, moderator=host)
-        return connection_info(meeting.room, token, name)
+        token = jitsi_token(room, name, who, moderator=host, main=main, mod=mod)
+        return connection_info(room, token, name) | roles
+    max_people = BUILTIN_TOWN_HALL_MAX if town_hall else BUILTIN_MAX
     return {
         "mode": "builtin",
-        "room": meeting.room,
-        "token": rtc_token(db, meeting.room, name, who, host),
+        "room": room,
+        "token": rtc_token(db, room, name, who, host, main=main, mod=mod, max_people=max_people),
         "display_name": name,
         "signal": "/api/rtc",
         "ice_servers": ice_servers(),
-        "max_people": BUILTIN_MAX,
-    }
+        "max_people": max_people,
+    } | roles
 
 
 def connection_info(room: str, token: str, name: str) -> dict:

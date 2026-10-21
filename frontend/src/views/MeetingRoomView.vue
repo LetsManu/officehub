@@ -54,6 +54,7 @@ onMounted(async () => {
       :display-name="currentUser?.full_name ?? ''"
       :call-mode="callMode && round === 0"
       :guest-link="meeting.guest_link"
+      :space-id="meeting.space_id"
     >
       <template #ended>
         <div class="ended-actions">
