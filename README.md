@@ -58,6 +58,9 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - Announcements with must-read confirmation and small polls
 - Menu ordered like Teams/Outlook (everyday tools on top, foldable groups) that turns into a slim icon bar, an
   **Activity** feed and a **Files** page with recent files from all spaces
+- **Presence** like Teams (available, busy, in a meeting, do not disturb, away, out of office – automatic from
+  calendar, meetings, vacation and activity, or chosen with a status message), **desktop notifications** with sound,
+  **meeting reminders**, **recurring meetings** and a **scheduling assistant** (free/busy, "next free time")
 - **Calendar** like Outlook: day, work week, week and month with my meetings, room bookings, time off, holidays and
   events; click or drag into free time to plan a meeting; plus the **team calendar** with vacation, home office,
   public holidays, events and opt-in birthdays (iCal export)

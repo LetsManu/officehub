@@ -8,6 +8,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import UserAvatar from './UserAvatar.vue'
 import { api } from '@/lib/api'
+import { notifyDesktop, quiet } from '@/lib/desktop'
 import { t } from '@/lib/i18n'
 import type { IncomingCall } from '@/lib/types'
 
@@ -55,8 +56,12 @@ function tone() {
 
 watch(call, (now, before) => {
   if (now && !before) {
-    tone()
-    ringTimer = window.setInterval(tone, 3000)
+    notifyDesktop({ title: now.caller?.full_name ?? now.title, body: t('call.incoming'), link: `/meetings/${now.meeting_id}/room`, tag: `call${now.meeting_id}`, sticky: true })
+    // "Do not disturb": the call still shows, but without ringing
+    if (!quiet()) {
+      tone()
+      ringTimer = window.setInterval(tone, 3000)
+    }
   }
   if (!now) window.clearInterval(ringTimer)
 })

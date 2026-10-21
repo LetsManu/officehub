@@ -371,7 +371,7 @@ onBeforeUnmount(() => window.clearInterval(ticker))
               :style="{ top: `${p.top}px`, height: `${p.height}px`, left: `calc(${(p.column / p.columns) * 100}% + 2px)`, width: `calc(${100 / p.columns}% - 4px)` }"
             >
               <button type="button" class="event-main" @click="open(p.entry)">
-                <span class="ev-title">{{ p.entry.title }}</span>
+                <span class="ev-title"><AppIcon v-if="p.entry.series" name="history" :size="12" :label="t('calendarPage.series')" /> {{ p.entry.title }}</span>
                 <span class="ev-meta">{{ clock(p.start) }} – {{ clock(p.end) }}<template v-if="p.entry.detail"> · {{ p.entry.detail }}</template></span>
               </button>
               <button v-if="joinable(p.entry)" type="button" class="ev-join" :aria-label="t('meetings.join')" @click="join(p.entry)"><AppIcon name="video" :size="14" />{{ t('meetings.join') }}</button>

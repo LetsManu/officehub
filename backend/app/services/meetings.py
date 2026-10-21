@@ -9,20 +9,33 @@ Two ways, chosen automatically:
 
 import secrets
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..errors import not_found
-from ..models import Channel, ChannelMember, Meeting, MeetingInvitee, MeetingPresence, SpaceMember, User, utcnow
+from ..models import (
+    Channel,
+    ChannelMember,
+    Meeting,
+    MeetingInvitee,
+    MeetingPresence,
+    MeetingReminder,
+    SpaceMember,
+    User,
+    utcnow,
+)
+from .notifications import notify
 from .office import jwt_encode
 from .probe import reachable
+from .recurrence import occurrences, rrule, skipped_days
 from .settings import get_setting, set_setting
 
 TOKEN_HOURS = 6
+REMINDER_MINUTES = 10
 PRESENCE_SECONDS = 25  # the meeting page reports every 10 seconds
 RING_SECONDS = 45  # an unanswered call counts as missed after this
 
@@ -200,14 +213,68 @@ def ics(meeting: Meeting, method: str = "REQUEST") -> bytes:
         f"URL:{link}",
         f"LOCATION:{text(link)}",
         f"STATUS:{'CANCELLED' if meeting.cancelled else 'CONFIRMED'}",
+        *([rule] if (rule := rrule(meeting)) else []),
+        *[f"EXDATE:{stamp(start)}" for start, _end in skipped_occurrences(meeting)],
         f"SEQUENCE:{int(time.time()) // 60}",
         "END:VEVENT", "END:VCALENDAR",
     ]
     return ("\r\n".join(lines) + "\r\n").encode()
 
 
+SERIES_TEXT = {
+    "de": {"daily": "täglich", "weekdays": "werktags", "weekly": "wöchentlich", "biweekly": "alle 2 Wochen", "monthly": "monatlich"},
+    "en": {"daily": "daily", "weekdays": "weekdays", "weekly": "weekly", "biweekly": "every 2 weeks", "monthly": "monthly"},
+}
+
+
 def when_text(meeting: Meeting, language: str) -> str:
     if meeting.starts_at is None:
         return ""
     local = meeting.starts_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.timezone))
-    return local.strftime("%d.%m.%Y, %H:%M") if language == "de" else local.strftime("%Y-%m-%d %H:%M")
+    text = local.strftime("%d.%m.%Y, %H:%M") if language == "de" else local.strftime("%Y-%m-%d %H:%M")
+    if meeting.recurrence:
+        text += f", {SERIES_TEXT.get(language, SERIES_TEXT['en'])[meeting.recurrence]}"
+    return text
+
+
+def skipped_occurrences(meeting: Meeting) -> list[tuple[datetime, datetime]]:
+    """The cancelled single meetings of a series, as UTC start and end (for EXDATE in calendar files)."""
+    skip = skipped_days(meeting)
+    if not skip or meeting.starts_at is None:
+        return []
+    local = meeting.starts_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.timezone))
+    out = []
+    for day in sorted(skip):
+        start = datetime.combine(date.fromisoformat(day), local.timetz())
+        start_utc = start.astimezone(timezone.utc).replace(tzinfo=None)
+        out.append((start_utc, start_utc + ((meeting.ends_at or meeting.starts_at) - meeting.starts_at)))
+    return out
+
+
+def due_reminders(db: Session, user: User) -> list[dict]:
+    """Meetings starting within 10 minutes (or just started): one notification each, and the list for the banner."""
+    now = utcnow()
+    since, until = now - timedelta(minutes=5), now + timedelta(minutes=REMINDER_MINUTES)
+    invited = select(MeetingInvitee.meeting_id).where(MeetingInvitee.user_id == user.id,
+                                                       MeetingInvitee.response != "declined")
+    meetings = db.scalars(select(Meeting).where(
+        Meeting.kind == "scheduled", Meeting.cancelled.is_(False), Meeting.starts_at <= until,
+        or_(Meeting.organizer_id == user.id, Meeting.id.in_(invited)),
+        or_(Meeting.recurrence != "", Meeting.starts_at >= since),
+    ))
+    out = []
+    for m in meetings:
+        for start, end in occurrences(m, since, until):
+            if not since <= start <= until:
+                continue
+            out.append({"meeting_id": m.id, "title": m.title, "starts_at": start, "ends_at": end})
+            sent = db.scalar(select(MeetingReminder.id).where(MeetingReminder.meeting_id == m.id,
+                                                              MeetingReminder.user_id == user.id,
+                                                              MeetingReminder.occurrence == start))
+            if sent is None:
+                db.add(MeetingReminder(meeting_id=m.id, user_id=user.id, occurrence=start))
+                minutes = max(0, round((start - now).total_seconds() / 60))
+                notify(db, user.id, "meeting_reminder", {"title": m.title, "minutes": minutes},
+                       link=f"/meetings/{m.id}/room")
+    db.commit()
+    return out

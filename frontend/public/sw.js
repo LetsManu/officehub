@@ -44,3 +44,19 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(request).catch(() => caches.match('/index.html')))
   }
 })
+
+// A click on a notification (new message, call, meeting reminder) brings OfficeHub to the front on that page.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin)
+      if (open) {
+        open.postMessage({ navigate: url })
+        return open.focus()
+      }
+      return self.clients.openWindow(url)
+    }),
+  )
+})

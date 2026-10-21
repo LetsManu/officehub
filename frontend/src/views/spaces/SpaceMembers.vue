@@ -115,7 +115,7 @@ onMounted(async () => {
       <h2 id="mem-title" class="h3 head">{{ t('spaces.tabs.members') }} <span class="muted">({{ space.members.length }})</span></h2>
       <ul class="list">
         <li v-for="m in space.members" :key="m.person.id" class="member">
-          <UserAvatar :id="m.person.id" :name="m.person.full_name" :photo-version="m.person.photo_version" :size="36" />
+          <UserAvatar :id="m.person.id" :name="m.person.full_name" :photo-version="m.person.photo_version" :size="36" status />
           <span class="who"><strong>{{ m.person.full_name }}</strong><span class="muted small">{{ m.person.department }}</span></span>
           <template v-if="isManager && !space.archived">
             <label :for="`role-${m.person.id}`" class="visually-hidden">{{ t('spaces.role') }}</label>

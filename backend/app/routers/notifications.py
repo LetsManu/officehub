@@ -34,6 +34,8 @@ from ..models import (
     utcnow,
 )
 from ..schemas import UtcDateTime
+from ..services.meetings import due_reminders
+from ..services.presence import state_of
 from ..services.requests import deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
@@ -73,6 +75,15 @@ class Summary(BaseModel):
     time_months_pending: int = 0
     chat_unread: int = 0
     cards_due: int = 0
+    presence: dict = {}  # my own presence (state, text, manual)
+    reminders: list[dict] = []  # meetings starting within 10 minutes
+
+
+class Reminder(BaseModel):
+    meeting_id: int
+    title: str
+    starts_at: UtcDateTime
+    ends_at: UtcDateTime
 
 
 def _out(item: Notification) -> NotificationOut:
@@ -125,8 +136,11 @@ def mark_all_read(user: CurrentUser, db: DB) -> None:
 
 
 @router.get("/me/summary", response_model=Summary)
-def summary(user: CurrentUser, db: DB) -> Summary:
-    """Small counts for the badges in the navigation."""
+def summary(user: CurrentUser, db: DB, idle: bool = False) -> Summary:
+    """Small counts for the badges in the navigation. The open portal asks every 30 seconds, which also tells
+    OfficeHub that the person is online (and whether they stepped away from the computer)."""
+    user.last_seen_at, user.idle = utcnow(), idle
+    db.commit()
 
     def count(query) -> int:
         return db.scalar(select(func.count()).select_from(query.subquery())) or 0
@@ -153,7 +167,10 @@ def summary(user: CurrentUser, db: DB) -> Summary:
     my_team = team_ids(db, user) - {user.id} if (user.is_approver or deputy_managers) else set()
     months_pending = count(select(TimeMonth.id).where(TimeMonth.status == "submitted", TimeMonth.user_id.in_(my_team))) if my_team else 0
     personal_new = count(select(PersonalDocument.id).where(PersonalDocument.user_id == user.id, PersonalDocument.opened_at.is_(None)))
+    reminders = [Reminder(**r).model_dump(mode="json") for r in due_reminders(db, user)]
     return Summary(
+        presence=state_of(db, user),
+        reminders=reminders,
         unread=_unread(db, user),
         approvals_pending=approvals,
         reviews_todo=reviews,

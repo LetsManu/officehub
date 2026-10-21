@@ -3,10 +3,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
+import DesktopSettings from '@/components/DesktopSettings.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
+import { desktopPrefs, desktopSupported } from '@/lib/desktop'
 import { errorText, formatDateLong, locale, t } from '@/lib/i18n'
 import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
 import { refreshSummary, summary } from '@/lib/summary'
@@ -68,6 +70,8 @@ onMounted(load)
         <button v-if="items.some((i) => !i.read)" type="button" class="btn btn-secondary" @click="readAll"><AppIcon name="checkAll" :size="18" />{{ t('notifications.readAll') }}</button>
       </template>
     </PageHeader>
+
+    <DesktopSettings v-if="desktopSupported && !desktopPrefs.desktop" compact />
 
     <div class="segmented switch" role="group" :aria-label="t('activity.title')">
       <button type="button" :aria-pressed="!onlyUnread" @click="onlyUnread = false">{{ t('activity.all') }}</button>

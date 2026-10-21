@@ -282,7 +282,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="pane" :aria-label="conversation?.name ?? t('chat.title')">
     <header v-if="conversation" class="pane-head">
-      <UserAvatar v-if="conversation.other" :id="conversation.other.id" :name="conversation.other.full_name" :photo-version="conversation.other.photo_version" :size="32" />
+      <UserAvatar v-if="conversation.other" :id="conversation.other.id" :name="conversation.other.full_name" :photo-version="conversation.other.photo_version" :size="32" status />
       <span v-else class="hash" aria-hidden="true">#</span>
       <div class="who">
         <h2 class="name">{{ conversation.name }}</h2>

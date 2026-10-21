@@ -5,8 +5,8 @@ server when it runs). It is the same for the web page and for later desktop or p
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from datetime import date, datetime, timedelta, timezone
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from fastapi.responses import Response
@@ -44,6 +44,7 @@ from ..services.meetings import (
     when_text,
 )
 from ..services.notifications import notify
+from ..services.recurrence import next_occurrence, skipped_days
 from .chat import direct_channel
 from ..services.spaces import get_space
 
@@ -76,8 +77,12 @@ class MeetingOut(BaseModel):
     kind: str
     title: str
     description: str
-    starts_at: UtcDateTime | None
+    starts_at: UtcDateTime | None  # the first meeting of a series
     ends_at: UtcDateTime | None
+    recurrence: str = ""
+    recurrence_until: date | None = None
+    next_start: UtcDateTime | None = None  # series: the next meeting that has not ended yet
+    next_end: UtcDateTime | None = None
     space_id: int | None
     space_name: str | None
     organizer: UserBrief | None
@@ -103,6 +108,8 @@ class MeetingIn(BaseModel):
     invitee_ids: list[int] = []
     space_id: int | None = None
     allow_guests: bool = False
+    recurrence: Literal["", "daily", "weekdays", "weekly", "biweekly", "monthly"] = ""
+    recurrence_until: date | None = None
 
 
 class RespondIn(BaseModel):
@@ -191,9 +198,12 @@ def _waiting(db: DB, meeting: Meeting) -> list[WaitingGuest]:
 def _out(db: DB, user: User, meeting: Meeting, cls=MeetingOut, **extra) -> MeetingOut:
     space = db.get(Space, meeting.space_id) if meeting.space_id else None
     mine = next((i.response for i in meeting.invitees if i.user_id == user.id), None)
+    upcoming = next_occurrence(meeting, utcnow()) if meeting.recurrence and meeting.starts_at else None
     return cls(
         id=meeting.id, kind=meeting.kind, title=meeting.title, description=meeting.description,
         starts_at=meeting.starts_at, ends_at=meeting.ends_at, space_id=meeting.space_id,
+        recurrence=meeting.recurrence or "", recurrence_until=meeting.recurrence_until,
+        next_start=upcoming[0] if upcoming else None, next_end=upcoming[1] if upcoming else None,
         space_name=space.name if space else None,
         organizer=UserBrief.model_validate(meeting.organizer) if meeting.organizer else None,
         invitees=[Person(person=UserBrief.model_validate(i.user), response=i.response)
@@ -214,6 +224,8 @@ def _check_times(body: MeetingIn) -> None:
         raise _field_error("ends_at", "end_before_start_time", "The end must be after the start.")
     if body.ends_at - body.starts_at > timedelta(hours=12):
         raise _field_error("ends_at", "meeting_too_long", "A meeting can be at most 12 hours long.")
+    if body.recurrence and body.recurrence_until and body.recurrence_until < body.starts_at.date():
+        raise _field_error("recurrence_until", "end_before_start", "The series must end after it starts.")
 
 
 def _naive_utc(value: datetime) -> datetime:
@@ -261,11 +273,14 @@ def list_meetings(user: CurrentUser, db: DB, past: bool = False) -> list[Meeting
         or_(Meeting.organizer_id == user.id,
             Meeting.id.in_(select(MeetingInvitee.meeting_id).where(MeetingInvitee.user_id == user.id))),
     )
+    soon = now - timedelta(minutes=30)
     if past:
-        query = query.where(Meeting.ends_at < now).order_by(Meeting.starts_at.desc()).limit(50)
-    else:
-        query = query.where(Meeting.ends_at >= now - timedelta(minutes=30)).order_by(Meeting.starts_at)
-    return [_out(db, user, m) for m in db.scalars(query)]
+        query = query.where(Meeting.ends_at < now).order_by(Meeting.starts_at.desc()).limit(80)
+        return [_out(db, user, m) for m in db.scalars(query) if not m.recurrence or not next_occurrence(m, now)][:50]
+    query = query.where(or_(Meeting.ends_at >= soon, Meeting.recurrence != ""))
+    items = [_out(db, user, m) for m in db.scalars(query)]
+    items = [m for m in items if not m.recurrence or m.next_start]  # a finished series is in the past
+    return sorted(items, key=lambda m: m.next_start or m.starts_at)
 
 
 @router.post("/api/meetings", response_model=MeetingDetail, status_code=201)
@@ -275,7 +290,8 @@ def create_meeting(body: MeetingIn, user: CurrentUser, db: DB) -> MeetingDetail:
         get_space(db, user, body.space_id, write=True)
     meeting = Meeting(kind="scheduled", title=body.title, description=body.description, room=new_room("m"),
                       starts_at=_naive_utc(body.starts_at), ends_at=_naive_utc(body.ends_at), space_id=body.space_id,
-                      organizer_id=user.id, guest_token=secrets.token_urlsafe(18) if body.allow_guests else None)
+                      organizer_id=user.id, guest_token=secrets.token_urlsafe(18) if body.allow_guests else None,
+                      recurrence=body.recurrence, recurrence_until=body.recurrence_until if body.recurrence else None)
     db.add(meeting)
     db.flush()
     _invite(db, user, meeting, set(body.invitee_ids) - {user.id})
@@ -296,6 +312,8 @@ def update_meeting(meeting_id: int, body: MeetingIn, user: CurrentUser, db: DB) 
     _check_times(body)
     meeting.title, meeting.description = body.title, body.description
     meeting.starts_at, meeting.ends_at = _naive_utc(body.starts_at), _naive_utc(body.ends_at)
+    meeting.recurrence = body.recurrence
+    meeting.recurrence_until = body.recurrence_until if body.recurrence else None
     if body.allow_guests and not meeting.guest_token:
         meeting.guest_token = secrets.token_urlsafe(18)
     if not body.allow_guests:
@@ -309,10 +327,19 @@ def update_meeting(meeting_id: int, body: MeetingIn, user: CurrentUser, db: DB) 
 
 
 @router.delete("/api/meetings/{meeting_id}", status_code=204)
-def cancel_meeting(meeting_id: int, user: CurrentUser, db: DB) -> None:
+def cancel_meeting(meeting_id: int, user: CurrentUser, db: DB, occurrence: date | None = Query(None)) -> None:
+    """Cancel the meeting – or, for a series, only the meeting on one day (local date)."""
     meeting = get_meeting(db, user, meeting_id)
     if meeting.organizer_id != user.id or meeting.kind != "scheduled":
         raise forbidden("Only the organizer can cancel the meeting.")
+    if occurrence is not None and meeting.recurrence:
+        meeting.skipped = ",".join(sorted(skipped_days(meeting) | {occurrence.isoformat()}))
+        day = occurrence.strftime("%d.%m.%Y")
+        for i in meeting.invitees:
+            notify(db, i.user_id, "meeting_cancelled", {"name": user.full_name, "title": meeting.title, "when": day},
+                   link=f"/meetings/{meeting.id}")
+        db.commit()
+        return
     meeting.cancelled = True
     for i in meeting.invitees:
         person = db.get(User, i.user_id)

@@ -4,9 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import CommandPalette from './CommandPalette.vue'
 import IncomingCall from './IncomingCall.vue'
+import MeetingReminders from './MeetingReminders.vue'
 import NotificationBell from './NotificationBell.vue'
+import StatusMenu from './StatusMenu.vue'
 import UserAvatar from './UserAvatar.vue'
 import { branding, logoUrl } from '@/lib/branding'
+import { listenForNotificationClicks } from '@/lib/desktop'
 import { canInstall, installApp } from '@/lib/install'
 import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
@@ -133,6 +136,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
   document.addEventListener('click', onDocumentClick)
+  listenForNotificationClicks()
   startSummary()
 })
 
@@ -292,7 +296,7 @@ watch(
           :aria-current="isActive('/profile') ? 'page' : undefined"
           :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`"
         >
-          <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" />
+          <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" status />
           <span class="who-text">
             <span class="who-name">{{ currentUser.full_name }}</span>
             <span class="who-role">{{ t(`roles.${currentUser.role}`) }}</span>
@@ -354,9 +358,7 @@ watch(
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
           </button>
           <NotificationBell />
-          <RouterLink v-if="currentUser" to="/profile" class="header-avatar desktop-only" :aria-label="`${currentUser.full_name}, ${t('nav.profile')}`">
-            <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" :size="34" />
-          </RouterLink>
+          <StatusMenu />
         </div>
       </header>
 
@@ -367,6 +369,7 @@ watch(
 
     <CommandPalette :open="searchOpen" @close="searchOpen = false" />
     <IncomingCall v-if="publicConfig?.meetings_enabled" />
+    <MeetingReminders />
   </div>
 </template>
 
@@ -663,14 +666,6 @@ watch(
   color: var(--color-text);
 }
 
-.header-avatar {
-  display: grid;
-  place-items: center;
-  width: var(--touch);
-  height: var(--touch);
-  border-radius: 50%;
-  text-decoration: none;
-}
 
 .content {
   padding: var(--space-6) var(--space-6) var(--space-7);

@@ -325,6 +325,8 @@ export interface Summary {
   time_months_pending: number
   chat_unread: number
   cards_due: number
+  presence?: Presence
+  reminders: { meeting_id: number; title: string; starts_at: string; ends_at: string }[]
 }
 
 export interface SearchHit {
@@ -838,6 +840,8 @@ export interface MeetingParticipant {
   guest: boolean
 }
 
+export type Recurrence = '' | 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly'
+
 export interface Meeting {
   id: number
   kind: 'scheduled' | 'space' | 'call'
@@ -845,6 +849,10 @@ export interface Meeting {
   description: string
   starts_at: string | null
   ends_at: string | null
+  recurrence: Recurrence
+  recurrence_until: string | null
+  next_start: string | null
+  next_end: string | null
   space_id: number | null
   space_name: string | null
   organizer: UserBrief | null
@@ -880,4 +888,14 @@ export interface CalendarEntry {
   detail: string
   status: string
   link: string
+  series?: boolean
+}
+
+export type PresenceState = 'available' | 'busy' | 'in_meeting' | 'dnd' | 'away' | 'ooo' | 'offline'
+export type ManualPresence = 'auto' | 'available' | 'busy' | 'dnd' | 'away' | 'offline'
+
+export interface Presence {
+  state: PresenceState
+  text: string
+  manual: ManualPresence
 }

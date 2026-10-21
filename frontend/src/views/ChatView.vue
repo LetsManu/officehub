@@ -83,7 +83,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
         <ul v-if="shown.length" class="convs">
           <li v-for="c in shown" :key="c.id">
             <RouterLink :to="`/chat/${c.id}`" class="conv" :class="{ active: c.id === selected, unread: c.unread }" :aria-current="c.id === selected ? 'page' : undefined">
-              <UserAvatar v-if="c.other" :id="c.other.id" :name="c.other.full_name" :photo-version="c.other.photo_version" :size="36" />
+              <UserAvatar v-if="c.other" :id="c.other.id" :name="c.other.full_name" :photo-version="c.other.photo_version" :size="36" status />
               <span v-else class="hash" aria-hidden="true">#</span>
               <span class="conv-main">
                 <span class="conv-name">{{ c.name }}<span v-if="c.space_name" class="muted small"> · {{ c.space_name }}</span></span>
@@ -111,7 +111,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
       <ul class="picker">
         <li v-for="p in pickable" :key="p.id">
           <button type="button" class="pick" @click="startDirect(p)">
-            <UserAvatar :id="p.id" :name="p.full_name" :photo-version="p.photo_version" :size="32" />
+            <UserAvatar :id="p.id" :name="p.full_name" :photo-version="p.photo_version" :size="32" status />
             <span><strong>{{ p.full_name }}</strong><span class="muted small block">{{ p.job_title || p.department }}</span></span>
           </button>
         </li>
