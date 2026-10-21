@@ -718,3 +718,61 @@ kbd {
   border-radius: 3px;
   background: var(--pc, var(--color-primary));
 }
+
+/* Colour picker (projects, spaces) */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.swatches legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.swatch {
+  position: relative;
+  cursor: pointer;
+}
+
+.swatch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.swatch .dot {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--pc);
+  color: #fff;
+}
+
+.swatch input:focus-visible + .dot {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Tinted icon box (file types, spaces) */
+.ficon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--pc, var(--color-primary)) 14%, transparent);
+  color: var(--pc, var(--color-primary));
+}
+
+:root[data-theme='dark'] .ficon {
+  background: color-mix(in srgb, var(--pc, var(--color-primary)) 30%, transparent);
+  color: #fff;
+}

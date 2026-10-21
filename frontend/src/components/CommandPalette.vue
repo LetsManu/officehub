@@ -103,6 +103,11 @@ const options = computed<Option[]>(() => {
       list.push({ id: `req-${q.id}`, group: 'requests', icon: 'inbox', title: q.title, subtitle: `${t(`requestTypes.${type}`)} · ${t(`statuses.${status}`)}`, to: q.link })
     }
     for (const l of r.links) list.push({ id: `link-${l.id}`, group: 'links', icon: 'external', title: l.title, subtitle: l.subtitle, to: l.link, external: true })
+    for (const w of r.workspace ?? []) {
+      const [kind, space] = w.subtitle.split(':')
+      const icon = kind === 'file' ? 'folder' : kind === 'page' ? 'book' : 'kanban'
+      list.push({ id: `ws-${kind}-${w.id}`, group: 'workspace', icon, title: w.title, subtitle: `${t(`search.kinds.${kind}`)} · ${space}`, to: w.link })
+    }
   } else {
     for (const l of quickLinks.value.filter((link) => matches(link.title, term))) {
       list.push({ id: `link-${l.id}`, group: 'links', icon: 'external', title: l.title, subtitle: l.description, to: l.url, external: true })

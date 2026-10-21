@@ -75,6 +75,18 @@ const PATHS: Record<string, string> = {
   flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
   planning: 'M4 5v14M4 7h9M8 12h12M6 17h8',
   briefcase: 'M9 6V4h6v2M4 7h16v12H4zM4 12h16',
+  table: 'M4 5h16v14H4zM4 10h16M4 15h16M10 5v14',
+  presentation: 'M3 4h18M5 4v10h14V4M12 14v4M8 21l4-3 4 3',
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15 9.5a1.5 1.5 0 1 0 0-.01',
+  filePdf: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M8 15h8M8 18h5',
+  chat: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5',
+  kanban: 'M4 4h16v16H4zM9 4v16M15 4v16M5.5 7h2M10.5 7h3M16.5 7h2M5.5 10h2M10.5 10h3',
+  send: 'M4 12 20 4l-4 16-4-6zM12 14l8-10',
+  dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  spaces: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  at: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1',
+  folderPlus: 'M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM12 11v5M9.5 13.5h5',
+  move: 'M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM10 13.5h6M13.5 11l2.5 2.5-2.5 2.5',
   paperclip: 'M20 11.5 12 19.5a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7-7',
 }
 

@@ -18,13 +18,16 @@ from .routers import (
     announcements,
     assets,
     auth,
+    boards,
     branding,
+    chat,
     directory,
     documents,
     help,
     holidays,
     ideas,
     notifications,
+    office,
     onboarding,
     planning,
     personal,
@@ -34,11 +37,13 @@ from .routers import (
     requests,
     reviews,
     rooms,
+    spaces,
     surveys,
     team,
     time_tracking,
     trainings,
     visitors,
+    wiki,
 )
 
 logger = logging.getLogger("officehub")
@@ -154,5 +159,12 @@ for router in (
     trainings.router,
     assets.router,
     planning.router,
+    spaces.router,
+    boards.router,
+    chat.router,
+    wiki.router,
+    office.router,
+    office.wopi,
+    office.hooks,
 ):
     app.include_router(router)

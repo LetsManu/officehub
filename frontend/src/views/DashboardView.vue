@@ -151,6 +151,13 @@ const attention = computed<AttentionItem[]>(() => {
       text: count === 1 ? t('dashboard.timeMonthsOne') : t('dashboard.timeMonths', { count }),
     })
   }
+  if (summary.value.cards_due > 0) {
+    const count = summary.value.cards_due
+    items.push({
+      key: 'cards', icon: 'kanban', tone: 'warning', to: '/tasks', action: t('dashboard.cardsOpen'),
+      text: count === 1 ? t('dashboard.cardsOne') : t('dashboard.cards', { count }),
+    })
+  }
   if (summary.value.surveys_open > 0) {
     const count = summary.value.surveys_open
     items.push({

@@ -694,3 +694,244 @@ class AssetEvent(Base):
 
     person: Mapped[User | None] = relationship(foreign_keys=[person_id])
     actor: Mapped[User] = relationship(foreign_keys=[actor_id])
+
+
+# ---------- Team spaces: files, boards, chat and wiki ----------
+
+SPACE_ROLES = ("manager", "member")
+
+
+class Space(Base):
+    """A shared area for a team or project with files, a task board, chat channels and wiki pages."""
+
+    __tablename__ = "spaces"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(300), default="")
+    color: Mapped[str] = mapped_column(String(20), default="blue")
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    members: Mapped[list["SpaceMember"]] = relationship(back_populates="space", cascade="all, delete-orphan")
+
+
+class SpaceMember(Base):
+    __tablename__ = "space_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(10), default="member")
+    added_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    space: Mapped[Space] = relationship(back_populates="members")
+    user: Mapped[User] = relationship()
+
+    __table_args__ = (UniqueConstraint("space_id", "user_id"),)
+
+
+class Folder(Base):
+    __tablename__ = "folders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("folders.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class SpaceFile(Base):
+    """A file in a space. The content lives in FileVersion rows; the newest one is current."""
+
+    __tablename__ = "space_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    folder_id: Mapped[int | None] = mapped_column(ForeignKey("folders.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    file_type: Mapped[str] = mapped_column(String(10))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    content_text: Mapped[str] = mapped_column(Text, default="")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Lock held by an office editor (WOPI) while someone edits the file
+    lock_id: Mapped[str | None] = mapped_column(String(1024))
+    lock_expires: Mapped[datetime | None] = mapped_column(DateTime)
+
+    updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+    versions: Mapped[list["FileVersion"]] = relationship(
+        back_populates="file", cascade="all, delete-orphan", order_by="FileVersion.number.desc()"
+    )
+
+
+class FileVersion(Base):
+    __tablename__ = "file_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("space_files.id", ondelete="CASCADE"), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    path: Mapped[str] = mapped_column(String(200))
+    size: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(20), default="upload")  # upload, editor, restore, new
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    file: Mapped[SpaceFile] = relationship(back_populates="versions")
+    created_by: Mapped[User | None] = relationship()
+
+
+class Board(Base):
+    __tablename__ = "boards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class BoardColumn(Base):
+    __tablename__ = "board_columns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    board_id: Mapped[int] = mapped_column(ForeignKey("boards.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    is_done: Mapped[bool] = mapped_column(Boolean, default=False)  # cards here count as finished
+
+
+class Card(Base):
+    __tablename__ = "cards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    column_id: Mapped[int] = mapped_column(ForeignKey("board_columns.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    label: Mapped[str] = mapped_column(String(20), default="")  # one of the project colours or empty
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    column: Mapped[BoardColumn] = relationship()
+    assignees: Mapped[list["CardAssignee"]] = relationship(cascade="all, delete-orphan")
+
+
+class CardAssignee(Base):
+    __tablename__ = "card_assignees"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+    user: Mapped[User] = relationship()
+
+    __table_args__ = (UniqueConstraint("card_id", "user_id"),)
+
+
+class CardComment(Base):
+    __tablename__ = "card_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    author: Mapped[User | None] = relationship()
+
+
+class Channel(Base):
+    """A chat channel in a space, or a direct conversation between two people (no space)."""
+
+    __tablename__ = "channels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int | None] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60), default="")
+    direct_key: Mapped[str | None] = mapped_column(String(40), unique=True)  # "<low id>:<high id>" for direct messages
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ChannelMember(Base):
+    """Members of direct conversations, and everyone's read position in any channel."""
+
+    __tablename__ = "channel_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    last_read_id: Mapped[int] = mapped_column(Integer, default=0)
+
+    __table_args__ = (UniqueConstraint("channel_id", "user_id"),)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    body: Mapped[str] = mapped_column(Text, default="")
+    file_id: Mapped[int | None] = mapped_column(ForeignKey("space_files.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime)
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    author: Mapped[User | None] = relationship()
+    file: Mapped[SpaceFile | None] = relationship()
+
+
+class WikiPage(Base):
+    __tablename__ = "wiki_pages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    space_id: Mapped[int] = mapped_column(ForeignKey("spaces.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("wiki_pages.id", ondelete="SET NULL"), index=True)
+    title: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    updated_by: Mapped[User | None] = relationship()
+
+
+class WikiRevision(Base):
+    __tablename__ = "wiki_revisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("wiki_pages.id", ondelete="CASCADE"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(150))
+    body: Mapped[str] = mapped_column(Text, default="")
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    author: Mapped[User | None] = relationship()
+
+
+class WikiEditor(Base):
+    """Who has a page open for editing right now (refreshed every few seconds)."""
+
+    __tablename__ = "wiki_editors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("wiki_pages.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship()
+
+    __table_args__ = (UniqueConstraint("page_id", "user_id"),)

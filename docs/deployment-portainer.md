@@ -64,6 +64,27 @@ Repeat for `officehub-frontend`. The source code stays private; only the built i
 The administrator is created only on the very first start, when the database is still empty.
 Changing `ADMIN_EMAIL` / `ADMIN_PASSWORD` later has no effect – use **Profile → Change password** instead.
 
+## Optional: edit Word, Excel and PowerPoint files in the browser
+
+OfficeHub can use your own **Collabora Online** and/or **ONLYOFFICE Docs** server. Both are already in the compose
+file and only run when you switch them on. They talk to OfficeHub inside the stack and are reached in the browser
+through the portal's own address (`/collabora/` and `/onlyoffice/`) – no cloud service is involved.
+
+In the stack's environment variables set:
+
+| To use | Set |
+| --- | --- |
+| Collabora | `COMPOSE_PROFILES=collabora` and `COLLABORA_URL=http://collabora:9980` |
+| ONLYOFFICE | `COMPOSE_PROFILES=onlyoffice`, `ONLYOFFICE_URL=http://onlyoffice` and a long random `ONLYOFFICE_JWT_SECRET` |
+| Both | `COMPOSE_PROFILES=collabora,onlyoffice` and all of the above |
+
+Also set `PORTAL_URL` to the address people use (Collabora only allows itself to be shown inside that page) and,
+when people use HTTPS, `COLLABORA_SSL_TERMINATION=true`. Redeploy the stack. The first start of ONLYOFFICE takes a
+minute or two. With both servers, HR chooses the default under **Administration → Office editing**; people can
+switch at the top of the editor.
+
+Plan for memory: Collabora needs about 1 GB of RAM, ONLYOFFICE about 2–4 GB.
+
 ## 3. HTTPS
 
 Run OfficeHub behind your existing reverse proxy (Nginx Proxy Manager, Traefik, Caddy …):
@@ -106,6 +127,9 @@ To restore, stop the backend, extract the archive into the volume and start it a
 
 | Problem | Cause and fix |
 | --- | --- |
+| "The office server cannot be reached" | The Collabora/ONLYOFFICE container is not running (check `COMPOSE_PROFILES`) or still starting. Look at its log in Portainer. |
+| Collabora stops right after starting with "Failed to listen" | The host has no IPv6. The compose file already sets `net.proto=IPv4`; keep that line if you copy the service. |
+| The editor stays empty or shows a security error | `PORTAL_URL` does not match the address in the browser, or `COLLABORA_SSL_TERMINATION` does not match HTTP/HTTPS. |
 | `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |
 | `pull access denied` / `unauthorized` | Images are private and Portainer has no registry login → step 1 |
 | `Bind for 0.0.0.0:8080 failed` | Port is in use → choose another `FRONTEND_PORT` |

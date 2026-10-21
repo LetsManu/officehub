@@ -223,6 +223,36 @@ Managers find handed-in months under **Time tracking → Team → Months to appr
 
 ---
 
+## Spaces
+
+**Spaces** are shared areas for a team or a project. Open **Spaces** in the menu, click a space or create a new one
+with **New space** (you become its manager). Each space has these tabs:
+
+- **Overview**: recently changed files, open tasks, wiki pages and members.
+- **Files**: folders and files of the space. Drag files onto the list or click **Upload**. Uploading a file with the
+  same name again keeps the old one as an earlier version. **New** creates a folder, a text document, a spreadsheet,
+  a presentation or a note. The clock button shows all versions; you can download or restore any of them.
+  Deleted files stay in the **Trash** for 30 days.
+- **Tasks**: a board with columns such as *To do*, *In progress* and *Done*. Add a card, open it to write a
+  description, set a due date, a colour and who is responsible, and comment. Drag cards between columns, or open a
+  card and choose the column. **My tasks** in the menu lists every card you are responsible for.
+- **Chat**: talk with everyone in the space. Type **@** to mention someone – they get a notification. The paper clip
+  shares a file (it is saved in the space's files). **Chat** in the menu also has **direct messages** with one person.
+- **Wiki**: pages for things everyone should know. Click **Edit**, write (with a preview next to it) and **Save**.
+  If a colleague is editing the same page you see their name; if they saved in the meantime, OfficeHub asks which
+  version should stay, so nothing is lost. **History** shows and restores earlier versions.
+- **Members**: managers add people, make them managers or remove them, change name and colour, link a project from
+  planning, and archive the space when it is finished (it stays readable).
+
+### Editing Word, Excel and PowerPoint files
+
+If your company has set up an office server, click a document (or the pencil) to edit it right in the browser.
+Several people can work in the same file at once; every save becomes a new version. If both Collabora and
+ONLYOFFICE are available, you can switch between them at the top. Without an office server, files can still be
+downloaded and uploaded again.
+
+---
+
 ## Planning
 
 **Planning** shows who works on which project and when: one row per person, one column per day, projects as
@@ -332,6 +362,7 @@ Under **Administration**:
 
 - **Branding**: company name, logo and accent colour (OfficeHub checks that text stays readable).
 - **Public holidays**: choose the country and region, and add company holidays such as a closing day.
+- **Office editing**: which office server opens documents when both Collabora and ONLYOFFICE are set up.
 - **Security**: require two-step sign-in for managers or HR, reset it for a person, send a test e-mail.
 - **Audit log** (menu): who changed what and when (sign-ins, roles, decisions, settings); download as CSV.
 - **Equipment** (menu): hand out laptops, phones or keys and see who has what.

@@ -10,6 +10,8 @@ declare module 'vue-router' {
     approver?: boolean
     admin?: boolean
     title?: string
+    full?: boolean // edge to edge, e.g. the office editor
+    wide?: boolean // no maximum width, e.g. boards and chat
   }
 }
 
@@ -34,7 +36,25 @@ const routes: RouteRecordRaw[] = [
   { path: '/onboarding/:id(\\d+)', component: () => import('./views/OnboardingDetailView.vue'), props: true, meta: { title: 'nav.onboarding' } },
   { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { approver: true, title: 'nav.reports' } },
   { path: '/time', component: () => import('./views/TimeView.vue'), meta: { title: 'nav.time' } },
-  { path: '/planning', component: () => import('./views/PlanningView.vue'), meta: { title: 'nav.planning' } },
+  { path: '/planning', component: () => import('./views/PlanningView.vue'), meta: { title: 'nav.planning', wide: true } },
+  { path: '/spaces', component: () => import('./views/SpacesView.vue'), meta: { title: 'nav.spaces' } },
+  {
+    path: '/spaces/:id(\\d+)',
+    component: () => import('./views/SpaceView.vue'),
+    props: true,
+    meta: { title: 'nav.spaces', wide: true },
+    children: [
+      { path: '', component: () => import('./views/spaces/SpaceOverview.vue'), meta: { title: 'nav.spaces', wide: true } },
+      { path: 'files', component: () => import('./views/spaces/SpaceFiles.vue'), meta: { title: 'spaces.tabs.files', wide: true } },
+      { path: 'board', component: () => import('./views/spaces/SpaceBoard.vue'), meta: { title: 'spaces.tabs.board', wide: true } },
+      { path: 'chat', component: () => import('./views/spaces/SpaceChat.vue'), meta: { title: 'spaces.tabs.chat', wide: true } },
+      { path: 'wiki/:pageId(\\d+)?', component: () => import('./views/spaces/SpaceWiki.vue'), props: true, meta: { title: 'spaces.tabs.wiki', wide: true } },
+      { path: 'members', component: () => import('./views/spaces/SpaceMembers.vue'), meta: { title: 'spaces.tabs.members', wide: true } },
+    ],
+  },
+  { path: '/office/:id(\\d+)', component: () => import('./views/OfficeView.vue'), props: true, meta: { title: 'office.editor', full: true } },
+  { path: '/chat/:id(\\d+)?', component: () => import('./views/ChatView.vue'), props: true, meta: { title: 'nav.chat', wide: true } },
+  { path: '/tasks', component: () => import('./views/MyTasksView.vue'), meta: { title: 'nav.tasks' } },
   { path: '/planning/projects', component: () => import('./views/ProjectsView.vue'), meta: { approver: true, title: 'projects.title' } },
   { path: '/planning/projects/:id(\\d+)', component: () => import('./views/ProjectDetailView.vue'), props: true, meta: { approver: true, title: 'projects.title' } },
   { path: '/surveys', component: () => import('./views/SurveysView.vue'), meta: { title: 'nav.surveys' } },
@@ -71,7 +91,7 @@ router.beforeEach(async (to) => {
 
 let firstNavigation = true
 
-router.afterEach(async (to) => {
+router.afterEach(async (to, from) => {
   const site = branding.value.company_name || 'OfficeHub'
   document.title = to.meta.title ? `${t(to.meta.title)} · ${site}` : site
   // Move focus to the page content after navigation so screen readers announce the new page.
@@ -79,6 +99,8 @@ router.afterEach(async (to) => {
     firstNavigation = false
     return
   }
+  // Only for a new page: tabs and filters that just change the query keep the focus where it is.
+  if (to.path === from.path) return
   await nextTick()
   if (currentUser.value) document.getElementById('main')?.focus({ preventScroll: true })
 })

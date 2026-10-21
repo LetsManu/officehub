@@ -32,6 +32,15 @@ export const navGroups = computed<NavGroup[]>(() => {
       ],
     },
     {
+      key: 'work',
+      label: t('nav.groupWork'),
+      items: [
+        { to: '/spaces', label: t('nav.spaces'), icon: 'spaces' },
+        { to: '/chat', label: t('nav.chat'), icon: 'chat', count: summary.value.chat_unread },
+        { to: '/tasks', label: t('nav.tasks'), icon: 'kanban', count: summary.value.cards_due },
+      ],
+    },
+    {
       key: 'find',
       label: t('nav.groupFind'),
       items: [

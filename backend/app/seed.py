@@ -403,6 +403,7 @@ def seed_demo(db: Session) -> None:
     _seed_workplace(db, t, today, anna, lukas, sara, tom, julia, max_)
     _seed_v2(db, lang, today, add_request, anna, lukas, sara, tom, julia, max_)
     _seed_v3(db, lang, today, anna, lukas, sara, tom, julia, max_)
+    _seed_spaces(db, lang, today, anna, lukas, sara, tom, julia, max_)
     db.flush()
 
     def note(user: User, kind: str, params: dict, link: str, hours_ago: int, read: bool = False) -> None:
@@ -706,3 +707,95 @@ def _seed_v3(db: Session, lang: str, today: date, anna, lukas, sara, tom, julia,
 
     for action, target in (("settings_updated", "dashboard_tiles"), ("document_uploaded", "Urlaubsrichtlinie" if de else "Vacation policy")):
         db.add(AuditEvent(actor_id=julia.id, action=action, target=target, details="{}", created_at=_at(-3)))
+
+
+def _seed_spaces(db: Session, lang: str, today: date, anna, lukas, sara, tom, julia, max_) -> None:
+    """Demo team spaces with files, a task board, chat and wiki pages."""
+    from .models import (
+        Board, BoardColumn, Card, CardAssignee, CardComment, Channel, ChannelMember, Message, Project, Space, SpaceFile,
+        SpaceMember, WikiPage, WikiRevision,
+    )
+    from .services.spaces import add_version, setup_space, template_bytes
+
+    de = lang == "de"
+    web = db.scalar(select(Project).where(Project.color == "blue"))
+    marketing = Space(name="Marketing" if de else "Marketing", color="green", created_by_id=anna.id,
+                      description="Kampagnen, Texte und Bilder für Website und Social Media." if de
+                      else "Campaigns, copy and images for the website and social media.")
+    relaunch = Space(name="Website-Relaunch" if de else "Website relaunch", color="blue", created_by_id=max_.id,
+                     project_id=web.id if web else None,
+                     description="Alles zum neuen Webauftritt." if de else "Everything about the new website.")
+    db.add_all([marketing, relaunch])
+    db.flush()
+    for space, members in ((marketing, ((anna, "manager"), (lukas, "member"), (tom, "member"))),
+                           (relaunch, ((max_, "manager"), (anna, "member"), (lukas, "member"), (tom, "manager")))):
+        for person, role in members:
+            db.add(SpaceMember(space_id=space.id, user_id=person.id, role=role))
+        db.flush()
+        setup_space(db, space, members[0][0], lang)
+    db.flush()
+
+    def add_file(space, name, kind, person, data=None):
+        item = SpaceFile(space_id=space.id, name=name, file_type=kind, created_by_id=person.id)
+        db.add(item)
+        add_version(db, item, data if data is not None else template_bytes(kind), person, "new")
+        return item
+
+    add_file(marketing, "Kampagnenplan Herbst.xlsx" if de else "Autumn campaign plan.xlsx", "xlsx", anna)
+    add_file(marketing, "Pressemitteilung.docx" if de else "Press release.docx", "docx", anna)
+    add_file(marketing, "Präsentation Vertrieb.pptx" if de else "Sales presentation.pptx", "pptx", lukas)
+    add_file(relaunch, "Seitenstruktur.md" if de else "Site structure.md", "md", max_,
+             ("# Seitenstruktur\n\n- Start\n- Leistungen\n- Über uns\n- Kontakt\n" if de
+              else "# Site structure\n\n- Home\n- Services\n- About us\n- Contact\n").encode())
+    add_file(relaunch, "Anforderungen.docx" if de else "Requirements.docx", "docx", max_)
+
+    columns = {
+        space.id: db.scalars(select(BoardColumn).join(Board, Board.id == BoardColumn.board_id)
+                             .where(Board.space_id == space.id).order_by(BoardColumn.position)).all()
+        for space in (marketing, relaunch)
+    }
+    cards = [
+        (marketing, 0, "Newsletter November schreiben" if de else "Write November newsletter", [anna], 3, "green"),
+        (marketing, 0, "Fotos vom Firmenlauf auswählen" if de else "Pick photos from the company run", [lukas], 7, ""),
+        (marketing, 1, "Pressemitteilung abstimmen" if de else "Agree on the press release", [anna, tom], 1, "amber"),
+        (marketing, 2, "Messestand bestellt" if de else "Trade fair stand ordered", [tom], None, ""),
+        (relaunch, 0, "Texte für „Über uns“" if de else "Copy for \"About us\"", [anna], 10, "purple"),
+        (relaunch, 1, "Startseite umsetzen" if de else "Build the home page", [max_], 5, "blue"),
+        (relaunch, 1, "Kontaktformular testen" if de else "Test the contact form", [lukas, max_], 2, ""),
+        (relaunch, 2, "Hosting ausgewählt" if de else "Hosting chosen", [max_], None, ""),
+    ]
+    for i, (space, col, title, people, due, label) in enumerate(cards):
+        card = Card(column_id=columns[space.id][col].id, title=title, position=i, label=label, created_by_id=people[0].id,
+                    due_date=today + timedelta(days=due) if due is not None else None)
+        db.add(card)
+        db.flush()
+        for person in people:
+            db.add(CardAssignee(card_id=card.id, user_id=person.id))
+        if i == 2:
+            db.add(CardComment(card_id=card.id, author_id=tom.id,
+                               body="Bitte noch das Zitat der Geschäftsführung ergänzen." if de else "Please add the quote from management."))
+
+    for space, lines in (
+        (marketing, ((anna, "Guten Morgen! Der Kampagnenplan liegt jetzt in den Dateien." if de else "Morning! The campaign plan is in the files now."),
+                     (lukas, "Danke, schaue ich mir gleich an." if de else "Thanks, I'll have a look."),
+                     (tom, "Super. Können wir Donnerstag kurz drüber sprechen?" if de else "Great. Can we talk about it on Thursday?"))),
+        (relaunch, ((max_, "Die Startseite ist auf der Testumgebung." if de else "The home page is on the test site."),
+                    (anna, "Sieht gut aus! Texte kommen bis Freitag." if de else "Looks good! Copy follows by Friday."))),
+    ):
+        channel = db.scalar(select(Channel).where(Channel.space_id == space.id))
+        last = None
+        for n, (person, body) in enumerate(lines):
+            last = Message(channel_id=channel.id, author_id=person.id, body=body, created_at=_at(-1, 9 + n))
+            db.add(last)
+        db.flush()
+        for person_id in {p.id for p, _ in lines}:
+            db.add(ChannelMember(channel_id=channel.id, user_id=person_id, last_read_id=last.id))
+
+    page = WikiPage(space_id=marketing.id, title="Bildsprache" if de else "Image style", updated_by_id=anna.id,
+                    body=("# Bildsprache\n\n- Echte Menschen statt Stockfotos\n- Helles, natürliches Licht\n"
+                          "- Logo immer unten rechts\n" if de else
+                          "# Image style\n\n- Real people instead of stock photos\n- Bright, natural light\n"
+                          "- Logo always bottom right\n"))
+    db.add(page)
+    db.flush()
+    db.add(WikiRevision(page_id=page.id, version=1, title=page.title, body=page.body, author_id=anna.id))

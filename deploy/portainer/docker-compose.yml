@@ -23,6 +23,11 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Office editing (optional, see the Collabora / ONLYOFFICE services below)
+      COLLABORA_URL: ${COLLABORA_URL:-}
+      ONLYOFFICE_URL: ${ONLYOFFICE_URL:-}
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
     volumes:
       # SQLite database (officehub.db) and uploaded files (uploads/)
       - officehub-data:/data
@@ -45,5 +50,34 @@ services:
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
 
+  # ---- Optional: edit Word, Excel and PowerPoint files in the browser ----
+  # Start one (or both) with COMPOSE_PROFILES=collabora and/or onlyoffice, and set COLLABORA_URL /
+  # ONLYOFFICE_URL for the backend. They only talk to OfficeHub inside this stack.
+  collabora:
+    image: collabora/code:26.04.4.2.1
+    profiles: ["collabora"]
+    restart: unless-stopped
+    cap_add:
+      - MKNOD
+    environment:
+      aliasgroup1: http://backend:8000
+      dictionaries: de_DE de_AT de_CH en_GB en_US
+      extra_params: >-
+        --o:ssl.enable=false --o:ssl.termination=${COLLABORA_SSL_TERMINATION:-false}
+        --o:net.service_root=/collabora --o:net.frame_ancestors=${PORTAL_URL:-http://localhost:8080}
+        --o:net.proto=IPv4 --o:admin_console.enable=false --o:welcome.enable=false
+
+  onlyoffice:
+    image: onlyoffice/documentserver:9.2.1
+    profiles: ["onlyoffice"]
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-change-me}
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+
 volumes:
   officehub-data:
+  onlyoffice-data:

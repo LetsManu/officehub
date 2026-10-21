@@ -322,6 +322,8 @@ export interface Summary {
   trainings_due: number
   surveys_open: number
   time_months_pending: number
+  chat_unread: number
+  cards_due: number
 }
 
 export interface SearchHit {
@@ -337,6 +339,7 @@ export interface SearchResults {
   announcements: SearchHit[]
   requests: SearchHit[]
   links: SearchHit[]
+  workspace: SearchHit[]
 }
 
 export interface Poll {
@@ -632,4 +635,190 @@ export interface MyAllocation {
   end_date: string
   minutes_per_day: number
   note: string
+}
+
+export interface Space {
+  id: number
+  name: string
+  description: string
+  color: string
+  project_id: number | null
+  archived: boolean
+  my_role: 'manager' | 'member' | null
+  member_count: number
+  file_count: number
+  open_cards: number
+  unread: number
+  updated_at: string | null
+}
+
+export interface SpaceDetail extends Space {
+  members: { person: UserBrief; role: 'manager' | 'member' }[]
+  board_id: number | null
+}
+
+export interface Folder {
+  id: number
+  name: string
+  parent_id: number | null
+  deleted_at?: string | null
+}
+
+export interface SpaceFile {
+  id: number
+  space_id: number
+  folder_id: number | null
+  name: string
+  file_type: string
+  size: number
+  version: number
+  updated_by: string | null
+  updated_at: string
+  deleted_at?: string | null
+  locked: boolean
+}
+
+export interface FileVersion {
+  number: number
+  size: number
+  source: 'upload' | 'editor' | 'restore' | 'new'
+  created_by: string | null
+  created_at: string
+}
+
+export interface SpaceFileDetail extends SpaceFile {
+  versions: FileVersion[]
+  path: Folder[]
+}
+
+export interface FileListing {
+  folder: Folder | null
+  path: Folder[]
+  folders: Folder[]
+  files: SpaceFile[]
+  can_write: boolean
+}
+
+export interface SpaceOverview {
+  files: SpaceFile[]
+  cards: { id: number; title: string; due_date: string | null; column: string; assignees: string[] }[]
+  pages: { id: number; title: string; updated_at: string }[]
+  activity: { kind: 'file' | 'card' | 'page' | 'message'; title: string; person: string | null; at: string; link: string }[]
+}
+
+export interface OfficeConfig {
+  engines: ('collabora' | 'onlyoffice')[]
+  default: 'collabora' | 'onlyoffice' | null
+  editable: Record<string, string[]>
+}
+
+export interface OfficeOpen {
+  engine: 'collabora' | 'onlyoffice'
+  can_write: boolean
+  file_name: string
+  action_url: string | null
+  access_token: string | null
+  access_token_ttl: number | null
+  script: string | null
+  config: Record<string, unknown> | null
+}
+
+export interface BoardCard {
+  id: number
+  column_id: number
+  title: string
+  position: number
+  due_date: string | null
+  label: string
+  assignees: UserBrief[]
+  comment_count: number
+  has_description: boolean
+}
+
+export interface BoardCardDetail extends BoardCard {
+  description: string
+  created_at: string
+  comments: { id: number; author: UserBrief | null; body: string; created_at: string }[]
+}
+
+export interface BoardColumn {
+  id: number
+  name: string
+  position: number
+  is_done: boolean
+  cards: BoardCard[]
+}
+
+export interface Board {
+  id: number
+  name: string
+  space_id: number
+  space_name: string
+  can_write: boolean
+  columns: BoardColumn[]
+  members: UserBrief[]
+}
+
+export interface MyCard {
+  id: number
+  title: string
+  due_date: string | null
+  label: string
+  column: string
+  space_id: number
+  space_name: string
+  board_id: number
+}
+
+export interface Conversation {
+  id: number
+  kind: 'channel' | 'direct'
+  name: string
+  space_id: number | null
+  space_name: string | null
+  other: UserBrief | null
+  unread: number
+  last: { body: string; author: string | null; at: string } | null
+}
+
+export interface ChatMessage {
+  id: number
+  author: UserBrief | null
+  body: string
+  file: { id: number; name: string; file_type: string; size: number } | null
+  created_at: string
+  edited: boolean
+  deleted: boolean
+  mine: boolean
+}
+
+export interface ChatPage {
+  conversation: Conversation
+  messages: ChatMessage[]
+  members: UserBrief[]
+  has_more: boolean
+}
+
+export interface WikiPageSummary {
+  id: number
+  title: string
+  parent_id: number | null
+  updated_at: string
+  updated_by: string | null
+}
+
+export interface WikiPage extends WikiPageSummary {
+  space_id: number
+  body: string
+  version: number
+  editors: UserBrief[]
+  can_write: boolean
+}
+
+export interface WikiRevision {
+  version: number
+  title: string
+  author: string | null
+  created_at: string
+  body?: string
 }

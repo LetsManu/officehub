@@ -235,7 +235,7 @@ watch(
         </div>
       </header>
 
-      <main id="main" class="content" tabindex="-1">
+      <main id="main" class="content" :class="{ full: route.meta.full, wide: route.meta.wide }" tabindex="-1">
         <slot />
       </main>
     </div>
@@ -553,6 +553,15 @@ watch(
 
 .content:focus {
   outline: none;
+}
+
+.content.wide {
+  max-width: none;
+}
+
+.content.full {
+  max-width: none;
+  padding: 0;
 }
 
 .drawer-backdrop {

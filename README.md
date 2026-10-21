@@ -38,6 +38,12 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - **Time tracking**: clock in/out on a project, add or fix times for the last 31 days, weekly timesheet with targets,
   flexitime balance, break hints, CSV export; a month calendar with calendar weeks and hints per day, and handing in
   the month for the manager's approval
+- **Team spaces** for teams and projects, each with:
+  - **Files** with folders, versions, a 30-day trash and preview; Word, Excel and PowerPoint files are edited together
+    in the browser with your own **Collabora Online** or **ONLYOFFICE** server (optional, runs in the same stack)
+  - a **task board** (Kanban) with assignees, due dates, labels and comments, plus "My tasks" across all spaces
+  - **chat** channels with @mentions and file sharing, and direct messages between two people
+  - a **wiki** with page history, "who is editing" and protection against overwriting each other's changes
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),

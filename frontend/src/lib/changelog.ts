@@ -9,6 +9,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.2.0',
+    date: '2026-10-21',
+    de: [
+      'Neu: Bereiche für Teams und Projekte – Dateien, Aufgaben, Chat und Wiki an einem Ort.',
+      'Dateien mit Ordnern, Versionen und Papierkorb. Einfach hineinziehen zum Hochladen.',
+      'Word-, Excel- und PowerPoint-Dateien gemeinsam im Browser bearbeiten (mit eurem eigenen Collabora- oder ONLYOFFICE-Server).',
+      'Aufgaben-Boards: Karten verschieben, Zuständige und Fälligkeit festlegen, kommentieren. „Meine Aufgaben“ zeigt alles, was für dich ansteht.',
+      'Chat: Kanäle pro Bereich, Direktnachrichten und @Erwähnungen.',
+      'Wiki: Seiten gemeinsam pflegen – mit Verlauf und Schutz vor gegenseitigem Überschreiben.',
+    ],
+    en: [
+      'New: spaces for teams and projects – files, tasks, chat and wiki in one place.',
+      'Files with folders, versions and a trash. Just drag them in to upload.',
+      'Edit Word, Excel and PowerPoint files together in the browser (with your own Collabora or ONLYOFFICE server).',
+      'Task boards: move cards, set who is responsible and due dates, comment. "My tasks" shows everything that is up to you.',
+      'Chat: channels per space, direct messages and @mentions.',
+      'Wiki: keep pages up to date together – with history and protection against overwriting each other.',
+    ],
+  },
+  {
     version: '3.1.0',
     date: '2026-10-19',
     de: [
