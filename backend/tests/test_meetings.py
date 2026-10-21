@@ -34,6 +34,7 @@ def _plan(client, invitees, **extra):
 
 def test_meetings_off_without_jitsi(anna):
     assert anna.get("/api/meetings/config").json() == {"enabled": False}
+    assert anna.get("/api/config").json()["meetings_enabled"] is False
     meeting = _plan(anna, [])
     assert anna.post(f"/api/meetings/{meeting['id']}/join").json()["code"] == "meetings_unavailable"
 
@@ -114,6 +115,8 @@ def test_call_rings_and_can_be_declined_or_missed(anna, lukas, julia, jitsi):
     assert lukas.get("/api/calls/incoming").json() == []
     messages = lukas.get(f"/api/chat/{dm['id']}/messages").json()["messages"]
     assert messages[-1]["meeting"]["id"] == call["meeting_id"]
+    conversation = next(c for c in lukas.get("/api/chat").json() if c["id"] == dm["id"])
+    assert conversation["last"]["call"] is True  # the list shows "Call" instead of an empty text
 
     # a second call nobody answers becomes a missed call
     second = anna.post("/api/calls", json={"channel_id": dm["id"]}).json()

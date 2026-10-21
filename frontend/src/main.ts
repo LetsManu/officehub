@@ -15,7 +15,8 @@ loadBranding()
 setUnauthorizedHandler(() => {
   clearSession()
   const current = router.currentRoute.value
-  if (!current.meta.public) router.push({ path: '/login', query: { redirect: current.fullPath } })
+  // Before the first page is resolved the router guard decides (public pages like the guest link stay open)
+  if (current.matched.length && !current.meta.public) router.push({ path: '/login', query: { redirect: current.fullPath } })
 })
 
 createApp(App).use(router).mount('#app')

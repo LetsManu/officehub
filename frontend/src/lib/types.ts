@@ -161,6 +161,7 @@ export interface PublicConfig {
   demo_accounts?: DemoAccount[]
   demo_password?: string
   mail_enabled?: boolean
+  meetings_enabled?: boolean
 }
 
 export interface DirectoryEntry {
@@ -778,7 +779,7 @@ export interface Conversation {
   space_name: string | null
   other: UserBrief | null
   unread: number
-  last: { body: string; author: string | null; at: string } | null
+  last: { body: string; author: string | null; at: string; call?: boolean } | null
 }
 
 export interface ChatMessage {
@@ -790,6 +791,7 @@ export interface ChatMessage {
   edited: boolean
   deleted: boolean
   mine: boolean
+  meeting?: { id: number; active: boolean } | null
 }
 
 export interface ChatPage {
@@ -821,4 +823,48 @@ export interface WikiRevision {
   author: string | null
   created_at: string
   body?: string
+}
+
+// ---------- meetings and calls ----------
+
+export interface MeetingPerson {
+  person: UserBrief
+  response: 'pending' | 'accepted' | 'declined' | 'ringing' | 'missed'
+}
+
+export interface MeetingParticipant {
+  id: number | null
+  name: string
+  guest: boolean
+}
+
+export interface Meeting {
+  id: number
+  kind: 'scheduled' | 'space' | 'call'
+  title: string
+  description: string
+  starts_at: string | null
+  ends_at: string | null
+  space_id: number | null
+  space_name: string | null
+  organizer: UserBrief | null
+  invitees: MeetingPerson[]
+  my_response: MeetingPerson['response'] | null
+  is_organizer: boolean
+  guest_link: string | null
+  live: MeetingParticipant[]
+  cancelled: boolean
+}
+
+export interface MeetingDetail extends Meeting {
+  notes: string
+  notes_version: number
+  waiting: { id: number; name: string; since: string }[]
+}
+
+export interface IncomingCall {
+  meeting_id: number
+  caller: UserBrief | null
+  title: string
+  started: string
 }

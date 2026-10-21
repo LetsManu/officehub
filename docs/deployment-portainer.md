@@ -85,6 +85,37 @@ switch at the top of the editor.
 
 Plan for memory: Collabora needs about 1 GB of RAM, ONLYOFFICE about 2–4 GB.
 
+## Optional: video meetings and calls
+
+OfficeHub can hold video meetings and calls on your own **Jitsi Meet** server, with OfficeHub's own interface. The
+four Jitsi containers are already in the compose file and only run when you switch them on. Browsers reach them
+through the portal's own address (`/jitsi/`, `/colibri-ws/`); only the video and audio stream uses a separate port.
+
+In the stack's environment variables set:
+
+| Variable | Value |
+| --- | --- |
+| `COMPOSE_PROFILES` | add `jitsi`, e.g. `jitsi` or `collabora,jitsi` |
+| `JITSI_APP_SECRET` | a long random text (OfficeHub and Jitsi share it to sign meeting tokens) |
+| `JITSI_INTERNAL_PASSWORD` | another long random text (used only between the Jitsi containers) |
+| `JITSI_PUBLIC_IP` | the server's public IP address, if people join from outside the office network |
+| `PORTAL_URL` | the HTTPS address people use, e.g. `https://portal.your-company.example` |
+
+Then:
+
+1. **HTTPS is required.** Browsers only allow camera and microphone on HTTPS pages (see step 3). Your reverse proxy
+   must also pass WebSockets (`Upgrade` / `Connection` headers) – Nginx Proxy Manager: switch on *Websockets Support*.
+2. **Open UDP port 10000** to the Docker host in the firewall (and forward it on the router for people outside).
+   The audio and video stream goes there directly; it does not pass the reverse proxy.
+3. Redeploy the stack. **Meetings** appears in the menu, a call button in every chat and a meeting room in every space.
+
+Plan for about 1–2 GB of RAM, more for many people at once. A guest link (optional per meeting) lets people from
+outside join; they wait until someone in the meeting clicks **Let in**.
+
+**Desktop and phone apps later:** everything the web page uses is a normal OfficeHub API.
+`POST /api/meetings/{id}/join` and `POST /api/calls` return the conference name, a token and the server address,
+and `GET /api/calls/incoming` lists ringing calls – a Windows or Android app can use them with the Jitsi SDKs.
+
 ## 3. HTTPS
 
 Run OfficeHub behind your existing reverse proxy (Nginx Proxy Manager, Traefik, Caddy …):
@@ -121,13 +152,17 @@ To restore, stop the backend, extract the archive into the volume and start it a
 
 - Use **standalone Docker** (not Swarm) stacks: the frontend waits for the backend health check via `depends_on`.
 - The API port 8000 is not published by default. Uncomment the `ports` section of the backend if you need it.
-- No internet access is required at runtime – only to download the images. E-mail uses only the mail server you configure.
+- No internet access is required at runtime – only to download the images. Meetings stay on your server too. E-mail uses only the mail server you configure.
 
 ## Troubleshooting
 
 | Problem | Cause and fix |
 | --- | --- |
 | "The office server cannot be reached" | The Collabora/ONLYOFFICE container is not running (check `COMPOSE_PROFILES`) or still starting. Look at its log in Portainer. |
+| "Video meetings are not set up yet" | `JITSI_APP_SECRET` is empty for the backend. Set it and redeploy. |
+| Camera and microphone cannot be chosen | The portal is opened over plain `http://`. Use HTTPS. |
+| Meeting opens, but nobody sees or hears the others | UDP port 10000 is blocked, or `JITSI_PUBLIC_IP` is missing/wrong for people outside. Check the `jitsi-jvb` log. |
+| "Could not connect to the meeting" | The Jitsi containers are not running (check `COMPOSE_PROFILES`), `JITSI_APP_SECRET` differs between backend and Jitsi, or the reverse proxy does not pass WebSockets. |
 | Collabora stops right after starting with "Failed to listen" | The host has no IPv6. The compose file already sets `net.proto=IPv4`; keep that line if you copy the service. |
 | The editor stays empty or shows a security error | `PORTAL_URL` does not match the address in the browser, or `COLLABORA_SSL_TERMINATION` does not match HTTP/HTTPS. |
 | `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |

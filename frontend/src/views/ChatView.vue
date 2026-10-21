@@ -87,7 +87,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
               <span v-else class="hash" aria-hidden="true">#</span>
               <span class="conv-main">
                 <span class="conv-name">{{ c.name }}<span v-if="c.space_name" class="muted small"> · {{ c.space_name }}</span></span>
-                <span v-if="c.last" class="muted small preview">{{ c.last.author ? `${c.last.author}: ` : '' }}{{ c.last.body }}</span>
+                <span v-if="c.last" class="muted small preview">{{ c.last.author ? `${c.last.author}: ` : '' }}{{ c.last.call ? t('chat.callPreview') : c.last.body }}</span>
               </span>
               <span class="conv-side">
                 <span v-if="c.last" class="muted tiny">{{ formatDateTime(c.last.at) }}</span>

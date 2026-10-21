@@ -127,6 +127,7 @@ def public_config() -> dict:
         "max_upload_mb": settings.max_upload_mb,
         "version": settings.app_version,
         "mail_enabled": settings.mail_enabled,
+        "meetings_enabled": bool(settings.jitsi_app_secret),
     }
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()

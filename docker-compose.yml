@@ -31,6 +31,8 @@ services:
       ONLYOFFICE_URL: ${ONLYOFFICE_URL:-}
       ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
+      # Video meetings (optional, see the Jitsi services below)
+      JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
     volumes:
       - officehub-data:/data
     ports:
@@ -73,6 +75,67 @@ services:
       ALLOW_PRIVATE_IP_ADDRESS: "true"
     volumes:
       - onlyoffice-data:/var/www/onlyoffice/Data
+
+  # ---- Optional: video meetings and calls with your own Jitsi Meet server ----
+  # Start with COMPOSE_PROFILES=jitsi (can be combined, e.g. collabora,jitsi) and set JITSI_APP_SECRET.
+  # People reach it through the portal (/jitsi/ and /colibri-ws/); audio and video use UDP port 10000.
+  jitsi-web:
+    image: jitsi/web:stable-10978
+    profiles: ["jitsi"]
+    restart: unless-stopped
+    environment: &jitsi
+      PUBLIC_URL: ${PORTAL_URL:-http://localhost:8080}
+      TZ: ${TIMEZONE:-Europe/Vienna}
+      ENABLE_AUTH: "1"
+      AUTH_TYPE: jwt
+      ENABLE_GUESTS: "0"
+      JWT_APP_ID: officehub
+      JWT_APP_SECRET: ${JITSI_APP_SECRET:-}
+      JWT_ACCEPTED_ISSUERS: officehub
+      JWT_ACCEPTED_AUDIENCES: officehub
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      XMPP_GUEST_DOMAIN: guest.meet.jitsi
+      XMPP_SERVER: xmpp.meet.jitsi
+      XMPP_BOSH_URL_BASE: http://xmpp.meet.jitsi:5280
+      JICOFO_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-change-me-too}
+      JVB_AUTH_PASSWORD: ${JITSI_INTERNAL_PASSWORD:-change-me-too}
+      ENABLE_XMPP_WEBSOCKET: "1"
+      ENABLE_COLIBRI_WEBSOCKET: "1"
+      DISABLE_HTTPS: "1"
+      ENABLE_HTTP_REDIRECT: "0"
+      ENABLE_LETSENCRYPT: "0"
+      JVB_ADVERTISE_IPS: ${JITSI_PUBLIC_IP:-}
+    networks:
+      default:
+        aliases: [meet.jitsi]
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable-10978
+    profiles: ["jitsi"]
+    restart: unless-stopped
+    environment: *jitsi
+    networks:
+      default:
+        aliases: [xmpp.meet.jitsi]
+
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable-10978
+    profiles: ["jitsi"]
+    restart: unless-stopped
+    environment: *jitsi
+    depends_on: [jitsi-prosody]
+
+  jitsi-jvb:
+    image: jitsi/jvb:stable-10978
+    profiles: ["jitsi"]
+    restart: unless-stopped
+    environment: *jitsi
+    ports:
+      - "10000:10000/udp"
+    depends_on: [jitsi-prosody]
 
 volumes:
   # Holds the SQLite database (officehub.db) and uploaded files (uploads/).

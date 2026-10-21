@@ -2,7 +2,7 @@
 
 import { computed } from 'vue'
 import { t } from './i18n'
-import { isAdmin, isApprover } from './session'
+import { isAdmin, isApprover, publicConfig } from './session'
 import { summary } from './summary'
 
 export interface NavItem {
@@ -37,6 +37,7 @@ export const navGroups = computed<NavGroup[]>(() => {
       items: [
         { to: '/spaces', label: t('nav.spaces'), icon: 'spaces' },
         { to: '/chat', label: t('nav.chat'), icon: 'chat', count: summary.value.chat_unread },
+        ...(publicConfig.value?.meetings_enabled ? [{ to: '/meetings', label: t('nav.meetings'), icon: 'video' }] : []),
         { to: '/tasks', label: t('nav.tasks'), icon: 'kanban', count: summary.value.cards_due },
       ],
     },
