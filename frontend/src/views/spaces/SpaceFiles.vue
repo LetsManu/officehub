@@ -10,7 +10,8 @@ import { api, query } from '@/lib/api'
 import { errorText, formatDateTime, t } from '@/lib/i18n'
 import { renderMarkdown } from '@/lib/markdown'
 import { useSpace } from '@/lib/spaceContext'
-import { canPreview, fileIcon, fileSize, fileTone, isOffice, loadOfficeConfig } from '@/lib/spaces'
+import { currentUser } from '@/lib/session'
+import { canPreview, craftApp, driveAddresses, fileIcon, fileSize, fileTone, isOffice, loadCraftConfig, loadOfficeConfig, type CraftConfig } from '@/lib/spaces'
 import { showToast } from '@/lib/toast'
 import type { FileListing, Folder, OfficeConfig, SpaceFile, SpaceFileDetail } from '@/lib/types'
 
@@ -35,6 +36,54 @@ const isManager = computed(() => space.value?.my_role === 'manager')
 
 function editable(f: SpaceFile) {
   return office.value.engines.length > 0 && isOffice(f.file_type)
+}
+
+// ---------- WordCraft / DeckCraft, check-out and the network drive ----------
+
+const craft = ref<CraftConfig>({ apps: [], types: {} })
+const craftFor = (f: SpaceFile) => craftApp(craft.value, f.file_type)
+
+/** Open the file in the browser version of WordCraft or DeckCraft (a new tab, like Word online). */
+async function openInCraft(f: SpaceFile) {
+  const tab = window.open('', '_blank')
+  try {
+    const opened = await api.post<{ url: string; can_write: boolean }>(`/api/craft/open/${f.id}`)
+    if (!opened.can_write) showToast(t('files.craftReadOnly'))
+    if (tab) {
+      tab.opener = null
+      tab.location.href = opened.url
+    } else {
+      window.location.href = opened.url
+    }
+  } catch (e) {
+    tab?.close()
+    showToast(errorText(e), 'error')
+  }
+}
+
+const checkedOutByOther = (f: SpaceFile) => !!f.checked_out_by_id && f.checked_out_by_id !== currentUser.value?.id
+
+async function toggleCheckout(f: SpaceFile) {
+  const out = !!f.checked_out_by_id
+  try {
+    const updated = await api.post<SpaceFile>(`/api/spaces/files/${f.id}/${out ? 'checkin' : 'checkout'}`)
+    showToast(out ? t('files.checkedIn') : t('files.checkedOutToast'))
+    if (detail.value?.id === f.id) Object.assign(detail.value, updated)
+    await load()
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  }
+}
+
+const drive = computed(() => (detail.value?.drive_path ? driveAddresses(detail.value.drive_path) : null))
+
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast(t('files.copied'))
+  } catch {
+    window.prompt(t('files.copyThis'), text)
+  }
 }
 
 async function load() {
@@ -243,6 +292,7 @@ async function restoreVersion(number: number) {
 }
 
 onMounted(async () => {
+  loadCraftConfig().then((c) => (craft.value = c))
   office.value = await loadOfficeConfig()
   await load()
   const file = Number(route.query.file)
@@ -356,14 +406,16 @@ onMounted(async () => {
                     <span class="ficon" :class="`pc-${fileTone(f.file_type)}`"><AppIcon :name="fileIcon(f.file_type)" :size="18" /></span>
                     <span class="name">{{ f.name }}</span>
                     <span v-if="f.locked" class="tag"><AppIcon name="edit" :size="13" />{{ t('files.beingEdited') }}</span>
+                    <span v-if="f.checked_out_by" class="tag" :class="{ mine: !checkedOutByOther(f) }"><AppIcon name="lock" :size="13" />{{ checkedOutByOther(f) ? t('files.checkedOutBy', { name: f.checked_out_by }) : t('files.checkedOutByMe') }}</span>
                   </button>
                 </td>
                 <td class="hide-sm muted small">{{ formatDateTime(f.updated_at) }}<template v-if="f.updated_by"><br />{{ f.updated_by }}</template></td>
                 <td class="num hide-sm muted small">{{ fileSize(f.size) }}</td>
                 <td class="actions">
                   <RouterLink v-if="editable(f)" :to="`/office/${f.id}`" class="btn btn-ghost btn-icon" :aria-label="`${t('files.edit')}: ${f.name}`" :title="t('files.edit')"><AppIcon name="edit" :size="18" /></RouterLink>
+                  <button v-if="craftFor(f)" type="button" class="btn btn-ghost btn-icon" :aria-label="`${t(`files.openIn.${craftFor(f)}`)}: ${f.name}`" :title="t(`files.openIn.${craftFor(f)}`)" @click="openInCraft(f)"><AppIcon name="external" :size="18" /></button>
                   <a class="btn btn-ghost btn-icon" :href="`/api/spaces/files/${f.id}/download`" download :aria-label="`${t('files.download')}: ${f.name}`" :title="t('files.download')"><AppIcon name="download" :size="18" /></a>
-                  <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.versions')}: ${f.name}`" :title="t('files.versions')" @click="showDetail(f.id)"><AppIcon name="history" :size="18" /></button>
+                  <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.details')}: ${f.name}`" :title="t('files.details')" @click="showDetail(f.id)"><AppIcon name="history" :size="18" /></button>
                   <template v-if="canWrite">
                     <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.rename')}: ${f.name}`" :title="t('files.rename')" @click="startRename(f)"><AppIcon name="move" :size="18" /></button>
                     <button type="button" class="btn btn-ghost btn-icon" :aria-label="`${t('files.delete')}: ${f.name}`" :title="t('files.delete')" @click="remove(f)"><AppIcon name="trash" :size="18" /></button>
@@ -409,7 +461,34 @@ onMounted(async () => {
     </BaseModal>
 
     <!-- Versions -->
-    <BaseModal :open="detail !== null" :title="detail?.name ?? ''" :description="t('files.versionsHint')" wide hide-actions @close="detail = null">
+    <BaseModal :open="detail !== null" :title="detail?.name ?? ''" wide hide-actions @close="detail = null">
+      <section v-if="detail" class="detail-block">
+        <h3 class="h4">{{ t('files.checkOutTitle') }}</h3>
+        <p class="muted small">
+          <template v-if="detail.checked_out_by">{{ checkedOutByOther(detail) ? t('files.checkedOutSince', { name: detail.checked_out_by, when: formatDateTime(detail.checked_out_at ?? '') }) : t('files.checkedOutMine') }}</template>
+          <template v-else>{{ t('files.checkOutHint') }}</template>
+        </p>
+        <button v-if="canWrite && (!checkedOutByOther(detail) || isManager)" type="button" class="btn btn-secondary" @click="toggleCheckout(detail)">
+          <AppIcon name="lock" :size="18" />{{ detail.checked_out_by ? (checkedOutByOther(detail) ? t('files.checkInForce') : t('files.checkIn')) : t('files.checkOut') }}
+        </button>
+      </section>
+      <section v-if="detail && drive" class="detail-block">
+        <h3 class="h4">{{ t('files.onComputer') }}</h3>
+        <p class="muted small">{{ t('files.onComputerHint') }}</p>
+        <div class="address">
+          <span class="small">{{ t('files.windowsPath') }}</span>
+          <code>{{ drive.windows }}</code>
+          <button type="button" class="btn btn-ghost btn-icon" :aria-label="t('files.copy')" :title="t('files.copy')" @click="copy(drive.windows)"><AppIcon name="clipboard" :size="16" /></button>
+        </div>
+        <div class="address">
+          <span class="small">{{ t('files.otherPath') }}</span>
+          <code>{{ drive.web }}</code>
+          <button type="button" class="btn btn-ghost btn-icon" :aria-label="t('files.copy')" :title="t('files.copy')" @click="copy(drive.web)"><AppIcon name="clipboard" :size="16" /></button>
+        </div>
+        <RouterLink to="/profile#programs" class="small">{{ t('files.appPasswordLink') }}</RouterLink>
+      </section>
+      <h3 v-if="detail" class="h4 versions-title">{{ t('files.versions') }}</h3>
+      <p v-if="detail" class="muted small">{{ t('files.versionsHint') }}</p>
       <ol v-if="detail" class="versions">
         <li v-for="v in detail.versions" :key="v.number">
           <span class="vnum">v{{ v.number }}</span>
@@ -483,6 +562,50 @@ onMounted(async () => {
 
 .menu {
   position: relative;
+}
+
+.tag.mine {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.detail-block {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.address {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.address code {
+  overflow-wrap: anywhere;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  font-size: 0.82rem;
+}
+
+.versions-title {
+  margin-bottom: 2px;
+}
+
+@media (max-width: 560px) {
+  .address {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .address span {
+    grid-column: 1 / -1;
+  }
 }
 
 .menu summary {

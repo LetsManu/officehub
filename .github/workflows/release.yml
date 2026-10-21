@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [backend, frontend]
+        service: [backend, frontend, craft]
     steps:
       - uses: actions/checkout@v4
 
@@ -135,6 +135,7 @@ jobs:
           Images:
           - \`ghcr.io/${OWNER}/officehub-backend:${VERSION#v}\`
           - \`ghcr.io/${OWNER}/officehub-frontend:${VERSION#v}\`
+          - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (optional, profile \`craft\`)
 
           Full guide: \`DEPLOYMENT.md\` (also in the repository under \`docs/deployment-portainer.md\`).
           NOTES

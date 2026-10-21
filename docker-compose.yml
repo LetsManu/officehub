@@ -34,6 +34,7 @@ services:
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
       JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
       JITSI_INTERNAL_URL: ${JITSI_INTERNAL_URL:-http://jitsi-web}
+      CRAFT_INTERNAL_URL: ${CRAFT_INTERNAL_URL:-http://craft:8080}
       # Built-in meetings need nothing. Optional: your own STUN/TURN server for people outside the office
       ICE_SERVERS: ${ICE_SERVERS:-}
       ICE_USERNAME: ${ICE_USERNAME:-}
@@ -87,7 +88,16 @@ services:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - shared:/shared:ro
 
-  # ---- Optional: Jitsi Meet for larger meetings ----
+  # ---- Optional: WordCraft and DeckCraft in the browser ----
+  # Open-source word processor and presentation program (built from source, static files only). Start it with
+  # COMPOSE_PROFILES=craft and OfficeHub shows "Open in WordCraft / DeckCraft" by itself.
+  craft:
+    image: ghcr.io/letsmanu/officehub-craft:${OFFICEHUB_VERSION:-latest}
+    build: ./craft
+    profiles: ["craft"]
+    restart: unless-stopped
+
+  # ---- Optional: Jitsi Meet: all meetings and calls go through it while it runs ----
   # Meetings and calls work without it (built in). Start it with COMPOSE_PROFILES=jitsi and OfficeHub uses it
   # by itself; passwords are made automatically. People reach it through the portal (/jitsi/, /colibri-ws/);
   # audio and video use UDP port 10000, and people outside the office need JITSI_PUBLIC_IP.

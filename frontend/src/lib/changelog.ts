@@ -28,6 +28,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Wer ein Meeting leitet, kann alle stummschalten, jemanden hervorheben oder entfernen und Breakout-Räume mit Zeitlimit öffnen.',
       'Town Hall für große Runden: Nur wer auf der Bühne ist, spricht – alle anderen schauen zu und können sich melden.',
       'Meetings im Browser aufnehmen (alle sehen es), Mikrofon und Lautsprecher vorher testen, Hintergrundgeräusche dämpfen und zum Sprechen die Leertaste halten.',
+      'Dateien auschecken wie in SharePoint: Nur du speicherst neue Versionen, bis du wieder eincheckst.',
+      'Bereiche als Netzlaufwerk im Explorer oder Finder: Dateien direkt in WordCraft, DeckCraft oder Office-Programmen öffnen und speichern. Anmelden mit einem App-Passwort aus dem Profil.',
+      'WordCraft und DeckCraft im Browser (wenn die IT sie einschaltet): Dokumente und Präsentationen öffnen und direkt zurück speichern.',
     ],
     en: [
       'New menu like in Teams and Outlook: the everyday tools at the top, then "My working day", "Company" and "Office". The arrow turns it into a slim icon bar.',
@@ -46,6 +49,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Whoever leads a meeting can mute everyone, highlight or remove someone and open breakout rooms with a time limit.',
       'Town hall for large audiences: only the people on stage speak – everyone else watches and can raise a hand.',
       'Record meetings in the browser (everyone sees it), test microphone and speaker beforehand, reduce background noise and hold the space bar to talk.',
+      'Check files out like in SharePoint: only you save new versions until you check in again.',
+      'Spaces as a network drive in Explorer or Finder: open and save files directly in WordCraft, DeckCraft or office programs. Sign in with an app password from your profile.',
+      'WordCraft and DeckCraft in the browser (when IT switches them on): open documents and presentations and save straight back.',
     ],
   },
   {

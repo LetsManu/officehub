@@ -9,7 +9,7 @@ const PREVIEW = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'md'
 export function fileIcon(type: string): string {
   if (['docx', 'doc', 'odt', 'rtf', 'md', 'txt'].includes(type)) return 'file'
   if (['xlsx', 'xls', 'ods', 'csv'].includes(type)) return 'table'
-  if (['pptx', 'ppt', 'odp'].includes(type)) return 'presentation'
+  if (['pptx', 'ppt', 'odp', 'deckcraft'].includes(type)) return 'presentation'
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(type)) return 'image'
   if (type === 'pdf') return 'filePdf'
   return 'paperclip'
@@ -19,7 +19,7 @@ export function fileIcon(type: string): string {
 export function fileTone(type: string): string {
   if (['docx', 'doc', 'odt', 'rtf'].includes(type)) return 'blue'
   if (['xlsx', 'xls', 'ods', 'csv'].includes(type)) return 'green'
-  if (['pptx', 'ppt', 'odp'].includes(type)) return 'orange'
+  if (['pptx', 'ppt', 'odp', 'deckcraft'].includes(type)) return 'orange'
   if (type === 'pdf') return 'pink'
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(type)) return 'purple'
   return 'slate'
@@ -47,6 +47,37 @@ export function loadOfficeConfig(force = false): Promise<OfficeConfig> {
     officeConfig = api.get<OfficeConfig>('/api/office/config').catch(() => ({ engines: [], default: null, editable: {} }))
   }
   return officeConfig
+}
+
+export interface CraftConfig {
+  apps: ('wordcraft' | 'deckcraft')[]
+  types: Record<string, string[]>
+}
+
+let craftConfig: Promise<CraftConfig> | null = null
+
+/** WordCraft / DeckCraft in the browser: which run in the stack and which file types they edit. */
+export function loadCraftConfig(): Promise<CraftConfig> {
+  craftConfig ??= api.get<CraftConfig>('/api/craft/config').catch(() => ({ apps: [], types: {} }))
+  return craftConfig
+}
+
+/** The browser program for a file, if it runs: "wordcraft" or "deckcraft". */
+export function craftApp(config: CraftConfig, type: string): 'wordcraft' | 'deckcraft' | null {
+  return config.apps.find((app) => config.types[app]?.includes(type)) ?? null
+}
+
+/** The network-drive address of a file: for Windows Explorer (\\server@SSL\dav\…) and for other systems (https://…). */
+export function driveAddresses(drivePath: string): { windows: string; web: string } {
+  const { protocol, host } = window.location
+  const decoded = decodeURIComponent(drivePath)
+  const ssl = protocol === 'https:' ? '@SSL' : ''
+  const [hostname, port] = host.split(':')
+  const portPart = port ? `@${port}` : ''
+  return {
+    windows: `\\\\${hostname}${ssl}${portPart}${decoded.replace(/\//g, '\\')}`,
+    web: `${protocol}//${host}${drivePath}`,
+  }
 }
 
 /** "@Anna Mayer" mentions in a message, matched against the members of the conversation. */

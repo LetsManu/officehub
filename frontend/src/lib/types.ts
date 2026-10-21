@@ -679,12 +679,15 @@ export interface SpaceFile {
   updated_at: string
   deleted_at?: string | null
   locked: boolean
+  checked_out_by_id?: number | null
+  checked_out_by?: string | null
+  checked_out_at?: string | null
 }
 
 export interface FileVersion {
   number: number
   size: number
-  source: 'upload' | 'editor' | 'restore' | 'new'
+  source: 'upload' | 'editor' | 'restore' | 'new' | 'drive' | 'wordcraft' | 'deckcraft'
   created_by: string | null
   created_at: string
 }
@@ -692,6 +695,14 @@ export interface FileVersion {
 export interface SpaceFileDetail extends SpaceFile {
   versions: FileVersion[]
   path: Folder[]
+  drive_path?: string | null
+}
+
+export interface AppPassword {
+  id: number
+  name: string
+  created_at: string
+  last_used_at: string | null
 }
 
 export interface FileListing {

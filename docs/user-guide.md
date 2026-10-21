@@ -296,6 +296,20 @@ with **New space** (you become its manager). Each space has these tabs:
 - **Members**: managers add people, make them managers or remove them, change name and colour, link a project from
   planning, and archive the space when it is finished (it stays readable).
 
+### Check out, network drive, WordCraft and DeckCraft
+
+- **Check out** (under **Details and versions** of a file): only you can save new versions until you **check in** again
+  – like in SharePoint. Others still read it and see "Checked out by …". Managers of the space can check a file in for
+  someone who forgot.
+- **Open in WordCraft / DeckCraft** (when IT runs them): the open-source word processor (`.docx`) and presentation
+  program (`.pptx`, `.deckcraft`) open in a new tab. **Save** puts the file back here as a new version; exports such as
+  PDF still download.
+- **On the computer**: create an **app password** under **Profile → Programs and network drive**, then connect the
+  network drive (Windows Explorer: **Map network drive**, Mac Finder: **Go → Connect to server**) with your e-mail
+  address and the app password. All your spaces appear as folders. Open files with the desktop version of WordCraft,
+  DeckCraft, LibreOffice or Microsoft Office; every save becomes a new version. **Details and versions** shows the exact
+  address of a file. Remove an app password when a computer is no longer yours.
+
 ### Editing Word, Excel and PowerPoint files
 
 Click a document (or the pencil) to edit it right in the browser.

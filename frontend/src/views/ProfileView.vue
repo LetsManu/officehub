@@ -4,6 +4,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import FormField from '@/components/FormField.vue'
 import PhotoPicker from '@/components/PhotoPicker.vue'
 import DeputySettings from '@/components/DeputySettings.vue'
+import AppPasswords from '@/components/AppPasswords.vue'
 import DesktopSettings from '@/components/DesktopSettings.vue'
 import MyEquipment from '@/components/MyEquipment.vue'
 import TwoFactorSettings from '@/components/TwoFactorSettings.vue'
@@ -221,6 +222,8 @@ async function changePassword() {
       <h2 id="sec-title">{{ t('security.title') }}</h2>
       <TwoFactorSettings />
     </section>
+
+    <AppPasswords />
 
     <DesktopSettings />
 
