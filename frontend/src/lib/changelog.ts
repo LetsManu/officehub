@@ -31,6 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Dateien auschecken wie in SharePoint: Nur du speicherst neue Versionen, bis du wieder eincheckst.',
       'Bereiche als Netzlaufwerk im Explorer oder Finder: Dateien direkt in WordCraft, DeckCraft oder Office-Programmen öffnen und speichern. Anmelden mit einem App-Passwort aus dem Profil.',
       'WordCraft und DeckCraft im Browser (wenn die IT sie einschaltet): Dokumente und Präsentationen öffnen und direkt zurück speichern.',
+      '„Gemeinsam bearbeiten“: Word- und PowerPoint-Dateien mit mehreren Personen gleichzeitig im Office-Editor bearbeiten.',
     ],
     en: [
       'New menu like in Teams and Outlook: the everyday tools at the top, then "My working day", "Company" and "Office". The arrow turns it into a slim icon bar.',
@@ -52,6 +53,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Check files out like in SharePoint: only you save new versions until you check in again.',
       'Spaces as a network drive in Explorer or Finder: open and save files directly in WordCraft, DeckCraft or office programs. Sign in with an app password from your profile.',
       'WordCraft and DeckCraft in the browser (when IT switches them on): open documents and presentations and save straight back.',
+      '"Edit together": work on Word and PowerPoint files with several people at the same time in the office editor.',
     ],
   },
   {

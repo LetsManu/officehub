@@ -6,7 +6,7 @@
  * PowerPoint files go there instead.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
@@ -21,7 +21,11 @@ declare global {
 }
 
 const props = defineProps<{ id: string }>()
+const route = useRoute()
 const router = useRouter()
+// "Edit together": stay in the office editor even where WordCraft / DeckCraft would open, so several people can
+// work in the file at the same time
+const together = route.query.together === '1'
 
 const file = ref<SpaceFileDetail | null>(null)
 const office = ref<OfficeConfig>({ engines: [], default: null, editable: {} })
@@ -106,7 +110,7 @@ onMounted(async () => {
   window.addEventListener('message', onMessage)
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
-    if (office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
+    if (!together && office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
       const opened = await api.post<{ url: string }>(`/api/craft/open/${props.id}`)
       window.location.replace(opened.url)
       return

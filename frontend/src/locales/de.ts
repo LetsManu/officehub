@@ -536,6 +536,8 @@ const de = {
     sources: { upload: 'Hochgeladen', editor: 'Im Editor gespeichert', restore: 'Wiederhergestellt', new: 'Neu angelegt', drive: 'Vom Computer gespeichert', wordcraft: 'In WordCraft gespeichert', deckcraft: 'In DeckCraft gespeichert' },
     details: 'Details und Versionen',
     openIn: { wordcraft: 'In WordCraft öffnen', deckcraft: 'In DeckCraft öffnen' },
+    editTogether: 'Gemeinsam bearbeiten',
+    editTogetherHint: 'Gemeinsam bearbeiten: mehrere Personen gleichzeitig in der Datei (im Office-Editor)',
     craftReadOnly: 'Die Datei ist nur zum Lesen geöffnet – speichern kannst du sie hier nicht.',
     checkOutTitle: 'Auschecken',
     checkOutHint: 'Wer eine Datei auscheckt, kann als Einzige(r) neue Versionen speichern – praktisch, wenn du länger in einem Programm daran arbeitest.',
