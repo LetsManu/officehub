@@ -2,7 +2,7 @@
 
 import { computed } from 'vue'
 import { t } from './i18n'
-import { isAdmin, isApprover, publicConfig } from './session'
+import { isAdmin, isApprover } from './session'
 import { summary } from './summary'
 
 export interface NavItem {
@@ -16,57 +16,60 @@ export interface NavGroup {
   key: string
   label: string
   items: NavItem[]
+  /** Can be folded away in the menu (less used areas). */
+  collapsible?: boolean
 }
 
+/**
+ * Ordered like the tools people already know (Teams, Outlook): the everyday tools at the top – also the
+ * only ones in the slim icon bar – then "my working day", the company and the office.
+ */
 export const navGroups = computed<NavGroup[]>(() => {
   const groups: NavGroup[] = [
     {
-      key: 'start',
+      key: 'daily',
       label: '',
       items: [
-        { to: '/', label: t('nav.dashboard'), icon: 'dashboard' },
-        { to: '/time', label: t('nav.time'), icon: 'clock', count: summary.value.time_months_pending },
-        { to: '/planning', label: t('nav.planning'), icon: 'planning' },
-        { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
-        { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone', count: summary.value.must_read_open },
-      ],
-    },
-    {
-      key: 'work',
-      label: t('nav.groupWork'),
-      items: [
-        { to: '/spaces', label: t('nav.spaces'), icon: 'spaces' },
+        { to: '/', label: t('nav.dashboard'), icon: 'home' },
+        { to: '/activity', label: t('nav.activity'), icon: 'bell', count: summary.value.unread },
         { to: '/chat', label: t('nav.chat'), icon: 'chat', count: summary.value.chat_unread },
-        ...(publicConfig.value?.meetings_enabled ? [{ to: '/meetings', label: t('nav.meetings'), icon: 'video' }] : []),
+        { to: '/calendar', label: t('nav.calendar'), icon: 'calendar' },
+        { to: '/spaces', label: t('nav.spaces'), icon: 'spaces' },
         { to: '/tasks', label: t('nav.tasks'), icon: 'kanban', count: summary.value.cards_due },
+        { to: '/files', label: t('nav.files'), icon: 'folder' },
       ],
     },
     {
-      key: 'find',
-      label: t('nav.groupFind'),
+      key: 'me',
+      label: t('nav.groupMyDay'),
       items: [
+        { to: '/time', label: t('nav.time'), icon: 'clock', count: summary.value.time_months_pending },
+        { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
+        { to: '/planning', label: t('nav.planning'), icon: 'planning' },
+        { to: '/trainings', label: t('nav.trainings'), icon: 'graduation', count: summary.value.trainings_due },
+        { to: '/reviews', label: t('nav.reviews'), icon: 'message', count: summary.value.reviews_todo },
+      ],
+    },
+    {
+      key: 'company',
+      label: t('nav.groupCompany'),
+      collapsible: true,
+      items: [
+        { to: '/announcements', label: t('nav.announcements'), icon: 'megaphone', count: summary.value.must_read_open },
         { to: '/documents', label: t('nav.documents'), icon: 'file', count: summary.value.personal_documents_new },
         { to: '/people', label: t('nav.people'), icon: 'users' },
+        { to: '/surveys', label: t('nav.surveys'), icon: 'chart', count: summary.value.surveys_open },
+        { to: '/ideas', label: t('nav.ideas'), icon: 'lightbulb' },
         { to: '/help', label: t('nav.help'), icon: 'lifebuoy' },
       ],
     },
     {
       key: 'office',
       label: t('nav.groupOffice'),
+      collapsible: true,
       items: [
-        { to: '/calendar', label: t('nav.calendar'), icon: 'calendar' },
         { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
         { to: '/visitors', label: t('nav.visitors'), icon: 'badge', count: summary.value.visitors_today },
-        { to: '/reviews', label: t('nav.reviews'), icon: 'message', count: summary.value.reviews_todo },
-        { to: '/trainings', label: t('nav.trainings'), icon: 'graduation', count: summary.value.trainings_due },
-      ],
-    },
-    {
-      key: 'together',
-      label: t('nav.groupTogether'),
-      items: [
-        { to: '/surveys', label: t('nav.surveys'), icon: 'chart', count: summary.value.surveys_open },
-        { to: '/ideas', label: t('nav.ideas'), icon: 'lightbulb' },
       ],
     },
   ]
@@ -85,12 +88,13 @@ export const navGroups = computed<NavGroup[]>(() => {
     manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
   }
   if (isApprover.value) manage.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
-  if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage })
+  if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage, collapsible: true })
   return groups
 })
 
 export const allPages = computed<NavItem[]>(() => [
   ...navGroups.value.flatMap((group) => group.items),
+  { to: '/meetings', label: t('nav.meetings'), icon: 'video' },
   { to: '/profile', label: t('nav.profile'), icon: 'user' },
   { to: '/whats-new', label: t('whatsNew.title'), icon: 'star' },
 ])

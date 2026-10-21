@@ -868,3 +868,16 @@ export interface IncomingCall {
   title: string
   started: string
 }
+
+export interface CalendarEntry {
+  id: string
+  kind: 'meeting' | 'booking' | 'vacation' | 'home_office' | 'holiday' | 'event'
+  title: string
+  start: string | null
+  end: string | null
+  day: string | null
+  last_day: string | null
+  detail: string
+  status: string
+  link: string
+}

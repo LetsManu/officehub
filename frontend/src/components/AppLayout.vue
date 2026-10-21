@@ -11,7 +11,7 @@ import { canInstall, installApp } from '@/lib/install'
 import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
-import { allPages, navGroups } from '@/lib/navigation'
+import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { refreshSummary, startSummary, stopSummary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -35,6 +35,56 @@ const activePath = computed(() => {
 
 function isActive(to: string): boolean {
   return activePath.value === to
+}
+
+// ---------- menu: full with groups, or a slim icon bar like Teams (remembered per browser) ----------
+
+function remembered<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw === null ? fallback : (JSON.parse(raw) as T)
+  } catch {
+    return fallback
+  }
+}
+
+function remember(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    /* private window */
+  }
+}
+
+const compact = ref(remembered('officehub-nav-compact', false))
+const folded = ref<string[]>(remembered('officehub-nav-folded', []))
+const moreOpen = ref(false)
+const moreButton = ref<HTMLButtonElement | null>(null)
+const morePanel = ref<HTMLElement | null>(null)
+const dailyItems = computed(() => navGroups.value[0]?.items ?? [])
+const otherGroups = computed(() => navGroups.value.slice(1))
+const moreActive = computed(() => otherGroups.value.some((g) => g.items.some((i) => isActive(i.to))))
+const moreCount = computed(() => otherGroups.value.reduce((sum, g) => sum + g.items.reduce((n, i) => n + (i.count ?? 0), 0), 0))
+
+function toggleCompact() {
+  compact.value = !compact.value
+  moreOpen.value = false
+  remember('officehub-nav-compact', compact.value)
+}
+
+function isFolded(group: NavGroup) {
+  // A folded group still opens when you are on one of its pages
+  return !!group.collapsible && folded.value.includes(group.key) && !group.items.some((i) => isActive(i.to))
+}
+
+function toggleGroup(key: string) {
+  folded.value = folded.value.includes(key) ? folded.value.filter((k) => k !== key) : [...folded.value, key]
+  remember('officehub-nav-folded', folded.value)
+}
+
+function onDocumentClick(event: MouseEvent) {
+  const target = event.target as Node
+  if (moreOpen.value && !morePanel.value?.contains(target) && !moreButton.value?.contains(target)) moreOpen.value = false
 }
 
 function toggleTheme() {
@@ -65,6 +115,11 @@ function onGlobalKeydown(event: KeyboardEvent) {
     menuOpen.value = false
     return
   }
+  if (event.key === 'Escape' && moreOpen.value) {
+    moreOpen.value = false
+    moreButton.value?.focus()
+    return
+  }
   if (searchOpen.value || document.querySelector('[aria-modal="true"]')) return
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
@@ -77,11 +132,13 @@ function onGlobalKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
+  document.addEventListener('click', onDocumentClick)
   startSummary()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  document.removeEventListener('click', onDocumentClick)
   stopSummary()
 })
 
@@ -98,6 +155,7 @@ watch(
   () => route.fullPath,
   () => {
     refreshSummary()
+    moreOpen.value = false
     if (menuOpen.value) {
       // Focus moves to the new page content instead (see router.afterEach).
       closedByNavigation = true
@@ -109,7 +167,7 @@ watch(
 
 <template>
   <a href="#main" class="skip-link">{{ t('app.skipToContent') }}</a>
-  <div class="shell">
+  <div class="shell" :class="{ compact: compact && !menuOpen }">
     <div v-if="menuOpen" class="drawer-backdrop" @click="menuOpen = false" />
 
     <aside
@@ -128,12 +186,78 @@ watch(
         <button v-if="menuOpen" type="button" class="btn btn-ghost btn-icon" :aria-label="t('app.closeMenu')" @click="menuOpen = false">
           <AppIcon name="close" />
         </button>
+        <button
+          v-else
+          type="button"
+          class="btn btn-ghost btn-icon collapse-btn desktop-only"
+          :aria-label="compact ? t('nav.expand') : t('nav.collapse')"
+          :title="compact ? t('nav.expand') : t('nav.collapse')"
+          :aria-pressed="compact"
+          @click="toggleCompact"
+        >
+          <AppIcon :name="compact ? 'chevronRight' : 'chevronLeft'" :size="18" />
+        </button>
       </div>
 
-      <nav class="nav" :aria-label="t('nav.main')">
+      <!-- Slim icon bar: the everyday tools, everything else under "More" -->
+      <nav v-if="compact && !menuOpen" class="rail" :aria-label="t('nav.main')">
+        <ul class="rail-list">
+          <li v-for="item in dailyItems" :key="item.to">
+            <RouterLink :to="item.to" class="rail-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+              <span class="rail-icon">
+                <AppIcon :name="item.icon" />
+                <span v-if="item.count" class="rail-badge">{{ item.count > 99 ? '99+' : item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+              </span>
+              <span class="rail-label">{{ item.label }}</span>
+            </RouterLink>
+          </li>
+          <li>
+            <button ref="moreButton" type="button" class="rail-link" :class="{ active: moreActive || moreOpen }" aria-haspopup="true" :aria-expanded="moreOpen" aria-controls="nav-more" @click="moreOpen = !moreOpen">
+              <span class="rail-icon">
+                <AppIcon name="dots" />
+                <span v-if="moreCount" class="rail-badge">{{ moreCount > 99 ? '99+' : moreCount }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+              </span>
+              <span class="rail-label">{{ t('nav.more') }}</span>
+            </button>
+          </li>
+        </ul>
+        <div v-if="moreOpen" id="nav-more" ref="morePanel" class="more-panel">
+          <template v-for="group in otherGroups" :key="group.key">
+            <p class="nav-heading">{{ group.label }}</p>
+            <ul class="nav-list">
+              <li v-for="item in group.items" :key="item.to">
+                <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+                  <AppIcon :name="item.icon" />
+                  <span class="grow">{{ item.label }}</span>
+                  <span v-if="item.count" class="count-badge">{{ item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+                </RouterLink>
+              </li>
+            </ul>
+          </template>
+          <template v-if="quickLinks.length">
+            <p class="nav-heading">{{ t('nav.moreTools') }}</p>
+            <ul class="nav-list">
+              <li v-for="link in quickLinks" :key="link.id">
+                <a :href="link.url" target="_blank" rel="noopener noreferrer" class="nav-link">
+                  <AppIcon :name="link.icon" />
+                  <span class="grow">{{ link.title }}</span>
+                  <AppIcon name="external" :size="16" :label="t('nav.opensNewTab')" />
+                </a>
+              </li>
+            </ul>
+          </template>
+        </div>
+      </nav>
+
+      <nav v-else class="nav" :aria-label="t('nav.main')">
         <template v-for="group in navGroups" :key="group.key">
-          <p v-if="group.label" :id="`nav-${group.key}`" class="nav-heading">{{ group.label }}</p>
-          <ul class="nav-list" :aria-labelledby="group.label ? `nav-${group.key}` : undefined">
+          <p v-if="group.label && !group.collapsible" :id="`nav-${group.key}`" class="nav-heading">{{ group.label }}</p>
+          <p v-else-if="group.label" :id="`nav-${group.key}`" class="nav-heading">
+            <button type="button" class="fold" :aria-expanded="!isFolded(group)" :aria-controls="`navlist-${group.key}`" @click="toggleGroup(group.key)">
+              {{ group.label }}<AppIcon :name="isFolded(group) ? 'chevronRight' : 'chevronDown'" :size="14" />
+            </button>
+          </p>
+          <ul v-show="!isFolded(group)" :id="`navlist-${group.key}`" class="nav-list" :aria-labelledby="group.label ? `nav-${group.key}` : undefined">
             <li v-for="item in group.items" :key="item.to">
               <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
                 <AppIcon :name="item.icon" />
@@ -179,13 +303,13 @@ watch(
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
             {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
           </button>
-          <button v-if="canInstall" type="button" class="btn btn-ghost nav-action" @click="installApp">
+          <button v-if="canInstall" type="button" class="btn btn-ghost nav-action" :title="t('app.install')" @click="installApp">
             <AppIcon name="download" />
-            {{ t('app.install') }}
+            <span class="action-label">{{ t('app.install') }}</span>
           </button>
-          <button type="button" class="btn btn-ghost nav-action" @click="logout">
+          <button type="button" class="btn btn-ghost nav-action" :title="t('app.signOut')" @click="logout">
             <AppIcon name="logout" />
-            {{ t('app.signOut') }}
+            <span class="action-label">{{ t('app.signOut') }}</span>
           </button>
           <RouterLink v-if="publicConfig?.version" to="/whats-new" class="version">
             {{ t('nav.whatsNew', { version: publicConfig.version }) }}
@@ -568,6 +692,162 @@ watch(
 
 .drawer-backdrop {
   display: none;
+}
+
+/* ---------- Foldable groups ---------- */
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.fold:hover {
+  color: var(--color-text);
+}
+
+.collapse-btn {
+  flex: none;
+  color: var(--color-text-subtle);
+}
+
+/* ---------- Slim icon bar (like Teams) ---------- */
+
+.shell.compact {
+  --sidebar-width: 84px;
+}
+
+.compact .sidebar {
+  align-items: center;
+  padding: var(--space-3) var(--space-2) var(--space-4);
+  overflow: visible;
+}
+
+.compact .sidebar-top {
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-3);
+}
+
+.compact .brand-text,
+.compact .who-text,
+.compact .action-label,
+.compact .version {
+  display: none;
+}
+
+.compact .who,
+.compact .nav-action {
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+.rail {
+  position: relative;
+  flex: 1;
+  width: 100%;
+}
+
+.rail-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-link {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2) 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rail-link:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.rail-link.active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-weight: 600;
+}
+
+.rail-link.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-primary);
+}
+
+.rail-icon {
+  position: relative;
+  display: grid;
+}
+
+.rail-badge {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--color-badge);
+  color: var(--color-on-badge);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.rail-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-panel {
+  position: absolute;
+  z-index: calc(var(--z-drawer) + 1);
+  top: 0;
+  left: calc(100% + var(--space-3));
+  width: 260px;
+  max-height: calc(100vh - var(--header-height) - var(--space-4));
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.more-panel .nav-heading:first-child {
+  margin-top: var(--space-2);
 }
 
 @media (max-width: 899px) {

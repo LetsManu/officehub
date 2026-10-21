@@ -56,7 +56,11 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   home office, equipment, expenses with receipt, IT access, appointments and general requests; comments and history
 - Documents with full-text search, plus a private **For you** tab for payslips and certificates from HR
 - Announcements with must-read confirmation and small polls
-- **Team calendar** with vacation, home office, public holidays, events and opt-in birthdays (iCal export)
+- Menu ordered like Teams/Outlook (everyday tools on top, foldable groups) that turns into a slim icon bar, an
+  **Activity** feed and a **Files** page with recent files from all spaces
+- **Calendar** like Outlook: day, work week, week and month with my meetings, room bookings, time off, holidays and
+  events; click or drag into free time to plan a meeting; plus the **team calendar** with vacation, home office,
+  public holidays, events and opt-in birthdays (iCal export)
 - **People** directory, org chart and phone list with profile photos
 - **Rooms, desks and parking** booking (meeting rooms by time, desks and parking by half or whole day)
 - Visitors, employee reviews, onboarding checklists

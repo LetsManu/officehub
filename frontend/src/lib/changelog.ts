@@ -9,6 +9,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.4.0',
+    date: '2026-10-21',
+    de: [
+      'Neues Menü wie in Teams und Outlook: oben die Werkzeuge für jeden Tag, darunter „Mein Arbeitstag“, „Firma“ und „Büro“. Mit dem Pfeil wird es zur schmalen Symbolleiste.',
+      'Neuer Kalender wie in Outlook: Tag, Arbeitswoche, Woche und Monat mit deinen Meetings, Raumbuchungen, Urlaub und Feiertagen. In freie Zeit klicken oder ziehen plant ein Meeting.',
+      '„Aktivität“ zeigt alles, was für dich passiert ist. „Dateien“ zeigt die zuletzt geänderten Dateien aus allen deinen Bereichen.',
+      'Ohne https:// erklärt das Meeting jetzt, warum Kamera und Mikrofon fehlen – beitreten geht trotzdem.',
+    ],
+    en: [
+      'New menu like in Teams and Outlook: the everyday tools at the top, then "My working day", "Company" and "Office". The arrow turns it into a slim icon bar.',
+      'New calendar like in Outlook: day, work week, week and month with your meetings, room bookings, time off and holidays. Click or drag into free time to plan a meeting.',
+      '"Activity" shows everything that happened for you. "Files" shows the recently changed files from all your spaces.',
+      'Without https:// the meeting now explains why camera and microphone are missing – you can still join.',
+    ],
+  },
+  {
     version: '3.3.0',
     date: '2026-10-21',
     de: [
