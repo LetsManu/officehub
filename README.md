@@ -265,24 +265,11 @@ For a real deployment: serve over HTTPS, use strong admin passwords, keep the ho
 
 ## Backup and restore
 
-All data lives in the Docker volume `officehub_officehub-data` (`officehub.db` plus the `uploads/` folder).
-
-```bash
-# Backup (writes officehub-backup-YYYY-MM-DD.tar.gz to the current folder)
-docker compose stop backend
-docker run --rm -v officehub_officehub-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/officehub-backup-$(date +%F).tar.gz -C /data .
-docker compose start backend
-
-# Restore
-docker compose stop backend
-docker run --rm -v officehub_officehub-data:/data -v "$PWD":/backup alpine \
-  sh -c "rm -rf /data/* && tar xzf /backup/officehub-backup-YYYY-MM-DD.tar.gz -C /data"
-docker compose start backend
-```
-
-Stopping the backend for a moment guarantees a consistent SQLite file. Schedule the backup command
-(for example nightly with cron) and keep copies on another machine.
+OfficeHub makes a backup every night: database and files in one `.tar.gz` in the backup folder (`BACKUP_DIR`,
+in the stack a volume of its own, or a NAS share via `BACKUP_PATH`). The newest 14 are kept. **Administration →
+Backups** shows the last result and can back up now, download and restore (the current state is backed up first).
+The archive holds `officehub.db`, `uploads/` and `manifest.json`, so it can also be unpacked by hand into the data
+volume while the backend is stopped.
 
 ## Roadmap
 

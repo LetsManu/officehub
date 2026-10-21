@@ -11,6 +11,7 @@ services:
         required: false
     environment:
       DATA_DIR: /data
+      BACKUP_DIR: /backups
       DEMO_MODE: ${DEMO_MODE:-true}
       DEMO_LANGUAGE: ${DEMO_LANGUAGE:-de}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -41,6 +42,9 @@ services:
       ICE_PASSWORD: ${ICE_PASSWORD:-}
     volumes:
       - officehub-data:/data
+      # Nightly backups (Administration → Backups). Set BACKUP_PATH to a folder or NAS share on the server to keep
+      # them off the data volume, e.g. BACKUP_PATH=/mnt/nas/officehub-backups
+      - ${BACKUP_PATH:-officehub-backups}:/backups
       - shared:/shared
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -174,6 +178,7 @@ services:
 volumes:
   # Holds the SQLite database (officehub.db) and uploaded files (uploads/).
   officehub-data:
+  officehub-backups:
   onlyoffice-data:
   # Passwords OfficeHub makes on its first start for the office and meeting servers
   shared:

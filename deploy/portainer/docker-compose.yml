@@ -8,6 +8,7 @@ services:
     restart: unless-stopped
     environment:
       DATA_DIR: /data
+      BACKUP_DIR: /backups
       DEMO_MODE: ${DEMO_MODE:-false}
       DEMO_LANGUAGE: ${DEMO_LANGUAGE:-de}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -39,6 +40,9 @@ services:
     volumes:
       # SQLite database (officehub.db) and uploaded files (uploads/)
       - officehub-data:/data
+      # Nightly backups (Administration → Backups). Set BACKUP_PATH to a folder or NAS share on the server to keep
+      # them off the data volume, e.g. BACKUP_PATH=/mnt/nas/officehub-backups
+      - ${BACKUP_PATH:-officehub-backups}:/backups
       - shared:/shared
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
@@ -176,6 +180,7 @@ services:
 
 volumes:
   officehub-data:
+  officehub-backups:
   onlyoffice-data:
   # Passwords OfficeHub makes on its first start for the office and meeting servers
   shared:

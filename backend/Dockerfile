@@ -18,8 +18,8 @@ RUN pip install -r requirements.txt
 
 # Run as an unprivileged user that owns only the data folder.
 RUN useradd --system --uid 1000 --create-home officehub \
-    && mkdir -p /data /shared \
-    && chown officehub:officehub /data /shared
+    && mkdir -p /data /shared /backups \
+    && chown officehub:officehub /data /shared /backups
 
 COPY app ./app
 

@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.6.0',
+    date: '2026-10-21',
+    de: [
+      'Automatische Sicherung jede Nacht: Datenbank und alle Dateien. Unter „Administration → Sicherungen“ siehst du, ob sie geklappt hat, kannst sofort sichern, herunterladen oder einen früheren Stand zurückholen.',
+    ],
+    en: [
+      'Automatic backup every night: database and all files. Under "Administration → Backups" you see whether it worked, can back up now, download or bring back an earlier state.',
+    ],
+  },
+  {
     version: '3.4.0',
     date: '2026-10-21',
     de: [
