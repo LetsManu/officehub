@@ -876,6 +876,10 @@ const de = {
     connecting: 'Verbinde mit dem Meeting …',
     connectFailed: 'Die Verbindung zum Meeting hat nicht geklappt. Bitte versuche es noch einmal.',
     libraryMissing: 'Der Meeting-Server antwortet gerade nicht. Bitte versuche es später noch einmal.',
+    media: {
+      insecure: 'Kamera und Mikrofon gehen nur, wenn das Portal mit https:// geöffnet ist. Du kannst trotzdem beitreten, zuhören und zusehen.',
+      blocked: 'Kamera und Mikrofon konnten nicht gestartet werden. Erlaube den Zugriff im Browser (Schloss-Symbol neben der Adresse) und lade die Seite neu – oder tritt ohne bei.',
+    },
     duration: 'Dauer',
     controls: 'Steuerung',
     mute: 'Stumm',

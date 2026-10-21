@@ -57,7 +57,9 @@ export class RtcTrack {
 
 /** Camera and/or microphone; falls back to the microphone alone, then nothing. */
 export async function createRtcTracks(devices: Kind[], ids: { camera?: string; mic?: string } = {}): Promise<RtcTrack[]> {
-  const ask = (audio: boolean, video: boolean) =>
+  // Browsers only offer camera and microphone on https:// pages (and localhost)
+  if (!navigator.mediaDevices?.getUserMedia) return []
+  const ask = async (audio: boolean, video: boolean) =>
     navigator.mediaDevices.getUserMedia({
       audio: audio ? (ids.mic ? { deviceId: { exact: ids.mic }, echoCancellation: true } : { echoCancellation: true }) : false,
       video: video ? { ...(ids.camera ? { deviceId: { exact: ids.camera } } : {}), width: { ideal: 1280 }, height: { ideal: 720 } } : false,
