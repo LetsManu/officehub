@@ -10,7 +10,7 @@ import { errorText, t } from '@/lib/i18n'
 import { currentUser } from '@/lib/session'
 import type { DirectoryEntry, MeetingDetail, Space } from '@/lib/types'
 
-const props = defineProps<{ open: boolean; meeting?: MeetingDetail | null; spaceId?: number | null }>()
+const props = defineProps<{ open: boolean; meeting?: MeetingDetail | null; spaceId?: number | null; start?: Date | null; end?: Date | null }>()
 const emit = defineEmits<{ close: []; saved: [meeting: MeetingDetail] }>()
 
 const people = ref<DirectoryEntry[]>([])
@@ -46,11 +46,12 @@ function reset() {
     const s = localParts(new Date(m.starts_at))
     Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link })
   } else {
-    // Next full half hour, for one hour
-    const start = new Date()
-    start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0)
+    // The time chosen in the calendar, otherwise the next full half hour, for one hour
+    const start = props.start ? new Date(props.start) : new Date()
+    if (!props.start) start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0)
+    const end = props.end ?? new Date(start.getTime() + 3600_000)
     const s = localParts(start)
-    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(new Date(start.getTime() + 3600_000)).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false })
+    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false })
   }
 }
 

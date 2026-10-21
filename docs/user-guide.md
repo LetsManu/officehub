@@ -26,6 +26,19 @@ OfficeHub then opens in its own window like a normal program.
 
 ---
 
+## The menu
+
+The menu on the left is ordered like Teams and Outlook:
+
+- At the top, the everyday tools: **Home**, **Activity** (everything that happened for you), **Chat**,
+  **Calendar**, **Spaces**, **Tasks** and **Files** (recently changed files from all your spaces).
+- **My working day**: time tracking, requests & time off, planning, trainings and employee reviews.
+- **Company** and **Office**: news, documents, people, surveys, ideas, help, rooms and visitors. Click a heading to
+  fold it away; it opens by itself when you are on one of its pages.
+
+The arrow next to the company name makes the menu slim, like the bar in Teams: only the everyday tools with small
+labels, everything else under **More**. OfficeHub remembers your choice.
+
 ## The home page
 
 The home page is your starting page. It shows:
@@ -58,11 +71,15 @@ profile), work anniversaries and new colleagues.
 
 ---
 
-## Team calendar
+## Calendar
 
-**Team calendar** shows a month with vacation, working from home, events and birthdays. Choose a department to
+**Calendar** works like Outlook. **My calendar** shows your meetings, room bookings, your vacation and home office
+days, public holidays and company events – by **day**, **work week**, **week** or **month**. Click or drag into free
+time to plan a meeting there; click an entry to open it. A meeting that is about to start has a **Join** button.
+Striped entries are not confirmed yet (a meeting you have not answered, time off that is still requested).
+
+**Team** shows a month with everyone's vacation, working from home, events and birthdays. Choose a department to
 see only your team. **Add to calendar (.ics)** downloads the month for Outlook, Thunderbird or your phone.
-On a phone the calendar is shown as a list.
 
 ## Help & FAQ
 
@@ -255,7 +272,8 @@ downloaded and uploaded again.
 
 ## Meetings and calls
 
-Open **Meetings** in the menu. Video and sound stay inside the company; nothing is recorded.
+Plan meetings in the **Calendar** (or see them as a list with **Meetings as a list**). Video and sound stay inside
+the company; nothing is recorded.
 
 - **Plan a meeting**: give it a title, day and time, and pick who is joining. Everyone invited gets a notification
   and a calendar invitation by e-mail. Choose a space to save the notes in its wiki later.

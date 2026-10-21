@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, select
@@ -455,6 +455,22 @@ def new_file(space_id: int, body: NewFileIn, user: CurrentUser, db: DB) -> FileO
     add_version(db, item, template_bytes(body.kind) or f"# {base}\n".encode(), user, "new")
     db.commit()
     return _file_out(item)
+
+
+class RecentFile(FileOut):
+    space_name: str
+
+
+@router.get("/files/recent", response_model=list[RecentFile])
+def recent_files(user: CurrentUser, db: DB, limit: int = Query(30, ge=1, le=100)) -> list[RecentFile]:
+    """Files changed last in all my spaces – the "Files" page, like in Teams."""
+    rows = db.execute(
+        select(SpaceFile, Space.name).join(Space, Space.id == SpaceFile.space_id)
+        .join(SpaceMember, (SpaceMember.space_id == Space.id) & (SpaceMember.user_id == user.id))
+        .where(SpaceFile.deleted_at.is_(None))
+        .order_by(SpaceFile.updated_at.desc()).limit(limit)
+    ).all()
+    return [RecentFile(**_file_out(f).model_dump(), space_name=name) for f, name in rows]
 
 
 @router.get("/files/{file_id}", response_model=FileDetail)
