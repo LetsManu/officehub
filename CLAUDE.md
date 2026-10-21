@@ -37,7 +37,7 @@ desktop notifications use the browser's Notification API only (no outside push s
 - Every UI string goes through `t('…')` in **both** `de.ts` and `en.ts`. Use plain, friendly
   language without technical terms (see `docs/ui-guidelines.md` → Writing).
 - Show user content with `{{ }}` interpolation only. `v-html` is allowed only with
-  `renderMarkdown()` from `src/lib/markdown.ts`, which escapes HTML first.
+  `renderMarkdown()` / `renderChat()` from `src/lib/markdown.ts`, which escape HTML first.
 - API errors return `{ detail, code, field? }`. Add a translation for new codes under
   `errors.*` or `validation.*`.
 - Use the SQLAlchemy ORM / bound parameters; never build SQL strings.

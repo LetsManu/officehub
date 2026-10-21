@@ -10,6 +10,7 @@ import { ApiError, api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { listDevices, previewTracks as makePreview, useMeeting, type JoinInfo, type MeetingMode, type Tile } from '@/lib/meeting'
 import { renderMarkdown } from '@/lib/markdown'
+import { setActivity } from '@/lib/summary'
 import { showToast } from '@/lib/toast'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet tracks */
@@ -26,6 +27,8 @@ const emit = defineEmits<{ left: [] }>()
 
 const meeting = useMeeting()
 const phase = ref<'prejoin' | 'room' | 'ended'>('prejoin')
+// Others see "in a meeting" next to my name while I am in the room (not for guests: they have no account)
+watch(() => phase.value === 'room', (inRoom) => !props.guest && setActivity(inRoom ? `meeting:${props.meetingId}` : ''))
 const preview = ref<HTMLVideoElement | null>(null)
 const previewTracks = ref<any[]>([])
 const prefs = reactive({ mic: true, cam: true, camera: '', micId: '' })
@@ -258,6 +261,7 @@ onBeforeUnmount(() => {
   window.clearInterval(ticker)
   for (const track of previewTracks.value) track.dispose?.()
   if (phase.value === 'room') hangUp()
+  if (!props.guest) setActivity('')
 })
 </script>
 

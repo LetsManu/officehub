@@ -9,7 +9,8 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..models import Meeting, MeetingInvitee, MeetingPresence, Request, User, utcnow
+from ..models import Meeting, MeetingInvitee, MeetingPresence, Request, SpaceFile, SpaceMember, User, utcnow
+from .meetings import can_join
 from .recurrence import occurrences
 
 MANUAL = ("auto", "available", "busy", "dnd", "away", "offline")
@@ -48,8 +49,30 @@ def _busy_by_calendar(db: Session, ids: list[int], now: datetime) -> set[int]:
     return busy
 
 
-def states(db: Session, ids: list[int]) -> dict[int, dict]:
-    """{user id: {"state": ..., "text": ...}} for many people at once."""
+def _activity(db: Session, viewer: User | None, code: str) -> dict | None:
+    """What someone is doing, like Discord's rich presence – details only for people who may see them."""
+    kind, _, ref = code.partition(":")
+    if not ref.isdigit():
+        return None
+    if kind == "file":
+        item = db.get(SpaceFile, int(ref))
+        if item is None or item.deleted_at is not None:
+            return None
+        visible = viewer is not None and db.scalar(select(SpaceMember.id).where(
+            SpaceMember.space_id == item.space_id, SpaceMember.user_id == viewer.id)) is not None
+        return {"kind": "editing", "label": item.name if visible else "", "link": f"/office/{item.id}" if visible else ""}
+    if kind == "meeting":
+        meeting = db.get(Meeting, int(ref))
+        if meeting is None:
+            return None
+        visible = viewer is not None and can_join(db, viewer, meeting)
+        return {"kind": "meeting", "label": meeting.title if visible and meeting.kind != "call" else "",
+                "link": f"/meetings/{meeting.id}/room" if visible and meeting.kind == "space" else ""}
+    return None
+
+
+def states(db: Session, ids: list[int], viewer: User | None = None) -> dict[int, dict]:
+    """{user id: {"state": ..., "text": ..., "activity": ...}} for many people at once."""
     users = list(db.scalars(select(User).where(User.id.in_(ids), User.is_active.is_(True))))
     if not users:
         return {}
@@ -75,9 +98,11 @@ def states(db: Session, ids: list[int]) -> dict[int, dict]:
             state = "away"
         else:
             state = "available"
-        out[u.id] = {"state": state, "text": u.status_text, "manual": u.presence}
+        shown = state not in ("offline", "ooo") and u.activity
+        out[u.id] = {"state": state, "text": u.status_text, "manual": u.presence,
+                     "activity": _activity(db, viewer, u.activity) if shown else None}
     return out
 
 
 def state_of(db: Session, user: User) -> dict:
-    return states(db, [user.id]).get(user.id, {"state": "offline", "text": "", "manual": "auto"})
+    return states(db, [user.id], user).get(user.id, {"state": "offline", "text": "", "manual": "auto", "activity": None})

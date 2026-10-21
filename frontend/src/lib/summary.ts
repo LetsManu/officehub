@@ -9,7 +9,7 @@ import { api } from './api'
 import { chime, notifyDesktop } from './desktop'
 import { t } from './i18n'
 import { notificationText } from './notifications'
-import { setMyPresence } from './presence'
+import { myActivity, setMyPresence } from './presence'
 import { currentUser } from './session'
 import type { AppNotification, Conversation, NotificationList, Summary } from './types'
 
@@ -38,7 +38,10 @@ export async function refreshSummary(force = false): Promise<void> {
   const idle = Date.now() - lastInput > IDLE_MS
   try {
     const before = summary.value
-    const next = await api.get<Summary>(`/api/me/summary${idle ? '?idle=true' : ''}`)
+    const params = new URLSearchParams()
+    if (idle) params.set('idle', 'true')
+    if (myActivity.value) params.set('activity', myActivity.value)
+    const next = await api.get<Summary>(`/api/me/summary${params.size ? `?${params}` : ''}`)
     summary.value = next
     if (next.presence) setMyPresence(next.presence, currentUser.value?.id)
     if (primed) {
@@ -115,4 +118,11 @@ export function stopSummary(): void {
   summary.value = { ...EMPTY }
   lastLoad = 0
   primed = false
+}
+
+/** Tell the others right away what I am doing now (not only at the next regular check). */
+export function setActivity(code: string) {
+  if (myActivity.value === code) return
+  myActivity.value = code
+  refreshSummary(true)
 }

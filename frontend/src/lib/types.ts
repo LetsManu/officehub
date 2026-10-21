@@ -782,6 +782,8 @@ export interface Conversation {
   other: UserBrief | null
   unread: number
   last: { body: string; author: string | null; at: string; call?: boolean } | null
+  notify?: 'all' | 'mentions' | 'none'
+  muted?: boolean
 }
 
 export interface ChatMessage {
@@ -794,6 +796,15 @@ export interface ChatMessage {
   deleted: boolean
   mine: boolean
   meeting?: { id: number; active: boolean } | null
+  kind?: 'text' | 'poll' | 'voice'
+  parent_id?: number | null
+  reply_count?: number
+  last_reply_at?: string | null
+  reply_people?: string[]
+  pinned?: boolean
+  reactions?: { emoji: string; count: number; mine: boolean; names: string[] }[]
+  poll?: { options: { id: number; text: string; votes: number; mine: boolean; voters: string[] }[]; multi: boolean; closed: boolean; total: number } | null
+  audio_seconds?: number | null
 }
 
 export interface ChatPage {
@@ -801,6 +812,17 @@ export interface ChatPage {
   messages: ChatMessage[]
   members: UserBrief[]
   has_more: boolean
+  changed?: ChatMessage[]
+  server_time?: string
+}
+
+/** What can be done with a message in a thread (handled by the conversation). */
+export type MessageAction = 'react' | 'vote' | 'closePoll' | 'edit' | 'remove'
+
+export interface ChatThread {
+  parent: ChatMessage
+  replies: ChatMessage[]
+  server_time: string
 }
 
 export interface WikiPageSummary {
@@ -898,4 +920,5 @@ export interface Presence {
   state: PresenceState
   text: string
   manual: ManualPresence
+  activity?: { kind: 'editing' | 'meeting'; label: string; link: string } | null
 }

@@ -91,7 +91,7 @@ def test_presence_follows_activity_and_own_choice(anna, lukas):
     mine = lukas.put("/api/me/presence", json={"presence": "dnd", "status_text": "Fokuszeit bis 11"}).json()
     assert mine["state"] == "dnd"
     other = anna.get(f"/api/presence?ids={lukas_id}").json()[str(lukas_id)]
-    assert other == {"state": "dnd", "text": "Fokuszeit bis 11", "manual": "dnd"}
+    assert other == {"state": "dnd", "text": "Fokuszeit bis 11", "manual": "dnd", "activity": None}
     lukas.put("/api/me/presence", json={"presence": "offline"})
     assert anna.get(f"/api/presence?ids={lukas_id}").json()[str(lukas_id)]["state"] == "offline"
 

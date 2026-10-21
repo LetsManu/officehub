@@ -11,6 +11,7 @@ import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { loadOfficeConfig } from '@/lib/spaces'
 import type { OfficeConfig, OfficeOpen, SpaceFileDetail } from '@/lib/types'
+import { setActivity } from '@/lib/summary'
 
 declare global {
   interface Window {
@@ -111,6 +112,7 @@ onMounted(async () => {
       return
     }
     await start()
+    setActivity(`file:${props.id}`)
   } catch (e) {
     loading.value = false
     error.value = errorText(e)
@@ -120,6 +122,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
   editor?.destroyEditor()
+  setActivity('')
 })
 </script>
 

@@ -20,6 +20,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Benachrichtigungen am Bildschirm mit Ton für Nachrichten, Anrufe und Meetings – auch wenn OfficeHub im Hintergrund offen ist.',
       'Serientermine (täglich, werktags, wöchentlich …) und eine Erinnerung 10 Minuten vor jedem Meeting.',
       'Beim Planen siehst du, wann die anderen frei sind – „Nächste freie Zeit“ findet einen passenden Termin.',
+      'Chat wie in Discord: Antworten im Thread, Reaktionen mit Emojis, angeheftete Nachrichten und Formatierung (fett, Listen, Code).',
+      'Umfragen und Sprachnachrichten direkt im Chat. Mit „/“ erreichst du Befehle wie /umfrage, /anruf oder /status.',
+      'Pro Unterhaltung einstellen, wann du benachrichtigt wirst, oder sie stummschalten. „Aktivität → Erwähnungen“ sammelt, wo du erwähnt wurdest.',
+      'Kolleginnen und Kollegen sehen, woran du gerade arbeitest – z. B. „Bearbeitet gerade Budget.xlsx“ oder „In der Besprechung …“.',
     ],
     en: [
       'New menu like in Teams and Outlook: the everyday tools at the top, then "My working day", "Company" and "Office". The arrow turns it into a slim icon bar.',
@@ -30,6 +34,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Notifications on the screen with a sound for messages, calls and meetings – also while OfficeHub is open in the background.',
       'Recurring meetings (daily, weekdays, weekly …) and a reminder 10 minutes before every meeting.',
       'While planning you see when the others are free – "Next free time" finds a slot that suits everyone.',
+      'Chat like in Discord: replies in threads, emoji reactions, pinned messages and formatting (bold, lists, code).',
+      'Polls and voice messages right in the chat. Type "/" for commands like /poll, /call or /status.',
+      'Choose per conversation when you are notified, or mute it. "Activity → Mentions" collects where you were mentioned.',
+      'Colleagues see what you are working on – e.g. "Editing Budget.xlsx" or "In the meeting …".',
     ],
   },
   {

@@ -5,12 +5,15 @@
 
 import { reactive, ref } from 'vue'
 import { api } from './api'
+import { t } from './i18n'
 import type { ManualPresence, Presence } from './types'
 
 export type { ManualPresence, Presence, PresenceState } from './types'
 
 const POLL_MS = 30_000
 export const presence = reactive(new Map<number, Presence>())
+/** What I am doing in OfficeHub right now ("file:12" while editing, "meeting:4" while in a meeting). */
+export const myActivity = ref('')
 /** My own presence, from the regular summary request. */
 export const myPresence = ref<Presence>({ state: 'available', text: '', manual: 'auto' })
 const watched = new Map<number, number>()
@@ -56,4 +59,12 @@ export function setMyPresence(value: Presence, myId: number | undefined) {
 
 export async function changeMyPresence(manual: ManualPresence, text: string, myId: number | undefined) {
   setMyPresence(await api.put<Presence>('/api/me/presence', { presence: manual, status_text: text }), myId)
+}
+
+/** "Editing Budget.xlsx", "In a meeting: Weekly" – what someone is doing right now, when they share it. */
+export function activityText(value: Presence | undefined): string {
+  const a = value?.activity
+  if (!a) return ''
+  if (a.kind === 'editing') return a.label ? t('presence.activity.editingFile', { name: a.label }) : t('presence.activity.editing')
+  return a.label ? t('presence.activity.meetingNamed', { name: a.label }) : t('presence.activity.meeting')
 }

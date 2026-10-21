@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { escapeHtml, renderMarkdown } from '../src/lib/markdown'
+import { escapeHtml, renderChat, renderMarkdown } from '../src/lib/markdown'
+import { parseSlash, slashMatches } from '../src/lib/slash'
 import { countWorkingDays } from '../src/lib/workdays'
 
 describe('countWorkingDays', () => {
@@ -38,5 +39,36 @@ describe('renderMarkdown', () => {
 
   it('escapeHtml escapes quotes', () => {
     expect(escapeHtml(`"'<>&`)).toBe('&quot;&#39;&lt;&gt;&amp;')
+  })
+})
+
+describe('renderChat', () => {
+  it('escapes HTML and keeps line breaks', () => {
+    const html = renderChat('<img src=x onerror=alert(1)>\n**fett** ~~weg~~')
+    expect(html).not.toContain('<img')
+    expect(html).toContain('<br>')
+    expect(html).toContain('<strong>fett</strong>')
+    expect(html).toContain('<s>weg</s>')
+  })
+
+  it('formats code blocks, links and mentions', () => {
+    const html = renderChat('Hallo @Anna Beispiel, siehe https://intranet.example/x.\n```\n<b>code</b>\n```', ['Anna Beispiel'])
+    expect(html).toContain('<span class="mention">@Anna Beispiel</span>')
+    expect(html).toContain('<a href="https://intranet.example/x"')
+    expect(html).toContain('<pre><code>&lt;b&gt;code&lt;/b&gt;</code></pre>')
+  })
+})
+
+describe('slash commands', () => {
+  it('suggests commands while typing', () => {
+    expect(slashMatches('/umf').map((c) => c.name)).toEqual(['umfrage'])
+    expect(slashMatches('/poll').map((c) => c.name)).toEqual(['umfrage'])
+    expect(slashMatches('hallo /umf')).toEqual([])
+  })
+
+  it('reads the command and the rest', () => {
+    expect(parseSlash('/status Beim Kunden')).toMatchObject({ command: { name: 'status' }, rest: 'Beim Kunden' })
+    expect(parseSlash('/dnd')?.command.name).toBe('nichtstoeren')
+    expect(parseSlash('/gibtsnicht')).toBeNull()
   })
 })

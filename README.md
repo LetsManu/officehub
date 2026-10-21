@@ -42,7 +42,8 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   - **Files** with folders, versions, a 30-day trash and preview; Word, Excel and PowerPoint files are edited together
     in the browser with **Collabora Online** (runs in the same stack and switches itself on; **ONLYOFFICE** optional)
   - a **task board** (Kanban) with assignees, due dates, labels and comments, plus "My tasks" across all spaces
-  - **chat** channels with @mentions and file sharing, and direct messages between two people
+  - **chat** channels with @mentions and file sharing, and direct messages between two people – with threads,
+    reactions, pins, formatting, polls, voice messages, "/" commands and notification settings per conversation
   - a **wiki** with page history, "who is editing" and protection against overwriting each other's changes
   - a standing **meeting room** with a live "who is in it" count
 - **Meetings and calls** with OfficeHub's own interface and nothing to set up: built in, browsers connect directly

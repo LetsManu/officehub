@@ -20,6 +20,8 @@ export const NOTIFICATION_ICONS: Record<string, string> = {
   meeting_cancelled: 'calendar',
   call_missed: 'phone',
   meeting_reminder: 'calendar',
+  chat_mention: 'at',
+  chat_reply: 'message',
 }
 
 export function notificationText(item: AppNotification): string {

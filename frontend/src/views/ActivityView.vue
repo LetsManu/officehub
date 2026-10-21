@@ -16,11 +16,16 @@ import type { AppNotification, NotificationList } from '@/lib/types'
 
 const router = useRouter()
 const items = ref<AppNotification[]>([])
-const onlyUnread = ref(false)
+const show = ref<'all' | 'unread' | 'mentions'>('all')
+const MENTIONS = ['chat_mention', 'chat_reply', 'card_comment', 'request_comment']
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-const shown = computed(() => (onlyUnread.value ? items.value.filter((i) => !i.read) : items.value))
+const shown = computed(() => {
+  if (show.value === 'unread') return items.value.filter((i) => !i.read)
+  if (show.value === 'mentions') return items.value.filter((i) => MENTIONS.includes(i.kind))
+  return items.value
+})
 const days = computed(() => {
   const out: { day: string; items: AppNotification[] }[] = []
   for (const item of shown.value) {
@@ -74,8 +79,9 @@ onMounted(load)
     <DesktopSettings v-if="desktopSupported && !desktopPrefs.desktop" compact />
 
     <div class="segmented switch" role="group" :aria-label="t('activity.title')">
-      <button type="button" :aria-pressed="!onlyUnread" @click="onlyUnread = false">{{ t('activity.all') }}</button>
-      <button type="button" :aria-pressed="onlyUnread" @click="onlyUnread = true">{{ t('notifications.unread') }}<template v-if="summary.unread"> ({{ summary.unread }})</template></button>
+      <button type="button" :aria-pressed="show === 'all'" @click="show = 'all'">{{ t('activity.all') }}</button>
+      <button type="button" :aria-pressed="show === 'mentions'" @click="show = 'mentions'">{{ t('activity.mentions') }}</button>
+      <button type="button" :aria-pressed="show === 'unread'" @click="show = 'unread'">{{ t('notifications.unread') }}<template v-if="summary.unread"> ({{ summary.unread }})</template></button>
     </div>
 
     <LoadState :loading="loading" :error="error" @retry="load">
@@ -97,7 +103,7 @@ onMounted(load)
         </section>
       </div>
       <section v-else class="card">
-        <EmptyState icon="bell" :message="onlyUnread ? t('activity.noneUnread') : t('notifications.empty')" />
+        <EmptyState icon="bell" :message="show === 'unread' ? t('activity.noneUnread') : show === 'mentions' ? t('activity.noMentions') : t('notifications.empty')" />
       </section>
     </LoadState>
   </div>

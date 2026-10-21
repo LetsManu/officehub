@@ -42,7 +42,27 @@ Your picture at the top right shows a coloured dot, like in Teams: **Available**
 meeting** (red), **Do not disturb** (red with a line), **Away** (yellow), **Out of office** (purple) or **Offline**.
 OfficeHub sets it by itself from your calendar, your meetings and calls, your approved vacation and whether you are at
 the computer. Click your picture to choose a status yourself and add a short message, e.g. "Focus time until 11".
-Colleagues see the dot in the chat, on the people page and in meetings.
+Colleagues see the dot in the chat, on the people page and in meetings. While you edit a document or sit in a
+meeting, colleagues also see that ("Editing Budget.xlsx", "In the meeting Weekly") – the name only if they may see
+that document or meeting themselves.
+
+### More in the chat
+
+- **Formatting**: `**bold**`, `*italic*`, `~~crossed out~~`, `` `code` `` and ```` ``` ```` around a block of code.
+  Lines starting with `-` become a list, links become clickable.
+- **Reactions**: point at a message and pick 👍, ❤️, 😂 or **+** for more. Click a reaction to add or remove yours.
+- **Threads**: **Reply in thread** keeps a side conversation next to the chat. The message shows how many replies
+  there are; everyone who wrote in the thread is told about new replies.
+- **Pin**: the pin symbol keeps important messages; the pin at the top lists them all.
+- **Polls**: type `/poll` (or `/umfrage`) and a question – add two to ten answers. Results are shown live; the person
+  who asked can close the poll.
+- **Voice messages**: when the box is empty, the microphone records up to 5 minutes. Click **Send** when you are done.
+  (Needs the portal opened with https.)
+- **Commands**: type **/** to see shortcuts: `/call`, `/meeting`, `/status Back at 2`, `/dnd`, `/away`, `/available`,
+  `/vacation`, `/remote`, `/room`, `/task`.
+- **Notifications per conversation**: the bell at the top chooses **All messages**, **Only when I am mentioned** or
+  **None**, and can mute a conversation for an hour, 8 hours, a day or a week.
+- **Activity → Mentions** lists where someone mentioned you or replied to you.
 
 ### Notifications on the computer
 
@@ -269,6 +289,7 @@ with **New space** (you become its manager). Each space has these tabs:
   card and choose the column. **My tasks** in the menu lists every card you are responsible for.
 - **Chat**: talk with everyone in the space. Type **@** to mention someone – they get a notification. The paper clip
   shares a file (it is saved in the space's files). **Chat** in the menu also has **direct messages** with one person.
+  See [More in the chat](#more-in-the-chat) for threads, reactions, polls and voice messages.
 - **Wiki**: pages for things everyone should know. Click **Edit**, write (with a preview next to it) and **Save**.
   If a colleague is editing the same page you see their name; if they saved in the meantime, OfficeHub asks which
   version should stay, so nothing is lost. **History** shows and restores earlier versions.
