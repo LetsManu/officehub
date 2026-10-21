@@ -1,5 +1,8 @@
 <script setup lang="ts">
-/** Plan a meeting or change one: title, time, who is invited, optional space and guests from outside. */
+/**
+ * Plan a meeting or change one: title, time (also as a series), who is invited – with their free and busy
+ * times like the scheduling assistant in Outlook – optional space and guests from outside.
+ */
 import { computed, reactive, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
 import BaseModal from './BaseModal.vue'
@@ -8,7 +11,8 @@ import UserAvatar from './UserAvatar.vue'
 import { ApiError, api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { currentUser } from '@/lib/session'
-import type { DirectoryEntry, MeetingDetail, Space } from '@/lib/types'
+import { showToast } from '@/lib/toast'
+import type { DirectoryEntry, MeetingDetail, Recurrence, Space } from '@/lib/types'
 
 const props = defineProps<{ open: boolean; meeting?: MeetingDetail | null; spaceId?: number | null; start?: Date | null; end?: Date | null }>()
 const emit = defineEmits<{ close: []; saved: [meeting: MeetingDetail] }>()
@@ -17,7 +21,8 @@ const people = ref<DirectoryEntry[]>([])
 const spaces = ref<Space[]>([])
 const search = ref('')
 const busy = ref(false)
-const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false })
+const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false, recurrence: '' as Recurrence, until: '' })
+const RECURRENCES: Recurrence[] = ['', 'daily', 'weekdays', 'weekly', 'biweekly', 'monthly']
 const errors = reactive<Record<string, string>>({})
 
 const editing = computed(() => !!props.meeting)
@@ -44,14 +49,14 @@ function reset() {
   const m = props.meeting
   if (m?.starts_at && m.ends_at) {
     const s = localParts(new Date(m.starts_at))
-    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link })
+    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link, recurrence: m.recurrence ?? '', until: m.recurrence_until ?? '' })
   } else {
     // The time chosen in the calendar, otherwise the next full half hour, for one hour
     const start = props.start ? new Date(props.start) : new Date()
     if (!props.start) start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0)
     const end = props.end ?? new Date(start.getTime() + 3600_000)
     const s = localParts(start)
-    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false })
+    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false, recurrence: '', until: '' })
   }
 }
 
@@ -86,19 +91,123 @@ async function save() {
   if (end <= start) end.setDate(end.getDate() + 1) // goes past midnight
   busy.value = true
   try {
-    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests }
+    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests, recurrence: form.recurrence, recurrence_until: form.recurrence && form.until ? form.until : null }
     const saved = editing.value ? await api.put<MeetingDetail>(`/api/meetings/${props.meeting!.id}`, body) : await api.post<MeetingDetail>('/api/meetings', body)
     emit('saved', saved)
   } catch (e) {
     const field = e instanceof ApiError ? e.field : undefined
-    errors[field && ['title', 'starts_at', 'ends_at'].includes(field) ? field : 'form'] = errorText(e)
+    errors[field && ['title', 'starts_at', 'ends_at', 'recurrence_until'].includes(field) ? field : 'form'] = errorText(e)
   } finally {
     busy.value = false
   }
 }
 
+// ---------- free and busy times of everyone invited (like the scheduling assistant in Outlook) ----------
+
+interface Busy {
+  start: string
+  end: string
+  kind: string
+}
+
+const DAY_FROM = 7
+const DAY_TO = 19
+const busyTimes = ref<Record<string, Busy[]>>({})
+const busyFor = ref('')
+let busyTimer: number | undefined
+
+const rows = computed(() => {
+  const me = currentUser.value
+  const list = [...(me ? [{ id: me.id, full_name: me.full_name, photo_version: me.photo_version ?? null }] : []), ...chosen.value]
+  return list.map((p) => ({ person: p, blocks: blocksOn(busyTimes.value[String(p.id)] ?? [], form.day) }))
+})
+
+function minutesOf(d: Date) {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+/** Busy blocks on one day as percentages of the shown hours. */
+function blocksOn(list: Busy[], day: string) {
+  if (!day) return []
+  const from = new Date(`${day}T00:00`)
+  const to = new Date(from.getTime() + 86_400_000)
+  const span = (DAY_TO - DAY_FROM) * 60
+  return list
+    .map((b) => ({ s: new Date(b.start), e: new Date(b.end), kind: b.kind }))
+    .filter((b) => b.s < to && b.e > from)
+    .map((b) => {
+      const s = Math.max(DAY_FROM * 60, b.s < from ? 0 : minutesOf(b.s))
+      const e = Math.min(DAY_TO * 60, b.e >= to ? 24 * 60 : minutesOf(b.e))
+      return { left: ((s - DAY_FROM * 60) / span) * 100, width: (Math.max(0, e - s) / span) * 100, kind: b.kind }
+    })
+    .filter((b) => b.width > 0)
+}
+
+const slot = computed(() => {
+  if (!form.from || !form.to) return null
+  const [fh, fm] = form.from.split(':').map(Number)
+  const [th, tm] = form.to.split(':').map(Number)
+  const span = (DAY_TO - DAY_FROM) * 60
+  const s = Math.max(0, fh * 60 + fm - DAY_FROM * 60)
+  const e = Math.min(span, th * 60 + tm - DAY_FROM * 60)
+  return e > s ? { left: (s / span) * 100, width: ((e - s) / span) * 100 } : null
+})
+
+const conflict = computed(() => !!slot.value && rows.value.some((r) => r.blocks.some((b) => b.left < slot.value!.left + slot.value!.width && b.left + b.width > slot.value!.left)))
+
+async function loadBusy() {
+  const me = currentUser.value?.id
+  if (!form.day || !me) return
+  const ids = [me, ...form.invitees]
+  const key = `${ids.join(',')}@${form.day}`
+  if (key === busyFor.value) return
+  const end = new Date(`${form.day}T00:00`)
+  end.setDate(end.getDate() + 14)
+  const endIso = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+  try {
+    busyTimes.value = await api.get<Record<string, Busy[]>>(`/api/calendar/busy?ids=${ids.join(',')}&start=${form.day}&end=${endIso}`)
+    busyFor.value = key
+  } catch {
+    /* planning works without it */
+  }
+}
+
+/** The next time (from the chosen start, working days 8–18) when everyone is free for the same length. */
+function findNext() {
+  const [fh, fm] = form.from.split(':').map(Number)
+  const [th, tm] = form.to.split(':').map(Number)
+  const length = Math.max(15, th * 60 + tm - (fh * 60 + fm))
+  const all = Object.values(busyTimes.value).flat().map((b) => [new Date(b.start).getTime(), new Date(b.end).getTime()])
+  const start = new Date(`${form.day}T${form.from}`)
+  start.setMinutes(start.getMinutes() + 30 - (start.getMinutes() % 30))
+  for (let tries = 0; tries < 14 * 48; tries++, start.setMinutes(start.getMinutes() + 30)) {
+    const day = start.getDay()
+    const minute = start.getHours() * 60 + start.getMinutes()
+    if (day === 0 || day === 6 || minute < 8 * 60 || minute + length > 18 * 60) continue
+    const s = start.getTime()
+    const e = s + length * 60_000
+    if (all.some(([bs, be]) => bs < e && be > s)) continue
+    const pad = (n: number) => String(n).padStart(2, '0')
+    form.day = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`
+    form.from = `${pad(start.getHours())}:${pad(start.getMinutes())}`
+    const end = new Date(e)
+    form.to = `${pad(end.getHours())}:${pad(end.getMinutes())}`
+    return
+  }
+  showToast(t('meetings.noFreeTime'), 'info')
+}
+
+watch(() => [props.open, form.day, form.invitees.length] as const, ([open]) => {
+  if (!open) return
+  window.clearTimeout(busyTimer)
+  busyTimer = window.setTimeout(loadBusy, 250)
+})
+
+const hourMarks = Array.from({ length: DAY_TO - DAY_FROM + 1 }, (_, i) => DAY_FROM + i)
+
 watch(() => props.open, (open) => {
   if (!open) return
+  busyFor.value = ''
   reset()
   loadLists()
 }, { immediate: true })
@@ -140,6 +249,41 @@ watch(() => props.open, (open) => {
           </ul>
         </div>
       </div>
+
+      <div class="times series">
+        <FormField id="mf-repeat" :label="t('meetings.fields.repeat')">
+          <template #default="{ attrs }">
+            <select v-bind="attrs" v-model="form.recurrence" class="select">
+              <option v-for="r in RECURRENCES" :key="r" :value="r">{{ t(`meetings.repeat.${r || 'none'}`) }}</option>
+            </select>
+          </template>
+        </FormField>
+        <FormField v-if="form.recurrence" id="mf-until" :label="t('meetings.fields.until')" :error="errors.recurrence_until" optional>
+          <template #default="{ attrs }"><input v-bind="attrs" v-model="form.until" class="input" type="date" :min="form.day" /></template>
+        </FormField>
+      </div>
+
+      <section v-if="form.day" class="assistant" :aria-label="t('meetings.availability')">
+        <div class="assistant-head">
+          <p class="label">{{ t('meetings.availability') }}</p>
+          <button type="button" class="btn btn-ghost" @click="findNext"><AppIcon name="search" :size="16" />{{ t('meetings.findTime') }}</button>
+        </div>
+        <div class="scale" aria-hidden="true">
+          <span class="who-col" />
+          <span class="track"><span v-for="h in hourMarks" :key="h" class="mark" :style="{ left: `${((h - DAY_FROM) / (DAY_TO - DAY_FROM)) * 100}%` }">{{ h }}</span></span>
+        </div>
+        <ul class="people-rows">
+          <li v-for="r in rows" :key="r.person.id" class="prow">
+            <span class="who-col"><UserAvatar :id="r.person.id" :name="r.person.full_name" :photo-version="r.person.photo_version" :size="22" status /><span class="pname">{{ r.person.full_name }}</span></span>
+            <span class="track">
+              <span v-if="slot" class="chosen" :class="{ clash: conflict }" :style="{ left: `${slot.left}%`, width: `${slot.width}%` }" />
+              <span v-for="(b, i) in r.blocks" :key="i" class="busy-block" :class="`b-${b.kind}`" :style="{ left: `${b.left}%`, width: `${b.width}%` }" />
+              <span class="visually-hidden">{{ r.blocks.length ? t('meetings.busyCount', { n: r.blocks.length }) : t('meetings.allFree') }}</span>
+            </span>
+          </li>
+        </ul>
+        <p class="small" :class="conflict ? 'warn' : 'muted'" role="status">{{ conflict ? t('meetings.clash') : t('meetings.everyoneFree') }}</p>
+      </section>
 
       <div v-if="spaces.length && !editing" class="space-row">
         <FormField id="mf-space" :label="t('meetings.fields.space')" :hint="t('meetings.fields.spaceHint')" optional>
@@ -257,6 +401,127 @@ watch(() => props.open, (open) => {
 
 .matches .muted {
   margin-left: auto;
+}
+
+.series {
+  grid-template-columns: 1fr 1fr;
+}
+
+.assistant {
+  display: grid;
+  gap: 6px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.assistant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.assistant-head .label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.scale,
+.prow {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.people-rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.who-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.pname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  position: relative;
+  height: 22px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(to right, var(--color-surface) 0 calc(100% / 12 - 1px), var(--color-border) calc(100% / 12 - 1px) calc(100% / 12));
+}
+
+.scale .track {
+  height: 16px;
+  background: none;
+}
+
+.mark {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--color-text-subtle);
+  font-size: 0.68rem;
+}
+
+.busy-block {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 3px;
+  background: #64748b;
+}
+
+.b-away {
+  background: #9333ea;
+}
+
+.b-booking {
+  background: #0f766e;
+}
+
+.chosen {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--color-primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+.chosen.clash {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+.warn {
+  margin: 0;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.assistant .muted {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .scale,
+  .prow {
+    grid-template-columns: 90px 1fr;
+  }
 }
 
 .space-row {

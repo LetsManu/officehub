@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import LoadState from '@/components/LoadState.vue'
@@ -15,6 +15,8 @@ import type { MeetingDetail } from '@/lib/types'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
+const route = useRoute()
+const cancelScope = ref<'one' | 'all'>('one')
 const meeting = ref<MeetingDetail | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -23,13 +25,44 @@ const cancelOpen = ref(false)
 const busy = ref(false)
 let timer: number | undefined
 
-const when = computed(() => {
+function localIso(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** For a series: the meeting opened from the calendar (?occurrence=day), otherwise the next one. */
+const shown = computed(() => {
   const m = meeting.value
-  if (!m?.starts_at) return ''
-  const clock = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) : '')
-  return `${formatDateLong(m.starts_at)}, ${clock(m.starts_at)} – ${clock(m.ends_at)}`
+  if (!m?.starts_at || !m.ends_at) return null
+  if (!m.recurrence) return { start: new Date(m.starts_at), end: new Date(m.ends_at) }
+  const length = new Date(m.ends_at).getTime() - new Date(m.starts_at).getTime()
+  const asked = typeof route.query.occurrence === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.occurrence) ? route.query.occurrence : null
+  if (asked) {
+    const first = new Date(m.starts_at)
+    const start = new Date(`${asked}T00:00`)
+    start.setHours(first.getHours(), first.getMinutes())
+    return { start, end: new Date(start.getTime() + length) }
+  }
+  return m.next_start && m.next_end ? { start: new Date(m.next_start), end: new Date(m.next_end) } : { start: new Date(m.starts_at), end: new Date(m.ends_at) }
 })
-const isPast = computed(() => !!meeting.value?.ends_at && new Date(meeting.value.ends_at).getTime() < Date.now())
+
+const when = computed(() => {
+  const s = shown.value
+  if (!s) return ''
+  const clock = (d: Date) => d.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
+  return `${formatDateLong(s.start.toISOString())}, ${clock(s.start)} – ${clock(s.end)}`
+})
+const seriesText = computed(() => {
+  const m = meeting.value
+  if (!m?.recurrence) return ''
+  const rule = t(`meetings.repeat.${m.recurrence}`)
+  return m.recurrence_until ? t('meetings.seriesUntil', { rule, date: formatDateLong(m.recurrence_until) }) : rule
+})
+const isPast = computed(() => {
+  const m = meeting.value
+  if (!m?.ends_at) return false
+  if (m.recurrence) return !m.next_start
+  return new Date(m.ends_at).getTime() < Date.now()
+})
 
 async function load() {
   error.value = null
@@ -54,8 +87,10 @@ async function respond(response: 'accepted' | 'declined') {
 async function cancelMeeting() {
   busy.value = true
   try {
-    await api.delete(`/api/meetings/${props.id}`)
+    const one = meeting.value?.recurrence && cancelScope.value === 'one' && shown.value
+    await api.delete(`/api/meetings/${props.id}${one ? `?occurrence=${localIso(shown.value!.start)}` : ''}`)
     cancelOpen.value = false
+    if (one) router.replace({ query: {} })
     showToast(t('meetings.cancelledToast'))
     await load()
   } catch (e) {
@@ -115,6 +150,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
             <RouterLink v-if="!meeting.cancelled" :to="`/meetings/${meeting.id}/room`" class="btn btn-primary"><AppIcon name="video" />{{ meeting.live.length ? t('meetings.joinLive', { n: meeting.live.length }) : t('meetings.join') }}</RouterLink>
           </template>
         </PageHeader>
+        <p v-if="seriesText" class="series-note"><AppIcon name="history" :size="16" />{{ t('meetings.repeats', { rule: seriesText }) }}</p>
 
         <p v-if="meeting.cancelled" class="notice notice-danger">{{ t('meetings.cancelledNotice') }}</p>
 
@@ -155,7 +191,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
                   <span v-if="meeting.live.some((p) => p.id === meeting!.organizer!.id)" class="live-dot" :title="t('meetings.inMeeting')" />
                 </li>
                 <li v-for="p in meeting.invitees" :key="p.person.id" class="person">
-                  <UserAvatar :id="p.person.id" :name="p.person.full_name" :photo-version="p.person.photo_version" :size="32" />
+                  <UserAvatar :id="p.person.id" :name="p.person.full_name" :photo-version="p.person.photo_version" :size="32" status />
                   <span class="who"><strong>{{ p.person.full_name }}</strong><span class="muted small">{{ p.person.department }}</span></span>
                   <span v-if="meeting.live.some((l) => l.id === p.person.id)" class="live-dot" :title="t('meetings.inMeeting')" />
                   <span class="answer-tag" :class="p.response">{{ t(`meetings.responses.${p.response}`) }}</span>
@@ -178,7 +214,13 @@ onBeforeUnmount(() => window.clearInterval(timer))
         </div>
 
         <MeetingForm :open="editOpen" :meeting="meeting" @close="editOpen = false" @saved="saved" />
-        <BaseModal :open="cancelOpen" :title="t('meetings.cancelTitle', { title: meeting.title })" :description="t('meetings.cancelText')" :confirm-label="t('meetings.cancel')" tone="danger" :busy="busy" @close="cancelOpen = false" @confirm="cancelMeeting" />
+        <BaseModal :open="cancelOpen" :title="t('meetings.cancelTitle', { title: meeting.title })" :description="t('meetings.cancelText')" :confirm-label="t('meetings.cancel')" tone="danger" :busy="busy" @close="cancelOpen = false" @confirm="cancelMeeting">
+          <fieldset v-if="meeting.recurrence && shown" class="scope">
+            <legend class="visually-hidden">{{ t('meetings.cancelWhich') }}</legend>
+            <label class="radio"><input v-model="cancelScope" type="radio" value="one" /> {{ t('meetings.cancelOne', { date: formatDateLong(shown.start.toISOString()) }) }}</label>
+            <label class="radio"><input v-model="cancelScope" type="radio" value="all" /> {{ t('meetings.cancelSeries') }}</label>
+          </fieldset>
+        </BaseModal>
       </template>
     </LoadState>
   </div>
@@ -257,6 +299,22 @@ onBeforeUnmount(() => window.clearInterval(timer))
   place-items: center;
   border-radius: 50%;
   background: var(--color-neutral-soft);
+}
+
+.series-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.scope {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .answer-tag {

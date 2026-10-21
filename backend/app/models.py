@@ -65,6 +65,11 @@ class User(Base):
     recovery_codes: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))
     # E-mail copies of important notifications
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    # Presence like in Teams: "auto" follows calendar, meetings and activity; or a status chosen by the person
+    presence: Mapped[str] = mapped_column(String(12), default="auto", server_default=text("'auto'"))
+    status_text: Mapped[str] = mapped_column(String(120), default="", server_default=text("''"))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # an open portal reports in
+    idle: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     # Last working day once offboarding has started
     last_day: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -964,6 +969,10 @@ class Meeting(Base):
     notes_version: Mapped[int] = mapped_column(Integer, default=0)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime)  # calls only
+    # Series: "", daily, weekdays, weekly, biweekly, monthly – until a last day (local date), without skipped days
+    recurrence: Mapped[str] = mapped_column(String(10), default="", server_default=text("''"))
+    recurrence_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    skipped: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))  # comma-separated YYYY-MM-DD
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     organizer: Mapped[User | None] = relationship()
@@ -997,6 +1006,18 @@ class MeetingPresence(Base):
     seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     user: Mapped[User | None] = relationship()
+
+
+class MeetingReminder(Base):
+    """A reminder was sent for one occurrence of a meeting to one person (so it is sent once)."""
+
+    __tablename__ = "meeting_reminders"
+    __table_args__ = (UniqueConstraint("meeting_id", "user_id", "occurrence"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    occurrence: Mapped[datetime] = mapped_column(DateTime)
 
 
 class MeetingGuest(Base):

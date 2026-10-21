@@ -158,7 +158,7 @@ onMounted(() => {
         <ul v-if="view === 'list'" class="people-grid">
           <li v-for="person in people" :key="person.id" class="card person">
             <div class="person-head">
-              <UserAvatar :id="person.id" :name="person.full_name" :photo-version="person.photo_version" :size="48" />
+              <UserAvatar :id="person.id" :name="person.full_name" :photo-version="person.photo_version" :size="48" status />
               <div class="person-names">
                 <p class="person-name">{{ person.full_name }}</p>
                 <p class="muted small">{{ person.job_title }}<template v-if="person.job_title && person.department"> · </template>{{ person.department }}</p>

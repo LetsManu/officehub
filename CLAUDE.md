@@ -7,6 +7,8 @@ company's own Collabora/ONLYOFFICE containers in the same stack, never a cloud s
 in (WebRTC between browsers, signalling via `/api/rtc`, no outside STUN) and use the company's own Jitsi containers
 when they run (OfficeHub's own UI via lib-jitsi-meet, never meet.jit.si). Nothing may need manual setup: optional
 servers are detected (`services/probe.py`) and shared passwords are generated (`config._shared_secret`).
+Presence (`services/presence.py`) and meeting reminders come with the `/api/me/summary` heartbeat (every 30 s);
+desktop notifications use the browser's Notification API only (no outside push service). Series: `services/recurrence.py`.
 
 ## Layout
 

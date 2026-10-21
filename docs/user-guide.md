@@ -36,6 +36,20 @@ The menu on the left is ordered like Teams and Outlook:
 - **Company** and **Office**: news, documents, people, surveys, ideas, help, rooms and visitors. Click a heading to
   fold it away; it opens by itself when you are on one of its pages.
 
+### Your status
+
+Your picture at the top right shows a coloured dot, like in Teams: **Available** (green), **Busy** or **In a
+meeting** (red), **Do not disturb** (red with a line), **Away** (yellow), **Out of office** (purple) or **Offline**.
+OfficeHub sets it by itself from your calendar, your meetings and calls, your approved vacation and whether you are at
+the computer. Click your picture to choose a status yourself and add a short message, e.g. "Focus time until 11".
+Colleagues see the dot in the chat, on the people page and in meetings.
+
+### Notifications on the computer
+
+Under **Profile → Notifications on the computer** (or on the **Activity** page) switch on pop-ups and a soft sound
+for new messages, mentions, calls and meeting reminders. They also appear while OfficeHub is only open in the
+background. With **Do not disturb** there are no sounds and no pop-ups.
+
 The arrow next to the company name makes the menu slim, like the bar in Teams: only the everyday tools with small
 labels, everything else under **More**. OfficeHub remembers your choice.
 
@@ -275,8 +289,13 @@ downloaded and uploaded again.
 Plan meetings in the **Calendar** (or see them as a list with **Meetings as a list**). Video and sound stay inside
 the company; nothing is recorded.
 
-- **Plan a meeting**: give it a title, day and time, and pick who is joining. Everyone invited gets a notification
-  and a calendar invitation by e-mail. Choose a space to save the notes in its wiki later.
+- **Plan a meeting**: give it a title, day and time, and pick who is joining. **Availability** shows when everyone is
+  busy that day (without saying what they do); **Next free time** finds the next slot of the same length that suits
+  everyone. **Repeat** makes it a series (daily, weekdays, weekly, every 2 weeks, monthly, optionally until a day).
+  To cancel only one meeting of a series, open it from the calendar and choose **Only the meeting on …**.
+  Everyone invited gets a notification and a calendar invitation by e-mail. Choose a space to save the notes in its
+  wiki later.
+- **Reminders**: 10 minutes before a meeting a reminder with a **Join** button appears at the bottom right.
 - **Accept or decline** on the meeting page or in the list. **Add to my calendar** downloads the appointment.
 - **Meet now** starts a meeting right away – copy the guest link or invite people from the meeting.
 - **Join**: first you see yourself and can switch camera and microphone on or off. Click **Join now**.

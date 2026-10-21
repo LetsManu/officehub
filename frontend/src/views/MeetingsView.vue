@@ -35,7 +35,7 @@ async function load() {
 const days = computed(() => {
   const out: { day: string; items: Meeting[] }[] = []
   for (const m of meetings.value) {
-    const day = new Date(m.starts_at ?? '').toDateString()
+    const day = new Date(m.next_start ?? m.starts_at ?? '').toDateString()
     const group = out.at(-1)
     if (group && group.day === day) group.items.push(m)
     else out.push({ day, items: [m] })
@@ -49,7 +49,9 @@ function clock(iso: string | null) {
 
 function isNow(m: Meeting) {
   const now = Date.now()
-  return !m.cancelled && !!m.starts_at && !!m.ends_at && new Date(m.starts_at).getTime() - 10 * 60_000 <= now && new Date(m.ends_at).getTime() >= now
+  const start = m.next_start ?? m.starts_at
+  const end = m.next_end ?? m.ends_at
+  return !m.cancelled && !!start && !!end && new Date(start).getTime() - 10 * 60_000 <= now && new Date(end).getTime() >= now
 }
 
 async function respond(m: Meeting, response: 'accepted' | 'declined') {
@@ -104,15 +106,15 @@ onMounted(load)
     <LoadState :loading="loading" :error="error" @retry="load">
       <div v-if="days.length" class="days">
         <section v-for="d in days" :key="d.day" class="card card-flush">
-          <h2 class="h3 day">{{ formatDateLong(d.items[0].starts_at) }}</h2>
+          <h2 class="h3 day">{{ formatDateLong(d.items[0].next_start ?? d.items[0].starts_at) }}</h2>
           <ul class="list">
             <li v-for="m in d.items" :key="m.id" class="row" :class="{ cancelled: m.cancelled }">
               <span class="when">
-                <strong>{{ clock(m.starts_at) }}</strong>
-                <span class="muted small">{{ clock(m.ends_at) }}</span>
+                <strong>{{ clock(m.next_start ?? m.starts_at) }}</strong>
+                <span class="muted small">{{ clock(m.next_end ?? m.ends_at) }}</span>
               </span>
               <RouterLink :to="`/meetings/${m.id}`" class="what">
-                <span class="name">{{ m.title }}</span>
+                <span class="name">{{ m.title }}<AppIcon v-if="m.recurrence" name="history" :size="14" class="series" :label="t(`meetings.repeat.${m.recurrence}`)" /></span>
                 <span class="muted small">
                   <template v-if="m.cancelled">{{ t('meetings.cancelled') }}</template>
                   <template v-else>
@@ -164,7 +166,13 @@ onMounted(load)
   padding: var(--space-3) var(--space-5);
 }
 
-.row.cancelled .name {
+.row.cancelled .series {
+  margin-left: 6px;
+  color: var(--color-text-muted);
+  vertical-align: -2px;
+}
+
+.name {
   text-decoration: line-through;
 }
 

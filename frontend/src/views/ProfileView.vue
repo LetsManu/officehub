@@ -4,6 +4,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import FormField from '@/components/FormField.vue'
 import PhotoPicker from '@/components/PhotoPicker.vue'
 import DeputySettings from '@/components/DeputySettings.vue'
+import DesktopSettings from '@/components/DesktopSettings.vue'
 import MyEquipment from '@/components/MyEquipment.vue'
 import TwoFactorSettings from '@/components/TwoFactorSettings.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -220,6 +221,8 @@ async function changePassword() {
       <h2 id="sec-title">{{ t('security.title') }}</h2>
       <TwoFactorSettings />
     </section>
+
+    <DesktopSettings />
 
     <section class="card stack" aria-labelledby="notify-title">
       <h2 id="notify-title">{{ t('profile.notificationsTitle') }}</h2>
