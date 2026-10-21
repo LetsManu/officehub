@@ -308,7 +308,7 @@ downloaded and uploaded again.
 ## Meetings and calls
 
 Plan meetings in the **Calendar** (or see them as a list with **Meetings as a list**). Video and sound stay inside
-the company; nothing is recorded.
+the company; nothing is recorded unless someone in the meeting starts a recording (everyone sees it).
 
 - **Plan a meeting**: give it a title, day and time, and pick who is joining. **Availability** shows when everyone is
   busy that day (without saying what they do); **Next free time** finds the next slot of the same length that suits
@@ -319,10 +319,31 @@ the company; nothing is recorded.
 - **Reminders**: 10 minutes before a meeting a reminder with a **Join** button appears at the bottom right.
 - **Accept or decline** on the meeting page or in the list. **Add to my calendar** downloads the appointment.
 - **Meet now** starts a meeting right away – copy the guest link or invite people from the meeting.
-- **Join**: first you see yourself and can switch camera and microphone on or off. Click **Join now**.
-- In the meeting: **Mute**, **Camera off**, **Share screen**, **Raise hand**, a **chat** just for this meeting,
-  **People** (who is there) and **Notes** that everyone from the company can write together. Keys: **M** for the
-  microphone, **V** for the camera.
+- **Join**: first you see yourself and can switch camera and microphone on or off. The bar under **Microphone test**
+  moves when you speak; **Play a test sound** checks your loudspeaker or headset (choose it under **Speaker**).
+  Click **Join now**.
+- In the meeting: **Mute**, **Camera off**, **Share screen**, **React** (👍 ❤️ 😂 👏 🎉 😮 float over your picture),
+  **Raise hand**, a **chat** just for this meeting, **People** (who is there), the **Whiteboard** everyone can draw
+  on (save it as a picture) and under **More**: **Gallery** or **Speaker** view, **Picture in picture** (the video
+  stays on top while you work in another program), **Recording**, **Breakout rooms**, **Notes** that everyone from the
+  company can write together, and **Audio settings** (reduce background noise, hold the space bar to talk).
+  Keys: **M** for the microphone, **V** for the camera. The pin on a picture keeps that person large – only for you.
+- **Recording**: the recording is made in your browser and downloaded as a video file when you stop; in a space
+  meeting you can also save it to the space's files. Everyone in the meeting sees "Being recorded by …" – please ask
+  first.
+
+### Leading a meeting
+
+The organizer of a planned meeting leads it (in space rooms and calls everyone with an account does). In **People**
+they can **Mute everyone**, mute or **Remove** one person (they cannot come back to this meeting), **Lower hand** and
+**Highlight for everyone** – then everyone sees that person large.
+
+- **Breakout rooms** (under **More**): choose how many rooms and for how long, **Spread evenly** or pick a room per
+  person, then **Open rooms**. Everyone moves to their room by themselves; the lead can **Visit** every room. When the
+  time is up or the lead clicks **Close rooms**, everyone comes back.
+- **Town hall**: tick **Town hall (large audience)** when planning. Only the lead and the people they **Bring on
+  stage** speak and are seen; everyone else watches, reacts, chats and can raise a hand. Built in, up to 30 people can
+  take part; with the company's Jitsi server more.
 
 ### Calling a colleague
 

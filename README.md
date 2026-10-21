@@ -47,10 +47,13 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   - a **wiki** with page history, "who is editing" and protection against overwriting each other's changes
   - a standing **meeting room** with a live "who is in it" count
 - **Meetings and calls** with OfficeHub's own interface and nothing to set up: built in, browsers connect directly
-  (calls and meetings up to 8 people); an optional **Jitsi** server in the same stack takes over larger meetings by
-  itself. Plan meetings with invitations and calendar files (.ics), accept or decline, call a colleague from the
-  people page or a chat (their portal rings), screen sharing, raise hand, meeting chat, shared notes that can be saved
-  to a space's wiki, and guests from outside who wait until someone lets them in
+  (calls and meetings up to 8 people); an optional **Jitsi** server in the same stack takes over by itself: while it
+  runs, every meeting and call goes through it. Plan meetings with invitations and calendar files (.ics), accept or decline, call a colleague from the
+  people page or a chat (their portal rings), screen sharing, raise hand, reactions, meeting chat, shared notes that
+  can be saved to a space's wiki, and guests from outside who wait until someone lets them in. Like Teams and Webex:
+  gallery and speaker view, pin and spotlight, picture-in-picture, a shared whiteboard, recording in the browser,
+  breakout rooms, town halls with a stage, mute everyone and remove people, device test, push to talk and the
+  browser's noise suppression
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),

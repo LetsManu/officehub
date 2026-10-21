@@ -884,6 +884,8 @@ export interface Meeting {
   guest_link: string | null
   live: MeetingParticipant[]
   cancelled: boolean
+  town_hall?: boolean
+  is_moderator?: boolean
 }
 
 export interface MeetingDetail extends Meeting {

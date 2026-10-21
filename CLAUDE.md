@@ -23,6 +23,8 @@ desktop notifications use the browser's Notification API only (no outside push s
     `/office-hooks/*` are only for the office servers inside the Docker network (not proxied by nginx).
   - `app/routers/meetings.py`, `app/services/meetings.py`, `app/routers/rtc.py` – meetings, calls, guests; built-in
     signalling or Jitsi JWTs. Keep these endpoints app-friendly (future Windows/Android apps use them).
+    Moderation (`mod` in the room token: organizer, or everyone in space rooms/calls), reactions and whiteboard go as
+    small "app" messages; breakout rooms (`services/breakouts.py`, `/api/rtc/breakouts`) work with either token kind.
   - `tests/` – pytest, uses demo data; run `python -m pytest -q` in `backend/`.
 - `frontend/` – Vue 3 + Vite + TypeScript, no UI library.
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.
