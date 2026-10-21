@@ -13,6 +13,7 @@ from . import seed
 from .config import settings
 from .db import Base, SessionLocal, add_missing_columns, engine
 from .errors import ApiError
+from .services import sso as sso_service
 from .routers import (
     admin,
     announcements,
@@ -23,6 +24,7 @@ from .routers import (
     calendar,
     chat,
     craft,
+    sso,
     directory,
     documents,
     help,
@@ -134,6 +136,9 @@ def public_config() -> dict:
         "mail_enabled": settings.mail_enabled,
         "meetings_enabled": True,
     }
+    with SessionLocal() as db:
+        if sso_service.enabled(db):
+            config["sso"] = {"label": sso_service.options(db)["label"]}
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
         config["demo_password"] = seed.DEMO_PASSWORD
@@ -179,5 +184,6 @@ for router in (
     office.hooks,
     webdav.router,
     craft.router,
+    sso.router,
 ):
     app.include_router(router)

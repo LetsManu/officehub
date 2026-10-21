@@ -162,6 +162,8 @@ export interface PublicConfig {
   demo_password?: string
   mail_enabled?: boolean
   meetings_enabled?: boolean
+  /** Company login (Authentik, Keycloak …) is set up; label = how HR named it */
+  sso?: { label: string }
 }
 
 export interface DirectoryEntry {

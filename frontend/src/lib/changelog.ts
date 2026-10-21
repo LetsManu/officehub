@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.6.0',
+    date: '2026-10-21',
+    de: [
+      'Firmen-Login: Mit dem Firmenkonto anmelden (z. B. Authentik oder Keycloak). Neue Kolleginnen und Kollegen bekommen beim ersten Anmelden automatisch ein Konto, Rollen kommen auf Wunsch aus den Gruppen.',
+    ],
+    en: [
+      'Company login: sign in with your company account (e.g. Authentik or Keycloak). New colleagues get an account automatically at their first sign-in; roles can come from the groups.',
+    ],
+  },
+  {
     version: '3.4.0',
     date: '2026-10-21',
     de: [

@@ -472,6 +472,8 @@ People with the *Manager* or *HR / Admin* role see an extra **Management** secti
 - **Overview**: open requests, decisions this month, average handling time and approved vacation days this year.
 - **Export approved requests**: choose a type and dates if you like, then click **Download CSV**. The file opens in Excel or LibreOffice.
 - **People** (HR / Admin): add a person with a starting password, change roles or deactivate accounts.
+- **Company login** (HR / Admin): let people sign in with their company account (Authentik, Keycloak …). The panel
+  shows the address to register there; paste server address, client ID and secret. See the deployment guide.
 
 ### Reports
 
