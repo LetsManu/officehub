@@ -6,6 +6,7 @@
 
 import { reactive } from 'vue'
 import { router } from '../router'
+import { appNotify, inApp } from './native'
 import { myPresence } from './presence'
 
 const KEY = 'officehub-desktop'
@@ -78,6 +79,11 @@ export function looking() {
 }
 
 export async function notifyDesktop(n: { title: string; body: string; link?: string; tag: string; sticky?: boolean }) {
+  // In the Windows or Android app: notifications from the system itself (lib/native.ts)
+  if (inApp()) {
+    if (!quiet() && !looking()) appNotify(n)
+    return
+  }
   if (!desktopAllowed() || quiet() || looking()) return
   const options: NotificationOptions = { body: n.body, tag: n.tag, icon: '/icon-192.png', badge: '/icon-192.png', data: { url: n.link ?? '/' }, requireInteraction: !!n.sticky }
   try {

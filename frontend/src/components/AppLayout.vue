@@ -14,9 +14,10 @@ import { canInstall, installApp } from '@/lib/install'
 import { isStandalone, online, reload, updateReady } from '@/lib/pwa'
 import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
-import { t } from '@/lib/i18n'
+import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
+import { appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -31,7 +32,7 @@ const menuButton = ref<HTMLButtonElement | null>(null)
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 // Outside the installed app there is always a way to install it: the browser's own prompt where it offers one,
 // otherwise the steps for this device.
-const showInstall = !isStandalone()
+const showInstall = !isStandalone() && !inApp()
 function install() {
   if (canInstall.value) installApp()
   else router.push('/install')
@@ -148,7 +149,15 @@ const deviceWaiting = computed(
   () => !!device.value && !device.value.pending && (summary.value.devices_pending ?? 0) > 0 && route.path !== '/profile',
 )
 
+// In the Windows / Android app: a click on one of its notifications opens the page here
+const stopAppEvents = onAppEvent((e) => {
+  if (e.navigate?.startsWith('/')) router.push(e.navigate)
+})
+watch(language, () => appTexts())
+
 onMounted(() => {
+  appSignedIn(true)
+  appTexts()
   window.addEventListener('keydown', onGlobalKeydown)
   document.addEventListener('click', onDocumentClick)
   listenForNotificationClicks()
@@ -164,6 +173,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  stopAppEvents()
   window.removeEventListener('keydown', onGlobalKeydown)
   document.removeEventListener('click', onDocumentClick)
   stopSummary()

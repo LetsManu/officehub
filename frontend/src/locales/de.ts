@@ -2537,6 +2537,12 @@ const de = {
     hint: 'Tipp: OfficeHub lässt sich wie eine App installieren – mit eigenem Symbol auf dem Handy oder Computer.',
     how: 'So geht’s',
     later: 'Nicht mehr zeigen',
+    appsTitle: 'OfficeHub-App für Windows und Android',
+    appsText: 'Wie Teams: eigenes Fenster, Mitteilungen und Anrufe auch bei geschlossenem Fenster, Zahl am Symbol, Start mit Windows. Angemeldet bleibst du bis zu 90 Tage.',
+    windowsApp: 'Für Windows herunterladen',
+    androidApp: 'Für Android herunterladen',
+    appsNote: 'Beim ersten Start fragt die App nach der Adresse eures OfficeHub – das ist die Adresse, die du gerade im Browser siehst. Windows warnt beim ersten Mal eventuell („Unbekannter Herausgeber“): „Weitere Informationen“ → „Trotzdem ausführen“. Auf Android musst du das Installieren aus dem Browser einmal erlauben.',
+    browserTitle: 'Ohne Download: aus dem Browser installieren',
     desktop: {
       name: 'Windows / Mac',
       step1: 'Öffne OfficeHub in Chrome oder Microsoft Edge.',

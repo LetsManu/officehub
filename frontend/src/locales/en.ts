@@ -2539,6 +2539,12 @@ const en: Messages = {
     hint: 'Tip: OfficeHub can be installed like an app – with its own icon on your phone or computer.',
     how: 'Show me how',
     later: 'Don’t show again',
+    appsTitle: 'OfficeHub app for Windows and Android',
+    appsText: 'Like Teams: its own window, notifications and calls even when the window is closed, a number on the icon, starts with Windows. You stay signed in for up to 90 days.',
+    windowsApp: 'Download for Windows',
+    androidApp: 'Download for Android',
+    appsNote: 'On first start the app asks for the address of your OfficeHub – the address you see in the browser right now. Windows may warn the first time ("Unknown publisher"): "More info" → "Run anyway". On Android, allow installing from the browser once.',
+    browserTitle: 'Without download: install from the browser',
     desktop: {
       name: 'Windows / Mac',
       step1: 'Open OfficeHub in Chrome or Microsoft Edge.',

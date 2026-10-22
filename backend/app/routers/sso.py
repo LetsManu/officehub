@@ -56,7 +56,7 @@ def sso_callback(request: Request, db: DB, state: str = "", code: str = "", erro
         return _to_login(e.code)
     response = RedirectResponse("/", status_code=303)
     response.delete_cookie(STATE_COOKIE, path="/api/auth/sso")
-    open_session(db, user, response)
+    open_session(db, user, response, request)
     return response
 
 

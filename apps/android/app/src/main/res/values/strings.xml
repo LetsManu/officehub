@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">OfficeHub</string>
+    <string name="connect_title">Welcome to OfficeHub</string>
+    <string name="connect_text">Enter the address of your OfficeHub – the way you open it in the browser.</string>
+    <string name="address">Address</string>
+    <string name="address_hint">portal.company.com</string>
+    <string name="connect">Connect</string>
+    <string name="checking">Checking …</string>
+    <string name="address_invalid">That does not look like an address.</string>
+    <string name="address_unreachable">There is no OfficeHub at this address – or it cannot be reached. Are you on the company network?</string>
+    <string name="call_incoming">is calling …</string>
+    <string name="call_accept">Accept</string>
+    <string name="call_decline">Decline</string>
+</resources>

@@ -5,10 +5,13 @@ import PageHeader from '@/components/PageHeader.vue'
 import { canInstall, installApp } from '@/lib/install'
 import { isStandalone, platform, type Platform } from '@/lib/pwa'
 import { t } from '@/lib/i18n'
+import { inApp } from '@/lib/native'
+import { publicConfig } from '@/lib/session'
 
 const PLATFORMS: Platform[] = ['desktop', 'android', 'ios']
 const chosen = ref<Platform>(platform())
-const installed = isStandalone()
+const installed = isStandalone() || inApp()
+const apps = computed(() => publicConfig.value?.apps)
 const steps = computed(() => [1, 2, 3].map((n) => t(`install.${chosen.value}.step${n}`)))
 </script>
 
@@ -21,7 +24,22 @@ const steps = computed(() => [1, 2, 3].map((n) => t(`install.${chosen.value}.ste
       <span>{{ t('install.already') }}</span>
     </div>
 
-    <section v-else class="card stack">
+    <section v-if="!installed && apps" class="card stack">
+      <h2>{{ t('install.appsTitle') }}</h2>
+      <p class="muted">{{ t('install.appsText') }}</p>
+      <div class="app-downloads">
+        <a class="btn btn-primary" :href="apps.windows" rel="noopener">
+          <AppIcon name="download" />{{ t('install.windowsApp') }}
+        </a>
+        <a class="btn btn-secondary" :href="apps.android" rel="noopener">
+          <AppIcon name="download" />{{ t('install.androidApp') }}
+        </a>
+      </div>
+      <p class="muted small">{{ t('install.appsNote') }}</p>
+    </section>
+
+    <section v-if="!installed" class="card stack">
+      <h2>{{ t('install.browserTitle') }}</h2>
       <div v-if="canInstall" class="notice notice-info one-click">
         <span>{{ t('install.oneClick') }}</span>
         <button type="button" class="btn btn-primary" @click="installApp">
@@ -57,6 +75,12 @@ const steps = computed(() => [1, 2, 3].map((n) => t(`install.${chosen.value}.ste
 <style scoped>
 .install-page {
   max-width: 760px;
+}
+
+.app-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .one-click {

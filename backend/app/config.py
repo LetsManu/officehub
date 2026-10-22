@@ -13,6 +13,17 @@ def _bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _app_download_url() -> str:
+    """The release files of this version (or the newest release for development builds)."""
+    if os.getenv("APP_DOWNLOAD_URL"):
+        return os.environ["APP_DOWNLOAD_URL"].rstrip("/") + "/"
+    version = os.getenv("APP_VERSION", "")
+    base = "https://github.com/LetsManu/officehub/releases"
+    if version.startswith("v") and version.count(".") == 2:
+        return f"{base}/download/{version}/"
+    return f"{base}/latest/download/"
+
+
 def _shared_secret(name: str) -> str | None:
     """A random secret shared with the office and meeting servers of the stack, made on the first start.
 
@@ -49,6 +60,9 @@ class Settings:
     demo_mode: bool
     demo_language: str
     session_hours: int
+    # Where the Windows and Android apps are downloaded (the release they were built with, see apps/)
+    app_download_url: str
+    app_session_days: int  # signed in from the Windows / Android app (stays signed in, like Teams)
     cookie_secure: bool
     max_upload_mb: int
     admin_email: str | None
@@ -102,6 +116,8 @@ def load_settings() -> Settings:
         demo_mode=_bool("DEMO_MODE", False),
         demo_language=language if language in {"de", "en"} else "de",
         session_hours=max(1, _int("SESSION_HOURS", 12)),
+        app_session_days=max(1, _int("APP_SESSION_DAYS", 90)),
+        app_download_url=_app_download_url(),
         cookie_secure=_bool("COOKIE_SECURE", False),
         max_upload_mb=max(1, _int("MAX_UPLOAD_MB", 15)),
         admin_email=os.getenv("ADMIN_EMAIL") or None,

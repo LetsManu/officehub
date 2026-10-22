@@ -1,0 +1,13 @@
+{
+  "name": "officehub-windows",
+  "private": true,
+  "version": "1.0.0",
+  "description": "OfficeHub for Windows: the portal in its own window, like Teams",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}

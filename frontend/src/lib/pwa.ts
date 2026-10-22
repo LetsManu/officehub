@@ -5,6 +5,7 @@
  */
 
 import { ref } from 'vue'
+import { appBadge } from './native'
 
 export type Platform = 'ios' | 'android' | 'desktop'
 
@@ -28,6 +29,7 @@ window.addEventListener('offline', () => (online.value = false))
 
 /** Unread messages and notifications on the app icon (where the system supports it). */
 export function setBadge(count: number): void {
+  appBadge(count)
   const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> }
   if (count > 0) nav.setAppBadge?.(count).catch(() => undefined)
   else nav.clearAppBadge?.().catch(() => undefined)
