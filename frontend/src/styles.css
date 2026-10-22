@@ -776,3 +776,30 @@ kbd {
   background: color-mix(in srgb, var(--pc, var(--color-primary)) 30%, transparent);
   color: #fff;
 }
+
+/* Page changes (router.ts): only the page content moves, menu and top bar stay still */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(page) {
+  animation: 90ms ease-in both page-out;
+}
+
+::view-transition-new(page) {
+  animation: 180ms ease-out both page-in;
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

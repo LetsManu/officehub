@@ -4,6 +4,8 @@
 //! window in `ui/`). The app adds what a browser tab can't: it keeps running in the notification area when the
 //! window is closed, starts with Windows, shows notifications from Windows itself (a click opens the right page),
 //! puts the number of unread items on the taskbar icon and rings with its own small window when a call comes in.
+//! Like Teams, the tray menu sets the status, the taskbar icon offers chat, calendar and meetings (jump list) and
+//! flashes for new messages while the window is in the background.
 //! The portal talks to it through `app_message` (frontend `src/lib/native.ts`); only the company's address gets
 //! that permission.
 
@@ -13,7 +15,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::ipc::CapabilityBuilder;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{
     AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
@@ -21,6 +23,7 @@ use tauri::{
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 mod badge;
+mod jumplist;
 mod texts;
 
 /// The portal recognises the app by this (longer sign-in, see backend routers/auth.py).
@@ -214,7 +217,12 @@ fn open_main(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
     let url = match &server_url {
         Some(url) => {
             allow_portal(app, url)?;
-            WebviewUrl::External(url.clone())
+            // Started from the jump list: open right there
+            let args: Vec<String> = std::env::args().collect();
+            let start = jumplist::path_from_args(&args)
+                .and_then(|path| url.join(&path).ok())
+                .unwrap_or_else(|| url.clone());
+            WebviewUrl::External(start)
         }
         None => WebviewUrl::App("index.html".into()),
     };
@@ -307,6 +315,12 @@ async fn app_message(app: AppHandle, message: Value) {
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str, link: Option<String>) {
+    // Like Teams: the taskbar icon flashes while OfficeHub is in the background
+    if let Some(window) = main_window(app) {
+        if !window.is_focused().unwrap_or(false) {
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+        }
+    }
     #[cfg(windows)]
     {
         use tauri_winrt_notification::{Duration, Sound, Toast};
@@ -543,12 +557,28 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         autostart_on,
         None::<&str>,
     )?;
+    // Like Teams: set the status right from the tray
+    let statuses = [
+        ("auto", "statusAuto"),
+        ("available", "statusAvailable"),
+        ("busy", "statusBusy"),
+        ("dnd", "statusDnd"),
+        ("away", "statusAway"),
+        ("offline", "statusOffline"),
+    ]
+    .iter()
+    .map(|(id, key)| MenuItem::with_id(app, format!("status:{id}"), label(key), true, None::<&str>))
+    .collect::<tauri::Result<Vec<_>>>()?;
+    let status_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        statuses.iter().map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+    let status = Submenu::with_items(app, label("trayStatus"), true, &status_items)?;
     let server = MenuItem::with_id(app, "server", label("trayServer"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", label("trayQuit"), true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
             &open,
+            &status,
             &PredefinedMenuItem::separator(app)?,
             &autostart,
             &server,
@@ -577,7 +607,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             "server" => change_server(app),
             "quit" => app.exit(0),
-            _ => {}
+            id => {
+                if let Some(status) = id.strip_prefix("status:") {
+                    tell_page(app, serde_json::json!({ "status": status }));
+                }
+            }
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
@@ -598,8 +632,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     let hidden = std::env::args().any(|a| a == "--hidden");
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            show_main(app);
+            // Started again from the jump list: go to that place in the running app
+            if let Some(path) = jumplist::path_from_args(&args) {
+                tell_page(app, serde_json::json!({ "navigate": path }));
+            }
         }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -644,6 +682,10 @@ pub fn run() {
                 );
             }
             build_tray(&handle)?;
+            #[cfg(windows)]
+            {
+                let _ = jumplist::install(&jumplist::tasks(&texts::for_system()));
+            }
             refresh_sign_in(&handle);
             open_main(&handle, hidden)?;
             Ok(())

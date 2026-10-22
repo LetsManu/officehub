@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Like Teams: the everyday places at the bottom; "More" opens the portal's full menu -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/nav_activity" android:icon="@drawable/ic_nav_activity" android:title="@string/nav_activity" />
+    <item android:id="@+id/nav_chat" android:icon="@drawable/ic_nav_chat" android:title="@string/nav_chat" />
+    <item android:id="@+id/nav_spaces" android:icon="@drawable/ic_nav_spaces" android:title="@string/nav_spaces" />
+    <item android:id="@+id/nav_calendar" android:icon="@drawable/ic_nav_calendar" android:title="@string/nav_calendar" />
+    <item android:id="@+id/nav_more" android:icon="@drawable/ic_nav_more" android:title="@string/nav_more" />
+</menu>

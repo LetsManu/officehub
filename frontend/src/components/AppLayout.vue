@@ -17,7 +17,8 @@ import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
-import { appPlace, appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { appCounts, appKind, appPlace, appScrolled, appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { changeMyPresence, myPresence } from '@/lib/presence'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -152,7 +153,33 @@ const deviceWaiting = computed(
 // In the Windows / Android app: a click on one of its notifications opens the page here
 const stopAppEvents = onAppEvent((e) => {
   if (e.navigate?.startsWith('/')) router.push(e.navigate)
+  if (e.menu) menuOpen.value = true
+  if (e.status) void changeMyPresence(e.status, myPresence.value.text, currentUser.value?.id).catch(() => undefined)
 })
+watch(() => [summary.value.unread, summary.value.chat_unread] as const, ([activity, chat]) => appCounts(activity, chat), { immediate: true })
+// Android: pull to refresh only when the page and the list under the finger are at their very top (a chat scrolled
+// up must scroll, not reload)
+let atTop = true
+let touched: EventTarget | null = null
+function canPull(): boolean {
+  if (window.scrollY > 0) return false
+  for (let el = touched instanceof Element ? touched : null; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollTop > 0) return false
+  }
+  return true
+}
+function onScroll() {
+  const top = canPull()
+  if (top !== atTop) appScrolled((atTop = top))
+}
+function onTouch(event: TouchEvent) {
+  touched = event.target
+  onScroll()
+}
+if (appKind() === 'android') {
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true })
+  window.addEventListener('touchstart', onTouch, { passive: true, capture: true })
+}
 watch(language, () => appTexts())
 watch(() => route.path, (path) => appPlace(path), { immediate: true })
 
@@ -175,6 +202,8 @@ watch(
 
 onBeforeUnmount(() => {
   stopAppEvents()
+  window.removeEventListener('scroll', onScroll, { capture: true })
+  window.removeEventListener('touchstart', onTouch, { capture: true })
   window.removeEventListener('keydown', onGlobalKeydown)
   document.removeEventListener('click', onDocumentClick)
   stopSummary()
@@ -716,6 +745,7 @@ watch(
 
 
 .content {
+  view-transition-name: page;
   padding: var(--space-6) var(--space-6) var(--space-7);
   max-width: 1180px;
 }

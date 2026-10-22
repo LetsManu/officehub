@@ -89,6 +89,27 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// A short, calm change between pages where the browser supports it (also in the apps), never with reduced motion
+type Transitioning = Document & { startViewTransition?: (update: () => Promise<void>) => unknown }
+let finishTransition: (() => void) | null = null
+router.beforeResolve((to, from) => {
+  const doc = document as Transitioning
+  if (!doc.startViewTransition || !from.matched.length || to.path === from.path) return true
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true
+  return new Promise<boolean>((resolve) => {
+    doc.startViewTransition?.(() => new Promise<void>((finish) => {
+      finishTransition = finish
+      resolve(true)
+    }))
+  })
+})
+router.afterEach(async () => {
+  if (!finishTransition) return
+  await nextTick()
+  finishTransition()
+  finishTransition = null
+})
+
 router.beforeEach(async (to) => {
   const user = await loadSession()
   if (to.meta.public) return user && to.path === '/login' ? '/' : true
