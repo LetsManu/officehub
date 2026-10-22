@@ -9,6 +9,9 @@ when they run (OfficeHub's own UI via lib-jitsi-meet, never meet.jit.si). Nothin
 servers are detected (`services/probe.py`) and shared passwords are generated (`config._shared_secret`).
 Presence (`services/presence.py`) and meeting reminders come with the `/api/me/summary` heartbeat (every 30 s);
 desktop notifications use the browser's Notification API only (no outside push service). Series: `services/recurrence.py`.
+Installable app (PWA): the manifest comes from `/api/branding/manifest.webmanifest` (company name, colour, shortcuts,
+share target), `frontend/public/sw.js` keeps the shell and shared files (`/share`), `src/lib/pwa.ts` does the icon
+badge, offline notice and "updated, reload" (version in the summary).
 
 ## Layout
 

@@ -72,6 +72,25 @@ def test_branding_admin_only(anna):
     assert anna.put("/api/branding", json={"company_name": "X", "accent_color": "#000000"}).status_code == 403
 
 
+def test_manifest_carries_branding_language_and_share_target(julia):
+    public = make_client()
+    plain = public.get("/api/branding/manifest.webmanifest", headers={"Accept-Language": "de-DE,de;q=0.9"})
+    assert plain.status_code == 200 and plain.headers["content-type"].startswith("application/manifest+json")
+    body = plain.json()
+    assert body["name"] == (public.get("/api/branding").json()["company_name"] or "OfficeHub") and body["lang"] == "de"
+    assert [s["url"] for s in body["shortcuts"]] == ["/chat", "/calendar", "/files", "/requests/new"]
+    assert body["shortcuts"][1]["name"] == "Kalender"
+    assert body["share_target"]["action"] == "/share" and body["share_target"]["method"] == "POST"
+    julia.put("/api/branding", json={"company_name": "Muster GmbH", "accent_color": "#0f766e"})
+    english = public.get("/api/branding/manifest.webmanifest", headers={"Accept-Language": "en-GB"}).json()
+    assert english["name"] == "Muster GmbH" and english["theme_color"] == "#0F766E"
+    assert english["lang"] == "en" and english["shortcuts"][1]["name"] == "Calendar"
+
+
+def test_summary_tells_the_running_version(anna):
+    assert anna.get("/api/me/summary").json()["version"]
+
+
 # ---------- Photos ----------
 
 

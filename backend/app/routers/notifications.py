@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select, update
 
+from ..config import settings
 from ..deps import DB, CurrentUser
 from ..errors import not_found
 from ..models import (
@@ -77,6 +78,7 @@ class Summary(BaseModel):
     cards_due: int = 0
     presence: dict = {}  # my own presence (state, text, manual)
     reminders: list[dict] = []  # meetings starting within 10 minutes
+    version: str = ""  # the running version: when it changes, the open portal offers to reload
 
 
 class Reminder(BaseModel):
@@ -170,6 +172,7 @@ def summary(user: CurrentUser, db: DB, idle: bool = False,
     personal_new = count(select(PersonalDocument.id).where(PersonalDocument.user_id == user.id, PersonalDocument.opened_at.is_(None)))
     reminders = [Reminder(**r).model_dump(mode="json") for r in due_reminders(db, user)]
     return Summary(
+        version=settings.app_version,
         presence=state_of(db, user),
         reminders=reminders,
         unread=_unread(db, user),

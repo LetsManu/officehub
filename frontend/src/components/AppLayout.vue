@@ -11,6 +11,7 @@ import UserAvatar from './UserAvatar.vue'
 import { branding, logoUrl } from '@/lib/branding'
 import { listenForNotificationClicks } from '@/lib/desktop'
 import { canInstall, installApp } from '@/lib/install'
+import { isStandalone, online, reload, updateReady } from '@/lib/pwa'
 import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
@@ -27,6 +28,13 @@ const searchOpen = ref(false)
 const drawer = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+// Outside the installed app there is always a way to install it: the browser's own prompt where it offers one,
+// otherwise the steps for this device.
+const showInstall = !isStandalone()
+function install() {
+  if (canInstall.value) installApp()
+  else router.push('/install')
+}
 
 /** The most specific menu entry that matches the current page (so /admin/audit does not also mark /admin). */
 const activePath = computed(() => {
@@ -307,7 +315,7 @@ watch(
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
             {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
           </button>
-          <button v-if="canInstall" type="button" class="btn btn-ghost nav-action" :title="t('app.install')" @click="installApp">
+          <button v-if="showInstall" type="button" class="btn btn-ghost nav-action" :title="t('app.install')" @click="install">
             <AppIcon name="download" />
             <span class="action-label">{{ t('app.install') }}</span>
           </button>
@@ -363,6 +371,15 @@ watch(
       </header>
 
       <main id="main" class="content" :class="{ full: route.meta.full, wide: route.meta.wide }" tabindex="-1">
+        <div v-if="!online" class="notice notice-warning app-banner" role="status">
+          <AppIcon name="alert" />
+          <span>{{ t('pwa.offline') }}</span>
+        </div>
+        <div v-else-if="updateReady" class="notice notice-info app-banner" role="status">
+          <AppIcon name="download" />
+          <span class="grow">{{ t('pwa.updated') }}</span>
+          <button type="button" class="btn btn-primary" @click="reload">{{ t('pwa.reload') }}</button>
+        </div>
         <slot />
       </main>
     </div>
@@ -670,6 +687,15 @@ watch(
 .content {
   padding: var(--space-6) var(--space-6) var(--space-7);
   max-width: 1180px;
+}
+
+.app-banner {
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.app-banner .grow {
+  flex: 1;
 }
 
 .content:focus {
