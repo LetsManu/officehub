@@ -35,6 +35,9 @@ pub struct Entry {
     /// Modification time of the local file when both sides last agreed (nanoseconds since 1970)
     pub mtime: i128,
     pub read_only: bool,
+    /// Content checksum when both sides last agreed (only where the store keeps one, see Store::fingerprint)
+    #[serde(default)]
+    pub hash: u64,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

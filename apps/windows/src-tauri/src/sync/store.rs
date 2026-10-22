@@ -42,6 +42,16 @@ pub trait Store: Send + Sync {
     /// A local file has been uploaded and is now in sync.
     fn mark_uploaded(&self, rel: &Path, item: &Item) -> io::Result<i128>;
 
+    /// Whether a known file was changed here since it was last in sync; `None`: compare size and time.
+    fn changed(&self, _rel: &Path, _entry: &super::state::Entry) -> Option<bool> {
+        None
+    }
+
+    /// A checksum of the content as it is now (0 where the store does not use one).
+    fn fingerprint(&self, _rel: &Path) -> u64 {
+        0
+    }
+
     /// Only readable while someone else has it checked out.
     fn set_read_only(&self, rel: &Path, read_only: bool) {
         let path = self.abs(rel);
@@ -105,4 +115,21 @@ impl Store for FullStore {
     fn mark_uploaded(&self, rel: &Path, _item: &Item) -> io::Result<i128> {
         mtime(&self.abs(rel)).ok_or_else(|| io::Error::other("no modification time"))
     }
+
+    /// File times are too coarse on some systems (Windows: about 16 ms) to see a change made right after a
+    /// download, so the content decides.
+    fn changed(&self, rel: &Path, entry: &super::state::Entry) -> Option<bool> {
+        let path = self.abs(rel);
+        let len = std::fs::metadata(&path).ok()?.len();
+        Some(len != entry.size || self.fingerprint(rel) != entry.hash)
+    }
+
+    fn fingerprint(&self, rel: &Path) -> u64 {
+        std::fs::read(self.abs(rel)).map(|data| fnv1a(&data)).unwrap_or(0)
+    }
+}
+
+/// FNV-1a, 64 bit: a quick checksum to notice changes (not for security).
+pub fn fnv1a(data: &[u8]) -> u64 {
+    data.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3))
 }
