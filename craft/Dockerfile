@@ -18,13 +18,13 @@ ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=s \
 # Exact commits, so every build is the same reviewed code; each app on its own, so a change to one only rebuilds that
 # app. collab.json tells OfficeHub that the build edits together.
 ARG WORDCRAFT_REPO=https://github.com/LetsManu/wordcraft
-ARG WORDCRAFT_COMMIT=18086cf4c9e0b6bdbf2b2aa6fa0f04fc871f33d6
+ARG WORDCRAFT_COMMIT=422bc9e4ba3c43511ca8a1901bf9ed1301ba0288
 RUN git init -q wordcraft && git -C wordcraft fetch -q --depth 1 "$WORDCRAFT_REPO" "$WORDCRAFT_COMMIT" \
     && git -C wordcraft checkout -q FETCH_HEAD \
     && cd wordcraft/apps/wordcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/wordcraft \
     && echo '{"together": true}' > /out/wordcraft/collab.json
 ARG DECKCRAFT_REPO=https://github.com/LetsManu/deckcraft
-ARG DECKCRAFT_COMMIT=c844b466d40a6825915089cb337a153a6d8719a0
+ARG DECKCRAFT_COMMIT=76d38675483bcc28c6784c030f54ea3e2b5bf5c4
 RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 "$DECKCRAFT_REPO" "$DECKCRAFT_COMMIT" \
     && git -C deckcraft checkout -q FETCH_HEAD \
     && cd deckcraft/apps/deckcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/deckcraft \
