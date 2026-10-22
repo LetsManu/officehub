@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.6.1',
+    date: '2026-10-22',
+    de: [
+      'WordCraft und DeckCraft: In Tabellen schreiben jetzt alle gleichzeitig – in verschiedenen Zellen oder in derselben. Eine neue Zeile von jemand anderem nimmt dir nichts mehr weg.',
+      'WordCraft: Kommentare, Kopfzeilen und Bilder, die mehrere gleichzeitig einfügen, bleiben alle erhalten.',
+    ],
+    en: [
+      'WordCraft and DeckCraft: everyone can now type in tables at the same time – in different cells or the same one. A new row from someone else no longer takes anything away from you.',
+      'WordCraft: comments, headers and pictures that several people add at the same time all stay.',
+    ],
+  },
+  {
     version: '3.6.0',
     date: '2026-10-21',
     de: [
