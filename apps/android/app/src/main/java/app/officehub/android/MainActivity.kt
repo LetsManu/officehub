@@ -131,10 +131,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                currentPath = runCatching { Uri.parse(url).path }.getOrNull()
-                currentPath?.let { path ->
-                    Regex("^/chat/(\\d+)").find(path)?.let { Notifier.clearMessages(this@MainActivity, it.groupValues[1].toInt()) }
-                }
+                runCatching { Uri.parse(url).path }.getOrNull()?.takeIf { it != "/" }?.let { onPlace(it) }
             }
         }
 
@@ -245,7 +242,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "texts" -> prefs.texts = message
+            "place" -> onPlace(message.optString("path"))
         }
+    }
+
+    /** The page open in the portal (it keeps the address bar plain, so it says so itself). */
+    private fun onPlace(path: String) {
+        currentPath = path
+        Regex("^/chat/(\\d+)").find(path)?.let { Notifier.clearMessages(this, it.groupValues[1].toInt()) }
     }
 
     /** Like Teams: ask once to show notifications, then whether OfficeHub may stay connected while the phone sleeps. */

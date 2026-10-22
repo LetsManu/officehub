@@ -83,6 +83,11 @@ export function appSignedIn(signedIn: boolean) {
   send({ type: 'session', signedIn })
 }
 
+/** The page that is open (the address bar stays plain): Android skips notifications for the chat already on screen. */
+export function appPlace(path: string) {
+  if (appKind() === 'android') send({ type: 'place', path })
+}
+
 export interface AppEvent {
   navigate?: string
   call?: number

@@ -6,7 +6,9 @@
 #   WINDOWS_SIGNING_ENDPOINT (e.g. https://weu.codesigning.azure.net), WINDOWS_SIGNING_ACCOUNT, WINDOWS_SIGNING_PROFILE.
 # - any other provider: secret WINDOWS_SIGN_COMMAND, a command that signs the file "%1" (its tool must be installable
 #   on the runner; credentials in secrets WINDOWS_SIGN_SECRET_1 … _3, available as environment variables).
-# Without either, Windows shows "unknown publisher" on first start.
+# Without either, the installer is built unsigned: sign it on a computer with the certificate using
+# apps/windows/sign-release.ps1 (e.g. Certum SimplySign, whose sign-in needs the code from the phone), or Windows shows
+# "unknown publisher" on first start.
 #
 # Android: for updates without uninstalling, every release must be signed with the same key. Put it in the
 # repository secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and
@@ -76,7 +78,7 @@ jobs:
           } elseif ($env:SIGN_COMMAND) {
             $command = $env:SIGN_COMMAND
           } else {
-            Write-Output "::warning::No Windows code signing set up: Windows will show 'unknown publisher'."
+            Write-Output "::notice::Built unsigned: sign the release's installer with apps/windows/sign-release.ps1."
             exit 0
           }
           # Tauri signs the app and the installer with it (bundle.windows.signCommand)
