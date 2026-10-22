@@ -8,6 +8,7 @@
 //! flashes for new messages while the window is in the background.
 //! The portal talks to it through `app_message` (frontend `src/lib/native.ts`); only the company's address gets
 //! that permission.
+#![recursion_limit = "256"] // the texts (texts.rs) are one large json! literal
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -24,6 +25,8 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 mod badge;
 mod jumplist;
+mod files;
+pub mod sync;
 mod texts;
 
 /// The portal recognises the app by this (longer sign-in, see backend routers/auth.py).
@@ -53,6 +56,9 @@ struct AppState {
     tray: Mutex<Option<TrayIcon>>,
     /// The company login page (Authentik, Keycloak …): it opens in the app's window, not in the browser
     sign_in: Mutex<Vec<String>>,
+    /// Unread items and the sync status, for the tray icon's tooltip
+    unread: Mutex<i64>,
+    sync_status: Mutex<String>,
 }
 
 fn settings_file(app: &AppHandle) -> Option<PathBuf> {
@@ -310,6 +316,24 @@ async fn app_message(app: AppHandle, message: Value) {
             }
         }
         "ring-stop" => stop_ring(&app),
+        // Signed in: if this computer has no OfficeHub folder yet, the portal makes an app password for it
+        "session" => {
+            let signed_in = message.get("signedIn").and_then(Value::as_bool).unwrap_or(false);
+            let server = state(&app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
+            if let Some(server) = server.filter(|_| signed_in) {
+                if !files::is_set_up(&app, &server) {
+                    tell_page(&app, serde_json::json!({ "syncSetup": { "device": std::env::var("COMPUTERNAME").unwrap_or_default() } }));
+                }
+            }
+        }
+        "sync-credentials" => {
+            let server = state(&app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
+            let login = message.get("login").and_then(Value::as_str).unwrap_or("");
+            let password = message.get("password").and_then(Value::as_str).unwrap_or("");
+            if let Some(server) = server.filter(|_| !login.is_empty() && !password.is_empty()) {
+                files::set_up(&app, &server, login, password);
+            }
+        }
         _ => {}
     }
 }
@@ -364,19 +388,30 @@ fn set_badge(app: &AppHandle, count: i64) {
             let _ = window.set_badge_count(if count > 0 { Some(count) } else { None });
         }
     }
-    if let Some(tray) = state(app)
-        .tray
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-    {
-        let tip = if count > 0 {
-            format!("OfficeHub ({count})")
-        } else {
-            "OfficeHub".to_string()
-        };
+    *state(app).unread.lock().unwrap_or_else(|e| e.into_inner()) = count;
+    update_tooltip(app);
+}
+
+/// "OfficeHub (3) – Files up to date"
+fn update_tooltip(app: &AppHandle) {
+    let st = state(app);
+    let count = *st.unread.lock().unwrap_or_else(|e| e.into_inner());
+    let status = st.sync_status.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let mut tip = if count > 0 { format!("OfficeHub ({count})") } else { "OfficeHub".to_string() };
+    if !status.is_empty() {
+        tip.push_str(" – ");
+        tip.push_str(&status);
+    }
+    let tray = st.tray.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    if let Some(tray) = tray {
         let _ = tray.set_tooltip(Some(tip));
     }
+}
+
+/// The sync's status in the tray icon's tooltip (files.rs).
+pub(crate) fn set_tray_status(app: &AppHandle, text: &str) {
+    *state(app).sync_status.lock().unwrap_or_else(|e| e.into_inner()) = text.to_string();
+    update_tooltip(app);
 }
 
 fn ring(app: &AppHandle, call: Ring) {
@@ -521,6 +556,7 @@ fn ui_texts() -> Value {
 }
 
 fn change_server(app: &AppHandle) {
+    files::forget(app);
     {
         let st = state(app);
         let mut settings = st.settings.lock().unwrap_or_else(|e| e.into_inner());
@@ -572,6 +608,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let status_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
         statuses.iter().map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
     let status = Submenu::with_items(app, label("trayStatus"), true, &status_items)?;
+    // The OfficeHub folder in Explorer (like OneDrive)
+    let folder = MenuItem::with_id(app, "sync_open", label("syncOpen"), true, None::<&str>)?;
+    let pause = CheckMenuItem::with_id(app, "sync_pause", label("syncPauseMenu"), true, files::is_paused(app), None::<&str>)?;
     let server = MenuItem::with_id(app, "server", label("trayServer"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", label("trayQuit"), true, None::<&str>)?;
     let menu = Menu::with_items(
@@ -579,6 +618,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         &[
             &open,
             &status,
+            &PredefinedMenuItem::separator(app)?,
+            &folder,
+            &pause,
             &PredefinedMenuItem::separator(app)?,
             &autostart,
             &server,
@@ -606,6 +648,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 };
             }
             "server" => change_server(app),
+            "sync_open" => files::open_folder(),
+            "sync_pause" => {
+                files::toggle_pause(app);
+            }
             "quit" => app.exit(0),
             id => {
                 if let Some(status) = id.strip_prefix("status:") {
@@ -688,6 +734,9 @@ pub fn run() {
             }
             refresh_sign_in(&handle);
             open_main(&handle, hidden)?;
+            if let Some(server) = state(&handle).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone() {
+                files::start(&handle, &server);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

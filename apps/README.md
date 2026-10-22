@@ -31,6 +31,13 @@ while used (backend `routers/auth.py`, `deps.py`).
   `AZURE_TENANT_ID` and the variables `WINDOWS_SIGNING_ENDPOINT`, `WINDOWS_SIGNING_ACCOUNT`, `WINDOWS_SIGNING_PROFILE`;
   any other provider with the secret `WINDOWS_SIGN_COMMAND` (signs `%1`, credentials in `WINDOWS_SIGN_SECRET_1…3`).
   The workflow checks the signature of the installer.
+- **OfficeHub folder** (Windows app, like OneDrive): `src-tauri/src/sync/` keeps `%USERPROFILE%\OfficeHub` in sync with
+  the person's spaces through the portal's `/api/sync` (backend `routers/sync.py`): `engine.rs` applies server
+  changes and scans local ones (new, changed, renamed, moved, deleted; conflict copies; many deletions at once are
+  restored instead), `cloud.rs` makes it a Cloud Files folder (Explorer entry, placeholders that download on open,
+  "Always keep on this device" / "Free up space"), `files.rs` in the app stores the app password with DPAPI and adds
+  the tray items. Tests: `./sync-e2e.sh` (two computers against a demo server, any OS) and on Windows
+  `./sync-e2e-windows.ps1` (also the real Cloud Files API; run in CI).
 - **Android** (JDK 17, Android SDK): `cd android && ./gradlew testDebugUnitTest lintDebug assembleRelease`.
   Release signing: set `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
   (in GitHub: the secrets `ANDROID_KEYSTORE_BASE64` and the three others). Without them the APK is signed with a

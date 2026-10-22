@@ -17,8 +17,9 @@ import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
-import { appCounts, appKind, appPlace, appScrolled, appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { appCounts, appKind, appPlace, appScrolled, appSignedIn, appSyncCredentials, appTexts, inApp, onAppEvent } from '@/lib/native'
 import { changeMyPresence, myPresence } from '@/lib/presence'
+import { api } from '@/lib/api'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -155,6 +156,7 @@ const stopAppEvents = onAppEvent((e) => {
   if (e.navigate?.startsWith('/')) router.push(e.navigate)
   if (e.menu) menuOpen.value = true
   if (e.status) void changeMyPresence(e.status, myPresence.value.text, currentUser.value?.id).catch(() => undefined)
+  if (e.syncSetup) void setUpFolder(e.syncSetup.device)
 })
 watch(() => [summary.value.unread, summary.value.chat_unread] as const, ([activity, chat]) => appCounts(activity, chat), { immediate: true })
 // Android: pull to refresh only when the page and the list under the finger are at their very top (a chat scrolled
@@ -179,6 +181,22 @@ function onTouch(event: TouchEvent) {
 if (appKind() === 'android') {
   window.addEventListener('scroll', onScroll, { passive: true, capture: true })
   window.addEventListener('touchstart', onTouch, { passive: true, capture: true })
+}
+
+/** Windows app: the OfficeHub folder in Explorer signs in with its own app password (listed under Profile). */
+let settingUp = false
+async function setUpFolder(device: string) {
+  if (settingUp || !currentUser.value) return
+  settingUp = true
+  try {
+    const name = t('install.folderPassword', { device: device || 'Windows' }).slice(0, 80)
+    const created = await api.post<{ password: string }>('/api/profile/app-passwords', { name })
+    appSyncCredentials(currentUser.value.email, created.password)
+  } catch {
+    // Too many app passwords or offline: asked again at the next start
+  } finally {
+    settingUp = false
+  }
 }
 watch(language, () => appTexts())
 watch(() => route.path, (path) => appPlace(path), { immediate: true })
