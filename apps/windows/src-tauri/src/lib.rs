@@ -21,6 +21,7 @@ use tauri::{
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 mod badge;
+pub mod sync;
 mod texts;
 
 /// The portal recognises the app by this (longer sign-in, see backend routers/auth.py).

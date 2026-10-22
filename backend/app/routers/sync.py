@@ -27,12 +27,12 @@ from sqlalchemy import or_, select
 from ..config import settings
 from ..deps import DB, get_current_user
 from ..errors import ApiError, not_found
-from ..files import MIME_TYPES, SPACE_TYPES, extension, matches_signature, safe_display_name
+from ..files import MIME_TYPES, SPACE_TYPES, extension, matches_signature, resolve, safe_display_name
 from ..models import Folder, Space, SpaceFile, SyncTombstone, User, utcnow
+
 from ..services import sync
 from ..services.spaces import (
     add_version,
-    current_path,
     ensure_can_change,
     folder_path,
     get_file,
@@ -186,10 +186,15 @@ async def _content(request: Request, file_type: str) -> bytes:
 
 
 @router.get("/files/{file_id}")
-def download(file_id: int, user: SyncUser, db: DB) -> FileResponse:
+def download(file_id: int, user: SyncUser, db: DB, version: int | None = Query(None, ge=1)) -> FileResponse:
+    """The current content, or a given version (a placeholder on the computer asks for the version it stands for)."""
     item = get_file(db, user, file_id)
-    return FileResponse(current_path(item), media_type=MIME_TYPES.get(item.file_type, "application/octet-stream"),
-                        headers={"ETag": f'"{item.version}"', "X-File-Version": str(item.version)})
+    number = version or item.version
+    stored = next((v for v in item.versions if v.number == number), None)
+    if stored is None:
+        raise not_found("Version")
+    return FileResponse(resolve(stored.path), media_type=MIME_TYPES.get(item.file_type, "application/octet-stream"),
+                        headers={"ETag": f'"{number}"', "X-File-Version": str(number)})
 
 
 @router.put("/files/{file_id}", response_model=Item)

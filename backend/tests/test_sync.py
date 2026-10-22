@@ -45,6 +45,11 @@ def test_create_save_conflict_move_delete(anna):
 
     # Saving on top of version 1 works once; a second save based on the old version is a conflict
     assert pc.put(f"/api/sync/files/{item['id']}?base=1", content=_docx()).json()["version"] == 2
+    # A placeholder still standing for version 1 gets exactly that content; Range resumes a download
+    assert pc.get(f"/api/sync/files/{item['id']}?version=1").headers["x-file-version"] == "1"
+    assert pc.get(f"/api/sync/files/{item['id']}?version=9").status_code == 404
+    part = pc.get(f"/api/sync/files/{item['id']}", headers={"Range": "bytes=0-1"})
+    assert part.status_code == 206 and part.content == _docx()[:2]
     conflict = pc.put(f"/api/sync/files/{item['id']}?base=1", content=_docx())
     assert conflict.status_code == 409 and conflict.json()["code"] == "sync_conflict"
 
