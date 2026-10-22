@@ -182,6 +182,12 @@ impl Store for CloudStore {
         mtime(&path).ok_or_else(|| other("no modification time"))
     }
 
+    /// Windows clears a placeholder's "in sync" mark whenever its content changes.
+    fn changed(&self, rel: &Path, _entry: &super::state::Entry) -> Option<bool> {
+        let info = Placeholder::open(self.abs(rel)).ok()?.info().ok()??;
+        Some(!info.is_in_sync())
+    }
+
     fn mark_uploaded(&self, rel: &Path, item: &Item) -> io::Result<i128> {
         let path = self.abs(rel);
         self.convert(&path, blob(item.id, item.version), false)?;
