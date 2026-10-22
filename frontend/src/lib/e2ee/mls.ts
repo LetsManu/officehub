@@ -4,7 +4,7 @@
  * The browser makes its own keys; OfficeHub only passes on public key packages, commits, welcomes and ciphertext
  * (backend services/mls.py). Whoever has been in the group longest – the leader – adds newcomers and removes
  * people who left. After every change (a new epoch) all members derive the same secrets: one for audio and video
- * (SFrame, sframe.worker.ts, or the Jitsi server's frame encryption) and a security code that everyone can compare
+ * (SFrame, sframe.worker.ts, with either meeting server) and a security code that everyone can compare
  * aloud – when it is the same for all, nobody else is listening in.
  *
  * Who is who: every browser signs its MLS key with its device key (identity.ts), and every member checks that
@@ -85,8 +85,6 @@ export interface E2eeKeys {
   epoch: number
   /** RFC 9605 5.2: sframe_epoch_secret = MLS-Exporter("SFrame 1.0 Secret", "", Nh) */
   sframe: Uint8Array
-  /** A key for the Jitsi server's own frame encryption (one for everyone, per epoch). */
-  shared: Uint8Array
   leaf: number
 }
 
@@ -419,7 +417,6 @@ export class E2eeGroup {
     const epoch = Number(state.groupContext.epoch)
     const secret = state.keySchedule.exporterSecret
     const sframe = await mlsExporter(secret, 'SFrame 1.0 Secret', new Uint8Array(), 32, this.impl)
-    const shared = await mlsExporter(secret, 'OfficeHub Jitsi media', new Uint8Array(), 16, this.impl)
     const leaf = state.privatePath.leafIndex
     const members = await this.members(state)
     if (!members) return
@@ -427,7 +424,7 @@ export class E2eeGroup {
     this.view.code = securityCode(state.keySchedule.epochAuthenticator)
     this.view.members = members
     this.view.status = 'secure'
-    this.onKeys({ epoch, sframe, shared, leaf })
+    this.onKeys({ epoch, sframe, leaf })
     if (this.roster?.leader === this.memberId) await this.lead()
   }
 
