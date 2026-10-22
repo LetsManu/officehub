@@ -2602,6 +2602,7 @@ dependencies = [
  "tauri-winrt-notification 0.7.3",
  "ureq",
  "url",
+ "windows 0.61.3",
 ]
 
 [[package]]

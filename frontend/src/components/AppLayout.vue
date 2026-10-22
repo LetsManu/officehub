@@ -17,7 +17,8 @@ import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
-import { appPlace, appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { appPlace, appSignedIn, appSyncCredentials, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { api } from '@/lib/api'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -152,7 +153,24 @@ const deviceWaiting = computed(
 // In the Windows / Android app: a click on one of its notifications opens the page here
 const stopAppEvents = onAppEvent((e) => {
   if (e.navigate?.startsWith('/')) router.push(e.navigate)
+  if (e.syncSetup) void setUpFolder(e.syncSetup.device)
 })
+
+/** Windows app: the OfficeHub folder in Explorer signs in with its own app password (listed under Profile). */
+let settingUp = false
+async function setUpFolder(device: string) {
+  if (settingUp || !currentUser.value) return
+  settingUp = true
+  try {
+    const name = t('install.folderPassword', { device: device || 'Windows' }).slice(0, 80)
+    const created = await api.post<{ password: string }>('/api/profile/app-passwords', { name })
+    appSyncCredentials(currentUser.value.email, created.password)
+  } catch {
+    // Too many app passwords or offline: asked again at the next start
+  } finally {
+    settingUp = false
+  }
+}
 watch(language, () => appTexts())
 watch(() => route.path, (path) => appPlace(path), { immediate: true })
 

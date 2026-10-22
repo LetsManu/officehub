@@ -2546,6 +2546,7 @@ const en: Messages = {
     reload: 'Reload',
   },
   install: {
+    folderPassword: 'OfficeHub folder on {device}',
     title: 'OfficeHub as an app',
     subtitle: 'With its own icon, its own window and numbers on the icon – no app store needed.',
     already: 'You are already using OfficeHub as an app.',
