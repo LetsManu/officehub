@@ -81,6 +81,9 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - Profile with photo, two-factor sign-in (authenticator app + recovery codes), e-mail settings, deputy (managers)
   and the list of equipment you have
 - German and English, light and dark theme, installable as an app, works on desktop, tablet and phone
+- **Windows and Android apps** like Teams: their own window, notifications from Windows / Android, number on the
+  icon, ringing calls even while the app is closed, start with the computer; they open your own portal (first start:
+  enter the company address, then the usual sign-in or company login). Downloads under **Install the app**
 
 **For managers and HR / admins**
 
