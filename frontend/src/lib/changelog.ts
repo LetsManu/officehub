@@ -17,6 +17,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die installierte App trägt euren Firmennamen und eure Farbe, zeigt ungelesene Nachrichten als Zahl am Symbol und führt per langem Druck aufs Symbol direkt zu Chat, Kalender, Dateien oder einem neuen Antrag.',
       'Teilen an OfficeHub: Fotos, Dokumente und Links aus anderen Apps über „Teilen“ an OfficeHub schicken – Dateien landen in einem Bereich, Text in einem Chat.',
       'Ohne Verbindung sagt OfficeHub Bescheid, und nach einem Update bietet es „Neu laden“ an.',
+      'WordCraft und DeckCraft öffnen deutlich schneller und lassen sich jetzt auch am Handy bedienen: passende Größe, einfache Ansicht und schmale Folienleiste.',
     ],
     en: [
       'End-to-end encrypted meetings as in Webex (MLS and SFrame): tick "End-to-end encrypted" when planning. Only the people in the meeting can then read video, sound, screen, chat, reactions and whiteboard – not even OfficeHub. A security code to compare shows that nobody is listening in. HR can make it a must for particular people.',
@@ -24,6 +25,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'The installed app carries your company name and colour, shows unread messages as a number on its icon, and a long press on the icon goes straight to chat, calendar, files or a new request.',
       'Share with OfficeHub: send photos, documents and links from other apps with "Share" – files go into a space, text into a chat.',
       'Without a connection OfficeHub says so, and after an update it offers "Reload".',
+      'WordCraft and DeckCraft open much faster and now work on a phone too: the right size, a simple view and a narrow slide strip.',
     ],
   },
   {
