@@ -13,7 +13,7 @@ from sqlalchemy import select
 from ..db import SessionLocal
 from ..deps import DB
 from ..errors import ApiError, forbidden
-from ..services import breakouts, rtc
+from ..services import breakouts, mls, rtc
 from ..models import Meeting
 from ..services.meetings import BUILTIN_MAX, connect_room, rtc_key, ticket
 from ..services.office import jwt_decode
@@ -22,6 +22,8 @@ router = APIRouter(prefix="/api/rtc", tags=["meetings"])
 
 # App messages anyone may send, and those only for people leading the meeting
 APP_KINDS = {"react", "wb", "wb-clear", "wb-req", "wb-all", "rec", "sync-req"}
+# In an end-to-end encrypted meeting these carry content and only travel encrypted (MLS, /mls/app)
+SEALED_KINDS = {"react", "wb", "wb-clear", "wb-all"}
 MOD_KINDS = {"mute", "mute-all", "spotlight", "stage", "lower-hand", "sync", "breakouts"}
 
 _key: str | None = None  # signalling is busy: keep the key instead of asking the database each time
@@ -90,6 +92,8 @@ async def send(body: SendIn, token: Token) -> None:
     t, peer = _peer(token, body.peer_id)
     if len(str(body.data)) > 64_000:
         raise ApiError(413, "too_large", "Message too large.")
+    if t.get("e2ee") and (body.type == "chat" or (body.type == "app" and body.data.get("kind") in SEALED_KINDS)):
+        raise ApiError(422, "encrypted_only", "In this meeting, messages travel only end-to-end encrypted.")
     if body.type == "chat":
         text = str(body.data.get("text", "")).strip()[:1000]
         if not text:
@@ -116,11 +120,13 @@ async def remove(body: RemoveIn, token: Token) -> None:
     if target.mod:
         raise forbidden("People leading the meeting cannot be removed.")
     rtc.remove(t["main"], t["room"], body.target)
+    mls.leave_who(t["room"], target.who)
 
 
 @router.post("/poll")
 async def poll(body: PollIn, token: Token) -> dict:
-    _ticket_data, peer = _peer(token, body.peer_id)
+    t, peer = _peer(token, body.peer_id)
+    rtc.sweep(t["room"])  # the others see that someone whose page stopped asking has left
     return {"messages": await rtc.poll(peer, body.after)}
 
 
@@ -129,6 +135,106 @@ async def bye(body: PeerIn, token: Token) -> None:
     t = _ticket(token)
     if rtc.find(t["room"], body.peer_id, str(t["who"])) is not None:
         rtc.leave(t["room"], body.peer_id)
+
+
+# ---------- end-to-end encryption: MLS delivery (services/mls.py) ----------
+
+B64 = Annotated[str, StringConstraints(max_length=mls.MAX_BYTES, pattern=r"^[A-Za-z0-9+/=_-]*$")]
+
+
+class MemberIn(BaseModel):
+    member_id: str = Field(max_length=32)
+
+
+class PublishIn(MemberIn):
+    key_package: B64
+
+
+class CommitIn(MemberIn):
+    epoch: int = Field(ge=0)
+    message: B64
+    welcome: B64 = ""
+    added: list[Annotated[str, StringConstraints(max_length=32)]] = Field(default=[], max_length=500)
+    removed: list[Annotated[str, StringConstraints(max_length=32)]] = Field(default=[], max_length=500)
+
+
+class SealedIn(MemberIn):
+    epoch: int = Field(ge=0)
+    message: B64
+
+
+class MlsPollIn(MemberIn):
+    after: int = 0
+
+
+def _member(token: str, member_id: str) -> tuple[dict, mls.Member]:
+    t = _ticket(token)
+    if not t.get("e2ee"):
+        raise forbidden("This meeting is not end-to-end encrypted.")
+    member = mls.find(t["room"], member_id, str(t["who"]))
+    if member is None:
+        raise ApiError(410, "peer_gone", "Please join again.")
+    return t, member
+
+
+@router.post("/mls/hello")
+async def mls_hello(token: Token) -> dict:
+    t = _ticket(token)
+    if not t.get("e2ee"):
+        raise forbidden("This meeting is not end-to-end encrypted.")
+    if rtc.is_removed(t["main"], str(t["who"])):
+        raise ApiError(403, "removed_from_meeting", "You were removed from this meeting.")
+    member, roster = mls.join(t["room"], str(t["who"]), t["name"])
+    return {"member_id": member.id, "roster": roster}
+
+
+@router.post("/mls/create")
+async def mls_create(body: MemberIn, token: Token) -> dict:
+    t, member = _member(token, body.member_id)
+    created, version = mls.create(t["room"], member)
+    return {"created": created, "version": version}
+
+
+@router.post("/mls/publish")
+async def mls_publish(body: PublishIn, token: Token) -> dict:
+    t, member = _member(token, body.member_id)
+    return {"version": mls.publish(t["room"], member, body.key_package)}
+
+
+@router.post("/mls/commit")
+async def mls_commit(body: CommitIn, token: Token) -> dict:
+    t, member = _member(token, body.member_id)
+    try:
+        epoch, version = mls.commit(t["room"], member, body.epoch, body.message, body.welcome, body.added, body.removed)
+    except mls.Conflict:
+        raise ApiError(409, "epoch_conflict", "The group moved on; please try again.") from None
+    return {"epoch": epoch, "version": version}
+
+
+@router.post("/mls/app", status_code=204)
+async def mls_app(body: SealedIn, token: Token) -> None:
+    t, member = _member(token, body.member_id)
+    mls.relay(t["room"], member, {"epoch": body.epoch, "message": body.message})
+
+
+@router.post("/mls/rejoin", status_code=204)
+async def mls_rejoin(body: MemberIn, token: Token) -> None:
+    t, member = _member(token, body.member_id)
+    mls.rejoin(t["room"], member)
+
+
+@router.post("/mls/poll")
+async def mls_poll(body: MlsPollIn, token: Token) -> dict:
+    t, member = _member(token, body.member_id)
+    mls.sweep(t["room"])  # someone whose page stopped asking (closed tab, lost network) leaves the group
+    return {"messages": await mls.poll(member, body.after)}
+
+
+@router.post("/mls/bye", status_code=204)
+async def mls_bye(body: MemberIn, token: Token) -> None:
+    t = _ticket(token)
+    if mls.find(t["room"], body.member_id, str(t["who"])) is not None:
+        mls.leave(t["room"], body.member_id)
 
 
 # ---------- breakout rooms (built in and Jitsi alike) ----------
@@ -196,5 +302,7 @@ def join_breakout(body: BreakoutJoinIn, token: Token, db: DB) -> dict:
         if not allowed or not 0 <= body.room < len(state.rooms):
             raise forbidden("This breakout room is not for you.")
         room = breakouts.room_name(t["main"], body.room)
-    info = connect_room(db, room, t["main"], t["name"], who, bool(t.get("host")), bool(t.get("mod")), town_hall)
+    main = db.scalar(select(Meeting).where(Meeting.room == t["main"]))
+    e2ee = bool(main and main.e2ee)
+    info = connect_room(db, room, t["main"], t["name"], who, bool(t.get("host")), bool(t.get("mod")), town_hall, e2ee)
     return info | {"town_hall": town_hall}

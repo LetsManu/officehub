@@ -134,7 +134,7 @@ async function load() {
   }
 }
 
-async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'is_active' | 'manager_id'>>) {
+async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'is_active' | 'manager_id' | 'e2ee_required'>>) {
   try {
     const updated = await api.patch<User>(`/api/admin/users/${person.id}`, change)
     people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
@@ -306,6 +306,10 @@ onMounted(load)
                     </button>
                     <span :class="person.is_active ? 'active' : 'muted'">{{ person.is_active ? t('admin.active') : t('admin.inactive') }}</span>
                     <button v-if="isAdmin && person.id !== currentUser?.id" type="button" class="btn btn-ghost" @click="openReset(person)">{{ t('admin.resetPassword') }}</button>
+                    <label v-if="isAdmin" class="e2ee-toggle small" :title="t('admin.e2eeRequiredHint')">
+                      <input type="checkbox" :checked="!!person.e2ee_required" @change="updatePerson(person, { e2ee_required: ($event.target as HTMLInputElement).checked })" />
+                      {{ t('admin.e2eeRequired') }}
+                    </label>
                   </td>
                 </tr>
               </tbody>
@@ -548,5 +552,12 @@ onMounted(load)
 .active {
   color: var(--color-success);
   font-weight: 600;
+}
+
+.e2ee-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 </style>

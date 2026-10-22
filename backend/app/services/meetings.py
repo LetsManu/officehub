@@ -85,10 +85,11 @@ def jitsi_token(room: str, name: str, user_id: str, moderator: bool, avatar: str
 
 
 def rtc_token(db: Session, room: str, name: str, who: str, host: bool, main: str = "", mod: bool = False,
-              max_people: int = BUILTIN_MAX) -> str:
-    """Admission to one built-in meeting room, valid for the same time as a Jitsi token."""
+              max_people: int = BUILTIN_MAX, e2ee: bool = False) -> str:
+    """Admission to one built-in meeting room (and, for an encrypted meeting, its MLS group), valid for the same
+    time as a Jitsi token."""
     payload = {"room": room, "main": main or room, "name": name, "who": who, "host": host, "mod": mod,
-               "max": max_people, "exp": int(time.time()) + TOKEN_HOURS * 3600}
+               "max": max_people, "e2ee": e2ee, "exp": int(time.time()) + TOKEN_HOURS * 3600}
     return jwt_encode(payload, rtc_key(db))
 
 
@@ -136,15 +137,18 @@ def is_moderator(user: User | None, meeting: Meeting) -> bool:
 
 def connect(db: Session, meeting: Meeting, name: str, who: str, host: bool, mod: bool = False) -> dict:
     """Everything a client needs to join: the web page here, and later the desktop or Android app."""
-    info = connect_room(db, meeting.room, meeting.room, name, who, host, mod, meeting.town_hall)
+    info = connect_room(db, meeting.room, meeting.room, name, who, host, mod, meeting.town_hall, meeting.e2ee)
     info["town_hall"] = meeting.town_hall
     return info
 
 
 def connect_room(db: Session, room: str, main: str, name: str, who: str, host: bool, mod: bool,
-                 town_hall: bool = False) -> dict:
-    """Connection details for one room: the meeting itself or one of its breakout rooms."""
+                 town_hall: bool = False, e2ee: bool = False) -> dict:
+    """Connection details for one room: the meeting itself or one of its breakout rooms. An end-to-end encrypted
+    meeting also gets the ticket for its MLS group (services/mls.py), with the Jitsi server as well."""
     roles = {"who": who, "moderator": mod}
+    if e2ee:
+        roles["e2ee"] = {"token": rtc_token(db, room, name, who, host, main=main, mod=mod, e2ee=True), "signal": "/api/rtc/mls"}
     # While the Jitsi server runs, every meeting and call goes through it. Only a meeting that already runs built in
     # (the server was started in the meantime) stays that way until it is empty, so nobody ends up in another room.
     if mode() == "jitsi" and not rtc.count(room):
@@ -154,7 +158,7 @@ def connect_room(db: Session, room: str, main: str, name: str, who: str, host: b
     return {
         "mode": "builtin",
         "room": room,
-        "token": rtc_token(db, room, name, who, host, main=main, mod=mod, max_people=max_people),
+        "token": rtc_token(db, room, name, who, host, main=main, mod=mod, max_people=max_people, e2ee=e2ee),
         "display_name": name,
         "signal": "/api/rtc",
         "ice_servers": ice_servers(),

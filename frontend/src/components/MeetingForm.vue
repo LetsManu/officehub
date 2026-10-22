@@ -21,11 +21,13 @@ const people = ref<DirectoryEntry[]>([])
 const spaces = ref<Space[]>([])
 const search = ref('')
 const busy = ref(false)
-const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false, recurrence: '' as Recurrence, until: '', town_hall: false })
+const form = reactive({ title: '', description: '', day: '', from: '', to: '', invitees: [] as number[], space_id: null as number | null, allow_guests: false, recurrence: '' as Recurrence, until: '', town_hall: false, e2ee: false })
 const RECURRENCES: Recurrence[] = ['', 'daily', 'weekdays', 'weekly', 'biweekly', 'monthly']
 const errors = reactive<Record<string, string>>({})
 
 const editing = computed(() => !!props.meeting)
+// HR / Admin made encryption a must for this person: their meetings are always end-to-end encrypted
+const forcedE2ee = computed(() => !!currentUser.value?.e2ee_required)
 const chosen = computed(() => form.invitees.map((id) => people.value.find((p) => p.id === id)).filter((p): p is DirectoryEntry => !!p))
 const matches = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -49,14 +51,14 @@ function reset() {
   const m = props.meeting
   if (m?.starts_at && m.ends_at) {
     const s = localParts(new Date(m.starts_at))
-    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link, recurrence: m.recurrence ?? '', until: m.recurrence_until ?? '', town_hall: !!m.town_hall })
+    Object.assign(form, { title: m.title, description: m.description, day: s.day, from: s.time, to: localParts(new Date(m.ends_at)).time, invitees: m.invitees.map((i) => i.person.id), space_id: m.space_id, allow_guests: !!m.guest_link, recurrence: m.recurrence ?? '', until: m.recurrence_until ?? '', town_hall: !!m.town_hall, e2ee: !!m.e2ee })
   } else {
     // The time chosen in the calendar, otherwise the next full half hour, for one hour
     const start = props.start ? new Date(props.start) : new Date()
     if (!props.start) start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0)
     const end = props.end ?? new Date(start.getTime() + 3600_000)
     const s = localParts(start)
-    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false, recurrence: '', until: '', town_hall: false })
+    Object.assign(form, { title: '', description: '', day: s.day, from: s.time, to: localParts(end).time, invitees: [], space_id: props.spaceId ?? null, allow_guests: false, recurrence: '', until: '', town_hall: false, e2ee: false })
   }
 }
 
@@ -91,7 +93,7 @@ async function save() {
   if (end <= start) end.setDate(end.getDate() + 1) // goes past midnight
   busy.value = true
   try {
-    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests, recurrence: form.recurrence, recurrence_until: form.recurrence && form.until ? form.until : null, town_hall: form.town_hall }
+    const body = { title: form.title.trim(), description: form.description.trim(), starts_at: start.toISOString(), ends_at: end.toISOString(), invitee_ids: form.invitees, space_id: form.space_id, allow_guests: form.allow_guests, recurrence: form.recurrence, recurrence_until: form.recurrence && form.until ? form.until : null, town_hall: form.town_hall, e2ee: form.e2ee || forcedE2ee.value }
     const saved = editing.value ? await api.put<MeetingDetail>(`/api/meetings/${props.meeting!.id}`, body) : await api.post<MeetingDetail>('/api/meetings', body)
     emit('saved', saved)
   } catch (e) {
@@ -308,6 +310,13 @@ watch(() => props.open, (open) => {
       <label class="checkbox">
         <input v-model="form.town_hall" type="checkbox" />
         <span>{{ t('meetings.fields.townHall') }}<span class="muted small block">{{ t('meetings.fields.townHallHint') }}</span></span>
+      </label>
+      <label class="checkbox">
+        <input :checked="form.e2ee || forcedE2ee" :disabled="forcedE2ee" type="checkbox" @change="form.e2ee = ($event.target as HTMLInputElement).checked" />
+        <span>
+          {{ t('meetings.fields.e2ee') }}
+          <span class="muted small block">{{ forcedE2ee ? t('meetings.fields.e2eeForced') : t('meetings.fields.e2eeHint') }}</span>
+        </span>
       </label>
     </form>
   </BaseModal>

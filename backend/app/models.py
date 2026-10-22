@@ -67,6 +67,8 @@ class User(Base):
     recovery_codes: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))
     # E-mail copies of important notifications
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    # Set by HR / Admin: this person's meetings and calls are always end-to-end encrypted
+    e2ee_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     # Presence like in Teams: "auto" follows calendar, meetings and activity; or a status chosen by the person
     presence: Mapped[str] = mapped_column(String(12), default="auto", server_default=text("'auto'"))
     status_text: Mapped[str] = mapped_column(String(120), default="", server_default=text("''"))
@@ -1033,6 +1035,8 @@ class Meeting(Base):
     skipped: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))  # comma-separated YYYY-MM-DD
     # Town hall: only the organizer and the people they bring on stage speak; everyone else watches
     town_hall: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    # End-to-end encrypted (MLS + SFrame): only the people in the meeting hold the keys
+    e2ee: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     organizer: Mapped[User | None] = relationship()
