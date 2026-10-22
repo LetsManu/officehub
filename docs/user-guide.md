@@ -317,8 +317,9 @@ with **New space** (you become its manager). Each space has these tabs:
   two people type in the same paragraph. You see where the others are – in WordCraft their caret with their name, in
   DeckCraft a frame in their colour around what they selected and their initials on the slide thumbnails. Changes are
   saved automatically a few seconds after the last one (one version per stretch of work, "Edited together"); **Undo**
-  takes back only your own changes. Tables change as one piece for now: when two people change the same table at the
-  same moment, the last change wins. (Where the WordCraft/DeckCraft container is older and opens a file for one
+  takes back only your own changes. In tables you can type in any cell while others type in the same or another cell;
+  only when two people change the table itself at the very same moment (for example both add a row), the last change
+  wins. Comments, headers and pictures that several people add at once all stay. (Where the WordCraft/DeckCraft container is older and opens a file for one
   person at a time, **Edit together** – the people icon – opens it in the office editor instead.) **Save** puts the file
   back here as a new version; exports such as PDF still download.
 - **On the computer**: create an **app password** under **Profile → Programs and network drive**, then connect the

@@ -14,8 +14,10 @@ Both apps are built from a fixed commit of OfficeHub's forks ([LetsManu/wordcraf
 - both edit together live: with `?collab=` the app joins the file's session at OfficeHub (`/api/craft/collab/<file>`),
   sends its changes as Yjs updates and merges everyone else's – in WordCraft down to the character (two people can
   type in the same paragraph), in DeckCraft per shape and character. Undo takes back only your own steps; everyone
-  sees who else is there (WordCraft: their caret with their name; DeckCraft: what they selected). Tables change as one
-  piece for now (the last change to a table wins). `collab.json` in the image tells OfficeHub that a build can do it
+  sees who else is there (WordCraft: their caret with their name; DeckCraft: what they selected). In tables every
+  cell is shared on its own, so people type in different cells or the same cell at once; a change to the table itself
+  (a new row or column) is one piece (the last one wins), the cells keep their text. While a file is shared, each
+  person's new comments, headers and pictures get ids from a range of their own, so they never clash. `collab.json` in the image tells OfficeHub that a build can do it
   (older images keep one person at a time).
 
 Nothing is sent outside the company.
