@@ -1,5 +1,6 @@
 """OfficeHub API."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,7 @@ from . import seed
 from .config import settings
 from .db import Base, SessionLocal, add_missing_columns, engine
 from .errors import ApiError
+from .services import backup
 from .routers import (
     admin,
     announcements,
@@ -22,6 +24,7 @@ from .routers import (
     branding,
     calendar,
     chat,
+    backups,
     craft,
     directory,
     documents,
@@ -66,7 +69,9 @@ async def lifespan(_app: FastAPI):
     add_missing_columns()
     with SessionLocal() as db:
         seed.ensure_initial_data(db)
+    nightly = asyncio.create_task(backup.nightly())
     yield
+    nightly.cancel()
 
 
 app = FastAPI(title="OfficeHub API", version=settings.app_version, lifespan=lifespan)
@@ -179,5 +184,6 @@ for router in (
     office.hooks,
     webdav.router,
     craft.router,
+    backups.router,
 ):
     app.include_router(router)

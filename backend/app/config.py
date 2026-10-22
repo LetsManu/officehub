@@ -45,6 +45,7 @@ class Settings:
     data_dir: Path
     database_url: str
     upload_dir: Path
+    backup_dir: Path  # nightly archives of database and files (mount a NAS share here to keep them off the server)
     demo_mode: bool
     demo_language: str
     session_hours: int
@@ -97,6 +98,7 @@ def load_settings() -> Settings:
         data_dir=data_dir,
         database_url=os.getenv("DATABASE_URL", f"sqlite:///{data_dir / 'officehub.db'}"),
         upload_dir=Path(os.getenv("UPLOAD_DIR", str(data_dir / "uploads"))).resolve(),
+        backup_dir=Path(os.getenv("BACKUP_DIR", str(data_dir / "backups"))).resolve(),
         demo_mode=_bool("DEMO_MODE", False),
         demo_language=language if language in {"de", "en"} else "de",
         session_hours=max(1, _int("SESSION_HOURS", 12)),

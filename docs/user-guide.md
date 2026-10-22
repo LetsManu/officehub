@@ -478,6 +478,9 @@ People with the *Manager* or *HR / Admin* role see an extra **Management** secti
 - **Overview**: open requests, decisions this month, average handling time and approved vacation days this year.
 - **Export approved requests**: choose a type and dates if you like, then click **Download CSV**. The file opens in Excel or LibreOffice.
 - **People** (HR / Admin): add a person with a starting password, change roles or deactivate accounts.
+- **Backups** (HR / Admin): OfficeHub backs up the database and all files every night. See whether the last backup
+  worked, back up now, download a backup or go back to an earlier state (the current state is backed up first; people
+  who signed in since then sign in again).
 
 ### Reports
 
