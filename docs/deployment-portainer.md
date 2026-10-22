@@ -69,18 +69,20 @@ Changing `ADMIN_EMAIL` / `ADMIN_PASSWORD` later has no effect – use **Profile 
 - **Word, Excel and PowerPoint in the browser**: the stack starts **Collabora Online** with the portal, and OfficeHub
   finds it by itself. It is reached through the portal's own address (`/collabora/`), works with HTTP and HTTPS, and
   needs about 1 GB of RAM. Don't want it? Remove the `collabora` service from the stack.
-- **Video meetings and calls** are built in: OfficeHub introduces the browsers to each other and audio and video go
-  directly between them – no extra container. Good for calls and meetings of up to 8 people inside the office
-  network. Browsers only allow camera and microphone on **HTTPS** pages (see step 3).
+- **Video meetings and calls** run on the stack's own **Jitsi Meet** server (`jitsi-*` containers, about 1–2 GB of
+  RAM). The `turn` container is a relay of your own for people on other networks (home office, mobile data). Both
+  find the server's public address from `PORTAL_URL` (or `PUBLIC_IP`); no outside service is used. Open these ports
+  to the server for people outside the office: **UDP 10000** (Jitsi), **UDP+TCP 3478** and **UDP 49160–49200**
+  (relay). Without the `jitsi-*` containers meetings run built in (directly between the browsers, through the relay
+  when needed). Browsers only allow camera and microphone on **HTTPS** pages (see step 3).
 
 ### Optional extras
 
-Add them to `COMPOSE_PROFILES` (e.g. `jitsi` or `jitsi,onlyoffice`) and redeploy. Passwords between OfficeHub and
+Add them to `COMPOSE_PROFILES` (e.g. `onlyoffice`) and redeploy. Passwords between OfficeHub and
 these servers are made on the first start – there is nothing to type in.
 
 | Profile | What it adds |
 | --- | --- |
-| `jitsi` | A **Jitsi Meet** server for larger meetings. OfficeHub uses it by itself once it runs: then every meeting and call (also between two people) goes through it; a meeting already running built in finishes that way. Open **UDP port 10000** to the server; for people outside the office network also set `JITSI_PUBLIC_IP`. About 1–2 GB of RAM. |
 | `onlyoffice` | **ONLYOFFICE Docs** as a second editor (2–4 GB of RAM, first start takes a few minutes). HR chooses the default under **Administration → Office editing**. |
 
 **WordCraft and DeckCraft:** the `craft` container runs by default. Word files then open in WordCraft and PowerPoint
@@ -94,9 +96,9 @@ Explorer (**Map network drive**), macOS Finder (**Go → Connect to server**) or
 versions of WordCraft and DeckCraft, LibreOffice or Microsoft Office then open and save files of the spaces directly;
 every save is a new version, and a file checked out by someone else cannot be overwritten. Windows needs HTTPS for this.
 
-**People outside the office (home office, mobile data):** with built-in meetings their browsers often cannot reach
-each other directly. Either switch on `jitsi` with `JITSI_PUBLIC_IP`, or point `ICE_SERVERS` to a TURN server of your
-own (e.g. `turn:turn.your-company.example:3478`, with `ICE_USERNAME` and `ICE_PASSWORD`).
+**People outside the office (home office, mobile data):** open the ports above. If `PORTAL_URL`'s name resolves to an
+internal address only, set `PUBLIC_IP`. `ICE_SERVERS` (with `ICE_USERNAME`, `ICE_PASSWORD`) replaces the relay with a
+STUN/TURN server of your own.
 
 **Windows and Android apps:** every release has `OfficeHub-Setup.exe` and `OfficeHub.apk` attached; people find
 them in OfficeHub under **Install as app**. Nothing to set up on the server. Sign-ins from the apps last
@@ -168,7 +170,7 @@ To restore on a new server: deploy the stack, copy an archive into the backup fo
 | --- | --- |
 | "The office server cannot be reached" | The Collabora/ONLYOFFICE container is not running or still starting (about a minute after a redeploy). Look at its log in Portainer. |
 | Camera and microphone cannot be chosen | The portal is opened over plain `http://`. Use HTTPS. |
-| Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". With Jitsi: UDP port 10000 is blocked or `JITSI_PUBLIC_IP` is missing. |
+| Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). |
 | "Could not connect to the meeting" | With Jitsi: the reverse proxy does not pass WebSockets (Nginx Proxy Manager: *Websockets Support*). |
 | Collabora stops right after starting with "Failed to listen" | The host has no IPv6. The compose file already sets `net.proto=IPv4`; keep that line if you copy the service. |
 | The editor stays empty | Your reverse proxy must pass WebSockets and send `X-Forwarded-Proto` (all common ones do). |

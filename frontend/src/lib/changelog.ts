@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8.1',
+    date: '2026-10-22',
+    de: [
+      'Meetings und Anrufe klappen jetzt auch, wenn ihr in verschiedenen Netzen seid (Homeoffice, Handy-Daten): OfficeHub bringt dafür einen eigenen Vermittler mit, und der Meeting-Server Jitsi läuft jetzt von Anfang an mit. Kommt trotzdem keine Verbindung zustande, sagt OfficeHub Bescheid statt ein schwarzes Bild zu zeigen.',
+      'Die Auswahl für Kamera, Mikrofon und Lautsprecher flackert nicht mehr.',
+    ],
+    en: [
+      'Meetings and calls now also work when you are on different networks (home office, mobile data): OfficeHub brings its own relay for this, and the Jitsi meeting server now runs from the start. If no connection can be made, OfficeHub says so instead of showing a black picture.',
+      'Choosing a camera, microphone and loudspeaker no longer flickers.',
+    ],
+  },
+  {
     version: '3.8.0',
     date: '2026-10-22',
     de: [

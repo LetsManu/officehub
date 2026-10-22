@@ -7,9 +7,13 @@ Two ways, chosen automatically:
   hands out a short-lived JWT for exactly one conference; Prosody checks it with the shared secret.
 """
 
+import base64
+import hashlib
+import hmac
 import secrets
 import time
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_, select
@@ -118,14 +122,29 @@ def rtc_key(db: Session) -> str:
     return key
 
 
-def ice_servers() -> list[dict]:
-    """No outside STUN servers: inside the office network browsers find each other directly."""
-    if not settings.ice_servers:
+TURN_HOURS = 12
+
+
+def ice_servers(who: str = "") -> list[dict]:
+    """No outside STUN servers. Inside the office network browsers find each other directly; for everyone else the
+    stack's own relay (coturn) forwards audio and video. Its passwords last a few hours and are made from the shared
+    secret (coturn's "use-auth-secret"), so nothing has to be set up. ICE_SERVERS replaces it with servers of your own."""
+    if settings.ice_servers:
+        server: dict = {"urls": list(settings.ice_servers)}
+        if settings.ice_username:
+            server.update(username=settings.ice_username, credential=settings.ice_password or "")
+        return [server]
+    host = urlparse(settings.portal_url).hostname
+    if not settings.turn_secret or not host:
         return []
-    server: dict = {"urls": list(settings.ice_servers)}
-    if settings.ice_username:
-        server.update(username=settings.ice_username, credential=settings.ice_password or "")
-    return [server]
+    username = f"{int(time.time()) + TURN_HOURS * 3600}:{who or 'officehub'}"
+    digest = hmac.new(settings.turn_secret.encode(), username.encode(), hashlib.sha1).digest()
+    port = settings.turn_port
+    return [{
+        "urls": [f"stun:{host}:{port}", f"turn:{host}:{port}?transport=udp", f"turn:{host}:{port}?transport=tcp"],
+        "username": username,
+        "credential": base64.b64encode(digest).decode(),
+    }]
 
 
 def is_moderator(user: User | None, meeting: Meeting) -> bool:
@@ -163,7 +182,7 @@ def connect_room(db: Session, room: str, main: str, name: str, who: str, host: b
         "token": rtc_token(db, room, name, who, host, main=main, mod=mod, max_people=max_people, e2ee=e2ee),
         "display_name": name,
         "signal": "/api/rtc",
-        "ice_servers": ice_servers(),
+        "ice_servers": ice_servers(who),
         "max_people": max_people,
     } | roles
 

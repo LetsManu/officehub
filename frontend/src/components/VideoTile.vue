@@ -11,7 +11,7 @@ const video = ref<HTMLVideoElement | null>(null)
 const audio = ref<HTMLAudioElement | null>(null)
 
 const initials = computed(() => props.tile.name.split(/\s+/).map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase() || '?')
-const showVideo = computed(() => props.tile.video && !props.tile.videoMuted)
+const showVideo = computed(() => props.tile.video && !props.tile.videoMuted && !props.tile.unreachable)
 
 function bind(track: unknown, el: HTMLMediaElement | null, previous: unknown) {
   const p = previous as { detach?: (el: HTMLElement) => void } | null
@@ -41,6 +41,7 @@ onBeforeUnmount(() => {
     <video v-show="showVideo" ref="video" autoplay playsinline muted :class="{ mirror: tile.local && !tile.screen }" />
     <audio v-if="!tile.local" ref="audio" autoplay />
     <div v-if="!showVideo" class="placeholder" aria-hidden="true"><span class="initials">{{ initials }}</span></div>
+    <p v-if="tile.unreachable" class="unreachable" role="status"><AppIcon name="alert" :size="16" />{{ t('meeting.unreachable') }}</p>
     <figcaption class="name">
       <AppIcon v-if="tile.audioMuted" name="micOff" :size="14" :label="t('meeting.micMuted')" />
       <span>{{ tile.name || '…' }}<template v-if="tile.local"> ({{ t('meeting.you') }})</template></span>
@@ -239,5 +240,21 @@ video {
   .reaction {
     animation: none;
   }
+}
+.unreachable {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 70px 0 0;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 0.8rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 </style>

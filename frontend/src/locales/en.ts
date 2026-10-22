@@ -1110,6 +1110,8 @@ const en: Messages = {
     removeTitle: 'Remove {name} from the meeting?',
     removeText: 'They are disconnected and cannot join this meeting again today.',
     removed: 'You were removed from the meeting.',
+    noConnection: 'No connection to {name} – no picture or sound. Usually the network is the reason; IT can open the ports for meetings.',
+    unreachable: 'No connection',
     mutedBy: '{name} muted you.',
     onStage: 'You are on stage – you can now speak and show your video.',
     offStage: 'You are watching again.',
