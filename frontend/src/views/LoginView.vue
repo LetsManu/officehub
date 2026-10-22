@@ -27,7 +27,15 @@ const HIGHLIGHTS = [
   { icon: 'users', key: 'login.highlightPeople' },
 ]
 
-onMounted(loadConfig)
+onMounted(async () => {
+  await loadConfig()
+  // Back from the company login with a problem: say what happened
+  const problem = typeof route.query.sso === 'string' ? route.query.sso.replace(/[^a-z_]/g, '') : ''
+  if (problem) formError.value = t(`errors.sso_${problem}`)
+})
+
+const ssoUrl = computed(() => `/api/auth/sso/start?origin=${encodeURIComponent(window.location.origin)}`)
+const ssoLabel = computed(() => publicConfig.value?.sso?.label || t('login.ssoDefault'))
 
 function validate(): boolean {
   errors.email = form.email.trim() ? '' : t('login.emailRequired')
@@ -116,6 +124,10 @@ function changeLanguage(value: Language) {
           <p>{{ formError }}</p>
         </div>
 
+        <template v-if="publicConfig?.sso && step === 'password'">
+          <a class="btn btn-primary btn-block btn-lg" :href="ssoUrl"><AppIcon name="key" :size="20" />{{ t('login.sso', { name: ssoLabel }) }}</a>
+          <p class="divider"><span>{{ t('login.orPassword') }}</span></p>
+        </template>
         <form class="stack" novalidate @submit.prevent="submit">
           <template v-if="step === 'password'">
             <FormField id="email" :label="t('login.email')" :error="errors.email">
@@ -148,7 +160,7 @@ function changeLanguage(value: Language) {
               />
             </template>
           </FormField>
-          <button type="submit" class="btn btn-primary btn-block btn-lg" :disabled="busy">
+          <button type="submit" class="btn btn-block btn-lg" :class="publicConfig?.sso && step === 'password' ? 'btn-secondary' : 'btn-primary'" :disabled="busy">
             {{ busy ? t('login.submitting') : step === 'code' ? t('login.confirm') : t('login.submit') }}
           </button>
           <button v-if="step === 'code'" type="button" class="btn btn-ghost btn-block" @click="back">{{ t('app.back') }}</button>
@@ -181,6 +193,23 @@ function changeLanguage(value: Language) {
 </template>
 
 <style scoped>
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;

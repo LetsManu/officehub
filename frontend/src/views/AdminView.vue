@@ -13,6 +13,7 @@ import RoomsPanel from '@/components/admin/RoomsPanel.vue'
 import BrandingPanel from '@/components/admin/BrandingPanel.vue'
 import HolidaysPanel from '@/components/admin/HolidaysPanel.vue'
 import OfficePanel from '@/components/admin/OfficePanel.vue'
+import SsoPanel from '@/components/admin/SsoPanel.vue'
 import BackupsPanel from '@/components/admin/BackupsPanel.vue'
 import SecurityPanel from '@/components/admin/SecurityPanel.vue'
 import { api, query } from '@/lib/api'
@@ -337,6 +338,10 @@ onMounted(load)
         <details class="disclosure">
           <summary>{{ t('admin.security') }}</summary>
           <div class="disclosure-body"><SecurityPanel /></div>
+        </details>
+        <details class="disclosure">
+          <summary>{{ t('admin.sso') }}</summary>
+          <div class="disclosure-body"><SsoPanel /></div>
         </details>
         <details class="disclosure">
           <summary>{{ t('admin.office') }}</summary>

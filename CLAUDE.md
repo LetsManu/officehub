@@ -25,6 +25,8 @@ desktop notifications use the browser's Notification API only (no outside push s
     signalling or Jitsi JWTs. Keep these endpoints app-friendly (future Windows/Android apps use them).
     Moderation (`mod` in the room token: organizer, or everyone in space rooms/calls), reactions and whiteboard go as
     small "app" messages; breakout rooms (`services/breakouts.py`, `/api/rtc/breakouts`) work with either token kind.
+  - `app/routers/sso.py`, `app/services/sso.py` – company login with the company's own OpenID Connect server
+    (Authentik, Keycloak); set up in Administration, password sign-in always stays.
   - `app/routers/webdav.py` – spaces as a network drive (`/dav/`, Basic auth with app passwords only,
     `services/app_passwords.py`). `app/routers/craft.py` + `craft/` – WordCraft/DeckCraft web builds (optional
     container, detected like the office servers) open `?src=` and PUT Save to `?save=` with a file ticket. Check-out

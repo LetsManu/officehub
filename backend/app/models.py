@@ -60,6 +60,8 @@ class User(Base):
     deputy_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     deputy_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Two-factor sign-in (authenticator app codes)
+    # Subject ID at the company login server (Authentik, Keycloak …) once the person signed in with it
+    sso_subject: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     recovery_codes: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))

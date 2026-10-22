@@ -36,7 +36,12 @@ def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
             login_throttle.fail(key)
             raise ApiError(401, "two_factor_invalid", "The code is not correct.")
     login_throttle.reset(key)
+    open_session(db, user, response)
+    return user
 
+
+def open_session(db: DB, user: User, response: Response) -> None:
+    """Signed in: a new session and its cookie (password sign-in and company login)."""
     now = utcnow()
     db.execute(delete(AuthSession).where(AuthSession.expires_at < now))
     token = new_session_token()
@@ -52,7 +57,6 @@ def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
         samesite="lax",
         path="/",
     )
-    return user
 
 
 @router.post("/logout", status_code=204)

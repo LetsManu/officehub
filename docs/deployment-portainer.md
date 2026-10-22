@@ -110,6 +110,24 @@ Run OfficeHub behind your existing reverse proxy (Nginx Proxy Manager, Traefik, 
 - Set `COOKIE_SECURE=true` in the stack and redeploy.
 - Allow uploads of at least 20 MB in the proxy (`client_max_body_size 20m` for nginx).
 
+## Company login (Authentik, Keycloak …) – optional
+
+People can sign in with their company account from your own OpenID Connect server. Example for **Authentik**:
+
+1. Authentik → **Applications → Create with provider** → name `OfficeHub`, provider type **OAuth2/OpenID Provider**,
+   client type **Confidential**, redirect URI (strict) `https://<officehub address>/api/auth/sso/callback`
+   (OfficeHub shows the exact address under **Administration → Company login**). Keep the default scopes
+   `openid`, `email`, `profile`.
+2. Copy **Client ID**, **Client Secret** and the **OpenID Configuration Issuer**
+   (`https://<authentik>/application/o/officehub/`) from the provider.
+3. OfficeHub → **Administration → Company login**: paste them, tick **Turn on** and save (OfficeHub checks that it can
+   reach the server). Optional: Authentik group names that make people HR / admins or managers.
+
+New people are created as employees at their first sign-in (can be turned off). Existing accounts are linked by
+e-mail address when the server confirms the address. Signing in with e-mail and password keeps working, so an
+administrator can always get in. Someone deactivated in Authentik can no longer sign in; deactivate them in OfficeHub
+too to end open sessions at once.
+
 ## 4. Updating
 
 1. Stacks → `officehub` → **Editor**: change `OFFICEHUB_VERSION` to the new version (or keep `latest`).
