@@ -21,7 +21,16 @@ After signing in, OfficeHub uses the language you chose in your profile.
 
 To sign out, click **Sign out** at the bottom of the menu.
 
-**Install as an app:** in Chrome or Edge click **Install as app** in the menu (on phones: *Add to home screen*).
+**Install as an app:** OfficeHub works like an app on the computer and the phone, without an app store. Click
+**Install as app** at the bottom of the menu: Chrome and Edge install it at once; elsewhere a page shows the steps for
+Windows/Mac, Android and iPhone/iPad (iPhone: Safari → Share → *Add to Home Screen*). The home page shows a short tip
+until it is installed (*Don't show again* hides it). The installed app
+
+- opens in its own window and shows unread messages as a number on its icon;
+- offers shortcuts on a long press (or right-click) on its icon: chat, calendar, files, new request;
+- takes photos, documents and links from other apps: choose **Share → OfficeHub**, then pick the space for the files
+  or the chat for the text;
+- says when there is no connection, and offers **Reload** when OfficeHub was updated.
 OfficeHub then opens in its own window like a normal program.
 
 ---

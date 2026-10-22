@@ -6,10 +6,15 @@
 # The WebAssembly is the same on every machine: build it once on the build machine, also for arm64 images.
 FROM --platform=$BUILDPLATFORM rust:1.95-slim AS build
 ARG TRUNK_VERSION=0.21.14
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates pkg-config \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates pkg-config brotli \
     && rm -rf /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown && cargo install trunk --version "$TRUNK_VERSION" --locked
 WORKDIR /src
+# Built for size (whole-program optimisation): about a third smaller WebAssembly, which downloads and starts much
+# faster, above all on phones. Only this image's build; the apps' own repositories keep their settings.
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=s \
+    CARGO_PROFILE_RELEASE_LTO=fat \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 # Exact commits, so every build is the same reviewed code; each app on its own, so a change to one only rebuilds that
 # app. collab.json tells OfficeHub that the build edits together.
 ARG WORDCRAFT_REPO=https://github.com/LetsManu/wordcraft
@@ -26,6 +31,12 @@ RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 "$DECKCRAFT_REP
     && echo '{"together": true}' > /out/deckcraft/collab.json
 # Their licences travel with the files
 RUN for app in wordcraft deckcraft; do cp $app/LICENSE-MIT $app/LICENSE-APACHE $app/NOTICE /out/$app/; done
+# Compressed ahead of time (Brotli about a fifth of the WebAssembly's size, gzip for older browsers), and a list of
+# the large files, so the portal can fetch them ahead of time and opening a document is quick.
+RUN cd /out && for app in wordcraft deckcraft; do \
+      for f in $app/*.wasm $app/*.js; do brotli -q 11 -w 24 -k "$f" && gzip -9 -k "$f"; done; \
+      (cd $app && printf '{"files": [%s]}\n' "$(ls *.wasm *.js | sed 's/.*/"&"/' | paste -sd, -)" > assets.json); \
+    done
 
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf

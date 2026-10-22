@@ -3,8 +3,8 @@
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, StringConstraints, field_validator
 
 from ..deps import DB, Admin
@@ -116,3 +116,52 @@ def logo(db: DB) -> FileResponse:
         resolve(path), media_type=MIME_TYPES.get(file_type, "application/octet-stream"),
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# Shortcuts in the installed app's menu (long-press or right-click on its icon), in the reader's language.
+SHORTCUTS = {
+    "de": [("Chat", "/chat"), ("Kalender", "/calendar"), ("Dateien", "/files"), ("Neuer Antrag", "/requests/new")],
+    "en": [("Chat", "/chat"), ("Calendar", "/calendar"), ("Files", "/files"), ("New request", "/requests/new")],
+}
+DESCRIPTION = {
+    "de": "Mitarbeiterportal: Anträge, Dokumente, Chat, Besprechungen und mehr.",
+    "en": "Employee portal: requests, documents, chat, meetings and more.",
+}
+
+
+@router.get("/manifest.webmanifest")
+def manifest(request: Request, db: DB) -> JSONResponse:
+    """The web app manifest: the installed app carries the company's name and colour, offers shortcuts and takes
+    files and text shared from other apps (they open on /share)."""
+    branding = current_branding(db)
+    lang = "de" if request.headers.get("accept-language", "de").lower().startswith("de") else "en"
+    name = branding.company_name or "OfficeHub"
+    icons = [
+        {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    ]
+    body = {
+        "id": "/",
+        "name": name,
+        "short_name": name[:12],
+        "description": DESCRIPTION[lang],
+        "lang": lang,
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#f4f6fa",
+        "theme_color": branding.accent_color,
+        "icons": icons,
+        "shortcuts": [
+            {"name": label, "url": url, "icons": [{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"}]}
+            for label, url in SHORTCUTS[lang]
+        ],
+        "share_target": {
+            "action": "/share",
+            "method": "POST",
+            "enctype": "multipart/form-data",
+            "params": {"title": "title", "text": "text", "url": "url", "files": [{"name": "files", "accept": ["*/*"]}]},
+        },
+    }
+    return JSONResponse(body, media_type="application/manifest+json", headers={"Cache-Control": "no-cache", "Vary": "Accept-Language"})

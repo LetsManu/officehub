@@ -71,6 +71,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/activity', component: () => import('./views/ActivityView.vue'), meta: { title: 'nav.activity' } },
   { path: '/files', component: () => import('./views/FilesView.vue'), meta: { title: 'nav.files' } },
   { path: '/help', component: () => import('./views/HelpView.vue'), meta: { title: 'nav.help' } },
+  { path: '/install', component: () => import('./views/InstallView.vue'), meta: { title: 'install.title' } },
+  { path: '/share', component: () => import('./views/ShareView.vue'), meta: { title: 'share.title' } },
   { path: '/whats-new', component: () => import('./views/WhatsNewView.vue'), meta: { title: 'whatsNew.title' } },
   // Also open for someone standing in for a manager; the API decides what they see.
   { path: '/approvals', component: () => import('./views/ApprovalsView.vue'), meta: { title: 'nav.approvals' } },

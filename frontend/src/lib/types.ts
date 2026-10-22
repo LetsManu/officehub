@@ -329,6 +329,7 @@ export interface Summary {
   cards_due: number
   presence?: Presence
   reminders: { meeting_id: number; title: string; starts_at: string; ends_at: string }[]
+  version?: string
 }
 
 export interface SearchHit {

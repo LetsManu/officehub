@@ -14,6 +14,7 @@ import { errorText, formatDate, formatDateLong, formatPeriod, locale, t } from '
 import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
 import { refreshSummary, summary } from '@/lib/summary'
 import { DEFAULT_TILES, tileByKey, type TileDefinition } from '@/lib/tiles'
+import { isStandalone } from '@/lib/pwa'
 import { hours } from '@/lib/time'
 import type {
   Absence, ActivityItem, Announcement, AppNotification, Booking, Celebration, Checklist, Meeting, NotificationList, OfficeRequest, RequestList, Review,
@@ -237,6 +238,25 @@ async function load() {
 }
 
 onMounted(load)
+
+// Until the portal is installed (or the hint was put away) the start page says that it can be an app.
+const INSTALL_HINT = 'officehub.installHint'
+const installHint = ref(!isStandalone() && readHint() !== 'hidden')
+function readHint(): string | null {
+  try {
+    return localStorage.getItem(INSTALL_HINT)
+  } catch {
+    return null
+  }
+}
+function hideInstallHint() {
+  installHint.value = false
+  try {
+    localStorage.setItem(INSTALL_HINT, 'hidden')
+  } catch {
+    /* only for this visit then */
+  }
+}
 </script>
 
 <template>
@@ -248,6 +268,13 @@ onMounted(load)
         <p class="muted">{{ t('dashboard.intro') }}</p>
       </div>
     </header>
+
+    <div v-if="installHint" class="notice notice-info install-hint">
+      <AppIcon name="download" />
+      <span class="grow">{{ t('install.hint') }}</span>
+      <RouterLink to="/install" class="btn btn-primary">{{ t('install.how') }}</RouterLink>
+      <button type="button" class="btn btn-ghost" :aria-label="t('install.later')" @click="hideInstallHint">{{ t('install.later') }}</button>
+    </div>
 
     <RouterLink v-if="spotlight" :to="`/announcements#a-${spotlight.id}`" class="spotlight">
       <span class="spotlight-tag"><AppIcon name="pin" :size="14" />{{ t('dashboard.spotlight') }}</span>
@@ -870,5 +897,16 @@ onMounted(load)
   .bento {
     grid-template-columns: 1fr;
   }
+}
+
+.install-hint {
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.install-hint .grow {
+  flex: 1;
+  min-width: 14rem;
 }
 </style>

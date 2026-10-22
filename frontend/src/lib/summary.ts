@@ -10,6 +10,7 @@ import { chime, notifyDesktop } from './desktop'
 import { t } from './i18n'
 import { notificationText } from './notifications'
 import { myActivity, setMyPresence } from './presence'
+import { noteVersion, setBadge } from './pwa'
 import { currentUser } from './session'
 import type { AppNotification, Conversation, NotificationList, Summary } from './types'
 
@@ -43,6 +44,8 @@ export async function refreshSummary(force = false): Promise<void> {
     if (myActivity.value) params.set('activity', myActivity.value)
     const next = await api.get<Summary>(`/api/me/summary${params.size ? `?${params}` : ''}`)
     summary.value = next
+    setBadge(next.unread + next.chat_unread)
+    noteVersion(next.version)
     if (next.presence) setMyPresence(next.presence, currentUser.value?.id)
     if (primed) {
       if (next.unread > before.unread) announceNotifications()
@@ -116,6 +119,7 @@ export function stopSummary(): void {
   window.clearInterval(timer)
   for (const name of ['pointermove', 'keydown', 'pointerdown', 'scroll']) window.removeEventListener(name, onInput)
   summary.value = { ...EMPTY }
+  setBadge(0)
   lastLoad = 0
   primed = false
 }
