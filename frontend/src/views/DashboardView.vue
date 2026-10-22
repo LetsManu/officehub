@@ -22,6 +22,7 @@ import type {
   VacationBalance,
 } from '@/lib/types'
 import { todayIso } from '@/lib/workdays'
+import { inApp } from '@/lib/native'
 
 interface AttentionItem {
   key: string
@@ -241,7 +242,7 @@ onMounted(load)
 
 // Until the portal is installed (or the hint was put away) the start page says that it can be an app.
 const INSTALL_HINT = 'officehub.installHint'
-const installHint = ref(!isStandalone() && readHint() !== 'hidden')
+const installHint = ref(!isStandalone() && !inApp() && readHint() !== 'hidden')
 function readHint(): string | null {
   try {
     return localStorage.getItem(INSTALL_HINT)

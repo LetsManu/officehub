@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ring-answer"
+description = "Enables the ring_answer command without any pre-configured scope."
+commands.allow = ["ring_answer"]
+
+[[permission]]
+identifier = "deny-ring-answer"
+description = "Denies the ring_answer command without any pre-configured scope."
+commands.deny = ["ring_answer"]

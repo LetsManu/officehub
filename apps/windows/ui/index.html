@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OfficeHub</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="connect.js" defer></script>
+  </head>
+  <body class="connect">
+    <main class="panel">
+      <img class="logo" src="icon.png" alt="" width="72" height="72" />
+      <h1 id="title">Willkommen bei OfficeHub</h1>
+      <p id="text" class="muted"></p>
+      <form id="form" novalidate>
+        <label id="label" for="address">Adresse</label>
+        <input id="address" type="url" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" required />
+        <p id="error" class="error" role="alert" hidden></p>
+        <button id="button" type="submit">Verbinden</button>
+      </form>
+    </main>
+  </body>
+</html>

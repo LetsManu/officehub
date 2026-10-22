@@ -1,0 +1,1 @@
+{"local":{"identifier":"local","description":"The app's own pages: the address screen and the ringing window","local":true,"windows":["main","ring"],"permissions":["core:default","allow-connect","allow-ui-texts","allow-ring-answer"]}}

@@ -17,7 +17,7 @@ import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
-import { appSignedIn, appTexts, onAppEvent } from '@/lib/native'
+import { appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -32,7 +32,7 @@ const menuButton = ref<HTMLButtonElement | null>(null)
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 // Outside the installed app there is always a way to install it: the browser's own prompt where it offers one,
 // otherwise the steps for this device.
-const showInstall = !isStandalone()
+const showInstall = !isStandalone() && !inApp()
 function install() {
   if (canInstall.value) installApp()
   else router.push('/install')
