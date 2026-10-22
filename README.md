@@ -54,10 +54,16 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   gallery and speaker view, pin and spotlight, picture-in-picture, a shared whiteboard, recording in the browser,
   breakout rooms, town halls with a stage, mute everyone and remove people, device test, push to talk and the
   browser's noise suppression
+- **End-to-end encrypted meetings** (per meeting, or required for chosen people): sound, video, screen, chat,
+  reactions and whiteboard are locked in the browsers (MLS + SFrame), also through Jitsi; the server only passes on
+  what it cannot read. **Who is who**: every browser has its own device key, new devices are confirmed from one you
+  already use, people can be checked in person with a security number or QR code, and the meeting warns about (or,
+  if the company wants, keeps out) anyone who is not confirmed
 - **Files on the computer and open-source office programs**: spaces as a **network drive** (WebDAV, sign-in with app
   passwords) for Explorer, Finder and desktop programs; **check out / check in** like SharePoint; optional browser
   versions of **WordCraft** (documents) and **DeckCraft** (presentations) that open a file and save it back as a new
-  version
+  version; several people can edit the same WordCraft document or DeckCraft presentation **together live**, and
+  automatic saves go into one shared version
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
@@ -78,6 +84,8 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - **Trainings**: mandatory trainings with due dates, repeats and certificates
 - **Surveys** (anonymous, results from five answers) and an **ideas box** with votes and HR answers
 - Help & FAQ, contact person per section, "What's new" page
+- **Company login** (single sign-on) with your own OpenID Connect server such as Authentik or Keycloak, set up in
+  Administration; signing in with a password always stays possible
 - Profile with photo, two-factor sign-in (authenticator app + recovery codes), e-mail settings, deputy (managers)
   and the list of equipment you have
 - German and English, light and dark theme, installable as an app, works on desktop, tablet and phone
@@ -92,43 +100,67 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
 - **Equipment register** with hand-out/return history
 - **Branding**: company name, logo and accent colour (checked for readability)
 - Public holidays built in for Austria, Germany (per state) and Switzerland, plus company days off
-- Security: require two-factor sign-in per role, reset it for a lost phone, **audit log** of important changes
+- Security: end-to-end encryption policy (warn about or keep out unconfirmed devices), require two-factor sign-in per role, reset it for a lost phone, **audit log** of important changes
 - Surveys, trainings, help articles, rooms/desks/parking, quick links, dashboard tiles and section contacts
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Browser
-        UI["Vue 3 single-page app<br/>(German / English)"]
+    subgraph Devices
+        UI["Browser<br/>Vue 3 single-page app<br/>(installable, German / English)"]
+        DRIVE["Explorer / Finder<br/>(network drive)"]
     end
-    subgraph Docker Compose
-        NGINX["frontend<br/>nginx :8080<br/>static files + /api proxy"]
+    subgraph Stack["Docker Compose stack (your server)"]
+        NGINX["frontend<br/>nginx :8080<br/>app + /api, /dav, editors, Jitsi"]
         API["backend<br/>FastAPI :8000"]
-        VOL[("officehub-data volume<br/>officehub.db (SQLite)<br/>uploads/")]
+        VOL[("officehub-data<br/>SQLite + uploads")]
+        BAK[("officehub-backups<br/>nightly .tar.gz")]
+        COOL["collabora<br/>Word / Excel / PowerPoint"]
+        OO["onlyoffice<br/>(optional)"]
+        CRAFT["craft<br/>WordCraft / DeckCraft web"]
+        JITSI["jitsi-web, prosody,<br/>jicofo, jvb (optional)"]
     end
-    UI -- "HTTPS / HTTP" --> NGINX
-    NGINX -- "/api/*" --> API
+    IDP["Your OpenID Connect server<br/>Authentik, Keycloak (optional)"]
+    UI -- "HTTPS" --> NGINX
+    DRIVE -- "WebDAV" --> NGINX
+    NGINX --> API
+    NGINX --> CRAFT
+    NGINX --> COOL
+    NGINX --> OO
+    NGINX --> JITSI
     API --> VOL
+    API --> BAK
+    COOL -- "WOPI (inside the stack)" --> API
+    OO -- "callbacks (inside the stack)" --> API
+    UI -. "company login" .-> IDP
+    API -. "token check" .-> IDP
+    UI -. "audio / video<br/>(WebRTC, end-to-end encrypted if chosen)" .-> UI
 ```
 
 | Part | Technology | Notes |
 | --- | --- | --- |
-| Frontend | Vue 3, Vite, TypeScript, vue-router | No UI library; design tokens in `frontend/src/styles.css` |
+| Frontend | Vue 3, Vite, TypeScript, vue-router | No UI library; design tokens in `frontend/src/styles.css`; PWA with service worker |
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2, Pydantic | All input validated with Pydantic models |
-| Database | SQLite (WAL mode) | One file in the Docker volume |
-| Files | Local filesystem | Uploaded documents and receipts in the Docker volume |
-| Auth | Email + password, bcrypt, HttpOnly session cookie | Sessions stored server-side, configurable lifetime |
+| Database | SQLite (WAL mode) | One file in the Docker volume; new columns are added on startup |
+| Files | Local filesystem | Uploads, space files and versions in the Docker volume; nightly backups |
+| Auth | Email + password (bcrypt), two-factor, OpenID Connect | HttpOnly session cookie, sessions stored server-side; app passwords for the network drive |
+| Live updates | Long polling (`/api/rtc`, `/api/craft/collab`) and a 30-second heartbeat (`/api/me/summary`) | No WebSocket server or outside push service |
+| Office editing | Collabora Online (default), ONLYOFFICE (optional), WordCraft / DeckCraft (Rust → WebAssembly) | Optional servers are detected by themselves (`services/probe.py`) |
+| Meetings | WebRTC between browsers, or Jitsi (lib-jitsi-meet) when it runs | OfficeHub's own interface in both cases |
+| End-to-end encryption | MLS (ts-mls) + SFrame in the browser, ECDSA device keys | The server only stores public keys and passes on encrypted messages |
 
 ```
 officehub/
-├── backend/            FastAPI app, tests, Dockerfile
-│   ├── app/routers/    auth, requests, announcements, documents, profile, admin
-│   ├── app/services/   request rules (validation, permissions)
-│   └── tests/          pytest suite
-├── frontend/           Vue app, nginx config, Dockerfile
-│   └── src/            views, components, locales (de/en), lib
-├── docs/               user guide, UI guidelines, screenshots
+├── backend/              FastAPI app, tests, Dockerfile
+│   ├── app/routers/      one module per area (requests, spaces, chat, meetings, rtc, keys, sso, webdav, …)
+│   ├── app/services/     rules and helpers (requests, people, meetings, mls, keys, collab, presence, probe, …)
+│   └── tests/            pytest suite (uses the demo data)
+├── frontend/             Vue app, nginx config, service worker, Dockerfile
+│   └── src/              views, components, locales (de/en), lib (meetings, e2ee, pwa, markdown)
+├── craft/                WordCraft / DeckCraft web build (from the LetsManu forks)
+├── docs/                 user guide, deployment, UI guidelines, screenshots
+├── .github/workflows/    tests, images, releases
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -259,7 +291,12 @@ you want your own.
 - CSV exports neutralise spreadsheet formulas (CSV injection).
 - Meetings: OfficeHub decides who may join and hands out a signed ticket for exactly one meeting that expires after
   six hours (built in and Jitsi alike). Guests get one only after someone in the meeting let them in. Built-in meetings
-  use no outside STUN/TURN server; audio and video are encrypted between the browsers (WebRTC). Nothing is recorded.
+  use no outside STUN/TURN server; audio and video are encrypted between the browsers (WebRTC). Nothing is recorded on
+  the server.
+- End-to-end encrypted meetings: keys are made and kept only in the browsers (device keys cannot be exported).
+  OfficeHub only delivers MLS messages and refuses chat, reactions and whiteboard in plain text there; it never signs
+  keys, so a changed or unconfirmed device shows up in the meeting.
+- Company login (OpenID Connect) uses the authorization code flow with PKCE, state and nonce against your own server.
 - nginx sends a strict Content-Security-Policy (`default-src 'self'`), `X-Frame-Options: DENY` and `nosniff`.
 - The backend container runs as an unprivileged user.
 - No secrets are committed. Keep your `.env` file out of version control (it is in `.gitignore`).
@@ -278,7 +315,7 @@ volume while the backend is stopped.
 
 - Team-based approvals (managers see only their team)
 - Database migrations with Alembic (today new columns are added automatically on startup)
-- Single sign-on (LDAP / Active Directory)
+- LDAP / Active Directory sign-in (OpenID Connect already works)
 - More languages
 - Public holidays per location (today one region for the whole company)
 

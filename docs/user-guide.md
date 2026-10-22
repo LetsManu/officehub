@@ -59,7 +59,8 @@ that document or meeting themselves.
 
 - **Formatting**: `**bold**`, `*italic*`, `~~crossed out~~`, `` `code` `` and ```` ``` ```` around a block of code.
   Lines starting with `-` become a list, links become clickable.
-- **Reactions**: point at a message and pick 👍, ❤️, 😂 or **+** for more. Click a reaction to add or remove yours.
+- **Reactions**: point at a message (on a phone: tap it) and the small bar with 👍, ❤️, 😂 and **+** appears for that
+  message only. Click a reaction under a message to add or remove yours.
 - **Threads**: **Reply in thread** keeps a side conversation next to the chat. The message shows how many replies
   there are; everyone who wrote in the thread is told about new replies.
 - **Pin**: the pin symbol keeps important messages; the pin at the top lists them all.
