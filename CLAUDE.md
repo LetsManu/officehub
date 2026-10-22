@@ -56,7 +56,9 @@ badge, offline notice and "updated, reload" (version in the summary).
   connection to `GET /api/me/feed` for notifications and calls, no cloud push). Both load the company's portal; the
   portal talks to them through `frontend/src/lib/native.ts` (only the company's address may: Tauri runtime capability,
   Android WebMessageListener). App sign-ins (`OfficeHubApp/` in the user agent) last `APP_SESSION_DAYS`. Built by
-  `.github/workflows/apps.yml` and attached to every release.
+  `.github/workflows/apps.yml` and attached to every release. The Windows app's OfficeHub folder in Explorer (like
+  OneDrive: Cloud Files API placeholders, `apps/windows/src-tauri/src/sync/`) syncs through `/api/sync`
+  (`routers/sync.py`, change numbers from a session hook in `services/sync.py` – every way of changing files counts).
 - `frontend/` – Vue 3 + Vite + TypeScript, no UI library.
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.
   - `src/components/` – shared building blocks (BaseModal, FormField, EmptyState, StatusBadge …).

@@ -92,6 +92,13 @@ export interface AppEvent {
   navigate?: string
   call?: number
   action?: 'accept' | 'decline'
+  /** Windows: this computer has no OfficeHub folder yet – make an app password for it */
+  syncSetup?: { device: string }
+}
+
+/** Windows: the app password for this computer's OfficeHub folder (Explorer, like OneDrive). */
+export function appSyncCredentials(login: string, password: string) {
+  if (appKind() === 'windows') send({ type: 'sync-credentials', login, password })
 }
 
 export function onAppEvent(handler: (event: AppEvent) => void): () => void {

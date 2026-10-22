@@ -818,6 +818,8 @@ class Space(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Change number for the desktop sync (services/sync.py), set on every change
+    sync_seq: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), index=True)
 
     members: Mapped[list["SpaceMember"]] = relationship(back_populates="space", cascade="all, delete-orphan")
 
@@ -847,6 +849,7 @@ class Folder(Base):
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    sync_seq: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), index=True)
 
 
 class SpaceFile(Base):
@@ -867,6 +870,7 @@ class SpaceFile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    sync_seq: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), index=True)
     # Lock held by an office editor (WOPI) while someone edits the file
     lock_id: Mapped[str | None] = mapped_column(String(1024))
     lock_expires: Mapped[datetime | None] = mapped_column(DateTime)
@@ -1188,6 +1192,28 @@ class MeetingGuest(Base):
     secret: Mapped[str] = mapped_column(String(64), unique=True)
     status: Mapped[str] = mapped_column(String(10), default="waiting")  # waiting, admitted, denied
     decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SyncState(Base):
+    """One row: the latest change number of spaces, folders and files (desktop sync, services/sync.py)."""
+
+    __tablename__ = "sync_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SyncTombstone(Base):
+    """A space, folder or file removed for good (not just moved to the trash), for the desktop sync."""
+
+    __tablename__ = "sync_tombstones"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # space, folder, file
+    item_id: Mapped[int] = mapped_column(Integer)
+    space_id: Mapped[int] = mapped_column(Integer, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

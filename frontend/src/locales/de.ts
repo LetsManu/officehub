@@ -2544,6 +2544,7 @@ const de = {
     reload: 'Neu laden',
   },
   install: {
+    folderPassword: 'OfficeHub-Ordner auf {device}',
     title: 'OfficeHub als App',
     subtitle: 'Mit eigenem Symbol, eigenem Fenster und Zahlen am Symbol – ohne App Store.',
     already: 'Du nutzt OfficeHub schon als App.',
