@@ -27,6 +27,7 @@ class Member:
     who: str
     name: str
     in_group: bool = False
+    keys: list[dict] = field(default_factory=list)  # the person's device keys (services/keys.py), for the browsers to check
     key_package: str = ""  # base64, waiting to be added
     queue: list[tuple[int, dict]] = field(default_factory=list)
     seq: int = 0
@@ -57,7 +58,8 @@ class Group:
             "epoch": self.epoch,
             "leader": leader.id if leader else None,
             "members": [
-                {"id": m.id, "who": m.who, "name": m.name, "in_group": m.in_group, "key_package": m.key_package}
+                {"id": m.id, "who": m.who, "name": m.name, "in_group": m.in_group, "key_package": m.key_package,
+                 "keys": m.keys}
                 for m in self.members.values()
             ],
             "gone": list(self.gone),
@@ -86,10 +88,10 @@ def sweep(room: str) -> None:
         leave(room, member.id)
 
 
-def join(room: str, who: str, name: str) -> tuple[Member, dict]:
+def join(room: str, who: str, name: str, keys: list[dict] | None = None) -> tuple[Member, dict]:
     sweep(room)
     group = groups.setdefault(room, Group())
-    member = Member(id=secrets.token_hex(8), who=who, name=name)
+    member = Member(id=secrets.token_hex(8), who=who, name=name, keys=keys or [])
     group.members[member.id] = member
     group.announce()
     return member, group.roster()

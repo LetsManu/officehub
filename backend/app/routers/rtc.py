@@ -13,7 +13,7 @@ from sqlalchemy import select
 from ..db import SessionLocal
 from ..deps import DB
 from ..errors import ApiError, forbidden
-from ..services import breakouts, mls, rtc
+from ..services import breakouts, keys, mls, rtc
 from ..models import Meeting
 from ..services.meetings import BUILTIN_MAX, connect_room, rtc_key, ticket
 from ..services.office import jwt_decode
@@ -184,7 +184,14 @@ async def mls_hello(token: Token) -> dict:
         raise forbidden("This meeting is not end-to-end encrypted.")
     if rtc.is_removed(t["main"], str(t["who"])):
         raise ApiError(403, "removed_from_meeting", "You were removed from this meeting.")
-    member, roster = mls.join(t["room"], str(t["who"]), t["name"])
+    who = str(t["who"])
+    # Stays on the event loop (the groups wake each other's polls): one short read
+    with SessionLocal() as db:
+        if not who.isdigit() and keys.policy(db) == "strict":
+            raise ApiError(403, "e2ee_guests_blocked", "This meeting is only for confirmed people.")
+        # The person's device keys travel with the roster: every browser checks them itself (frontend e2ee/identity.ts)
+        chain = keys.chain(db, int(who)) if who.isdigit() else []
+    member, roster = mls.join(t["room"], who, t["name"], chain)
     return {"member_id": member.id, "roster": roster}
 
 

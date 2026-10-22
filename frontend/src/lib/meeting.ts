@@ -6,7 +6,7 @@
  */
 
 import { reactive, ref, shallowRef } from 'vue'
-import type { E2eeGroup, E2eeInfo, E2eeKeys, MediaCrypto, Sender } from './e2ee'
+import type { E2eeGroup, E2eeInfo, E2eeKeys, GroupMember, MediaCrypto, Sender } from './e2ee'
 import { builtinSession, createRtcTracks } from './rtc'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet has no type definitions here */
@@ -175,7 +175,15 @@ function newState() {
     moving: false, // switching to or from a breakout room
     notices: [] as Notice[],
     // end-to-end encryption (null: an ordinary meeting)
-    e2ee: null as null | { status: 'connecting' | 'secure' | 'failed'; code: string; epoch: number; members: Sender[] },
+    e2ee: null as null | {
+      status: 'connecting' | 'secure' | 'failed'
+      code: string
+      epoch: number
+      members: GroupMember[]
+      strict: boolean
+      problem: string
+      problemName: string
+    },
   })
 }
 
@@ -355,11 +363,33 @@ export function useMeeting() {
         for (const track of localTracks) track.dispose?.()
         throw Object.assign(new Error('e2ee_unsupported'), { code: 'e2ee_unsupported' })
       }
+      // Who this browser is: its device key (people) or a key for this visit only (guests)
+      const who = c.who ?? ''
+      const device = /^\d+$/.test(who) ? await e2ee.myDevice(who) : await e2ee.guestDevice(who)
+      const refuse = (code: string) => {
+        state.status = 'failed'
+        state.error = code
+        for (const track of localTracks) track.dispose?.()
+        throw Object.assign(new Error(code), { code })
+      }
+      if (!device) refuse('e2ee_unsupported')
+      if (c.e2ee.policy === 'strict' && device!.pending && /^\d+$/.test(who)) refuse('e2ee_device_unconfirmed')
+      const book = await e2ee.Trustbook.load(who)
       media = c.mode === 'builtin' ? new e2ee.MediaCrypto() : null
-      group = new e2ee.E2eeGroup(c.e2ee, (keys: E2eeKeys) => {
-        media?.setKeys(keys)
-        session?.setMediaKeys?.(keys)
-      }, onSealed)
+      group = new e2ee.E2eeGroup(
+        c.e2ee,
+        { device: device!, book },
+        (keys: E2eeKeys) => {
+          media?.setKeys(keys)
+          session?.setMediaKeys?.(keys)
+        },
+        onSealed,
+        () => {
+          // Someone's key is not theirs (or not confirmed under the strict rule): no more sound or picture here
+          media?.stop()
+          void session?.leave()
+        },
+      )
       state.e2ee = group.view
     }
     session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp, media) : jitsiSession(state, onApp, !!c.e2ee)
@@ -381,6 +411,8 @@ export function useMeeting() {
       return info
     },
     join: start,
+    /** After checking someone's security number in person: show them as confirmed */
+    recheckTrust: () => group?.recheck(),
     leave: async () => {
       group?.stop()
       media?.stop()

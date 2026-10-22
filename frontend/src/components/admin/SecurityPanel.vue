@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Two-factor rules and the e-mail test.
-import { ref, watch } from 'vue'
+// Two-factor rules, who may take part in end-to-end encrypted meetings, and the e-mail test.
+import { onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
@@ -13,6 +13,20 @@ const ROLES: Role[] = ['admin', 'manager', 'employee']
 const required = ref<Role[]>([...(portalSettings.value.require_2fa_roles ?? [])] as Role[])
 const saving = ref(false)
 const testing = ref(false)
+const identityPolicy = ref<'warn' | 'strict'>('warn')
+
+onMounted(async () => {
+  identityPolicy.value = (await api.get<{ policy: 'warn' | 'strict' }>('/api/keys/policy').catch(() => ({ policy: 'warn' as const }))).policy
+})
+
+async function savePolicy() {
+  try {
+    await api.put('/api/keys/policy', { policy: identityPolicy.value })
+    showToast(t('admin.securitySaved'))
+  } catch (e) {
+    showToast(errorText(e), 'error')
+  }
+}
 
 watch(portalSettings, (value) => (required.value = [...(value.require_2fa_roles ?? [])] as Role[]))
 
@@ -57,6 +71,21 @@ async function testMail() {
         </label>
       </div>
       <div><button type="button" class="btn btn-primary" :disabled="saving" @click="save">{{ t('app.save') }}</button></div>
+    </section>
+
+    <section class="stack-sm">
+      <h3><AppIcon name="shield" :size="18" />{{ t('admin.identityTitle') }}</h3>
+      <p class="muted small">{{ t('admin.identityHint') }}</p>
+      <div class="stack-sm" role="radiogroup" :aria-label="t('admin.identityTitle')">
+        <label class="checkbox">
+          <input v-model="identityPolicy" type="radio" value="warn" @change="savePolicy" />
+          <span>{{ t('admin.identityWarn') }}</span>
+        </label>
+        <label class="checkbox">
+          <input v-model="identityPolicy" type="radio" value="strict" @change="savePolicy" />
+          <span>{{ t('admin.identityStrict') }}</span>
+        </label>
+      </div>
     </section>
 
     <section class="stack-sm">

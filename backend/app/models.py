@@ -365,6 +365,41 @@ class QuickLink(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class DeviceKey(Base):
+    """One browser's identity key for end-to-end encrypted meetings (only the public part, an ECDSA P-256 key).
+
+    The first device of a person is their root; every further device is signed by one of their confirmed devices
+    (the person compares a code on both screens). The browsers check these signatures themselves, so OfficeHub
+    cannot slip in a key of its own."""
+
+    __tablename__ = "device_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    public_key: Mapped[str] = mapped_column(Text)  # base64 SPKI
+    name: Mapped[str] = mapped_column(String(80), default="")
+    root: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
+    signed_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the device that confirmed this one
+    signature: Mapped[str] = mapped_column(Text, default="")  # base64, by `signed_by` (or by itself for the root)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class KeyVerification(Base):
+    """"I have checked this person's security number": signed by one of the author's devices, so it holds on all of
+    their devices and OfficeHub cannot fake it."""
+
+    __tablename__ = "key_verifications"
+    __table_args__ = (UniqueConstraint("author_id", "subject_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    root: Mapped[str] = mapped_column(String(64))  # fingerprint (SHA-256, hex) of the subject's root key
+    signed_by: Mapped[int] = mapped_column(Integer)
+    signature: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Setting(Base):
     """Small key/value store for portal-wide settings (JSON values)."""
 

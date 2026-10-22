@@ -8,12 +8,13 @@ import LoadState from '@/components/LoadState.vue'
 import OrgNode from '@/components/OrgNode.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SectionContact from '@/components/SectionContact.vue'
+import VerifyPerson from '@/components/VerifyPerson.vue'
 import { api, query } from '@/lib/api'
 import { messagePerson, startCall } from '@/lib/calls'
 import { downloadCsv } from '@/lib/csv'
 import { errorText, t } from '@/lib/i18n'
 import { activityText, presence } from '@/lib/presence'
-import { currentUser } from '@/lib/session'
+import { currentUser, publicConfig } from '@/lib/session'
 import type { DirectoryEntry } from '@/lib/types'
 
 type View = 'list' | 'org' | 'phones'
@@ -110,6 +111,9 @@ onMounted(() => {
   load()
   loadAll()
 })
+
+// Check a colleague's security number in person (encrypted meetings)
+const verifying = ref<{ id: string; name: string } | null>(null)
 </script>
 
 <template>
@@ -178,6 +182,9 @@ onMounted(() => {
             <div v-if="person.id !== currentUser?.id" class="person-actions">
               <button type="button" class="btn btn-secondary" @click="startCall(router, { user_id: person.id })"><AppIcon name="video" :size="18" />{{ t('people.call') }}</button>
               <button type="button" class="btn btn-ghost" @click="messagePerson(router, person.id)"><AppIcon name="chat" :size="18" />{{ t('people.message') }}</button>
+              <button v-if="publicConfig?.meetings_enabled" type="button" class="btn btn-ghost" @click="verifying = { id: String(person.id), name: person.full_name }">
+                <AppIcon name="shield" :size="18" />{{ t('keys.verifyButton') }}
+              </button>
             </div>
           </li>
         </ul>
@@ -215,6 +222,7 @@ onMounted(() => {
     </LoadState>
 
     <SectionContact section="directory" />
+    <VerifyPerson v-if="verifying" :open="!!verifying" :user-id="verifying.id" :name="verifying.name" @close="verifying = null" />
   </div>
 </template>
 

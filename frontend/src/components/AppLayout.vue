@@ -16,7 +16,8 @@ import { currentUser, publicConfig, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
-import { refreshSummary, startSummary, stopSummary } from '@/lib/summary'
+import { myDevice, type Device } from '@/lib/e2ee/identity'
+import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
 import { trapTab } from '@/lib/focus'
@@ -141,12 +142,26 @@ function onGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
+// This browser's key for encrypted meetings (made the first time): a new device of mine waits for this one
+const device = ref<Device | null>(null)
+const deviceWaiting = computed(
+  () => !!device.value && !device.value.pending && (summary.value.devices_pending ?? 0) > 0 && route.path !== '/profile',
+)
+
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
   document.addEventListener('click', onDocumentClick)
   listenForNotificationClicks()
   startSummary()
 })
+
+watch(
+  () => [publicConfig.value?.meetings_enabled, currentUser.value?.id, summary.value.devices_pending] as const,
+  ([enabled, id]) => {
+    if (enabled && id) void myDevice(String(id), !!device.value).then((d) => (device.value = d))
+  },
+  { immediate: true },
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
@@ -379,6 +394,11 @@ watch(
           <AppIcon name="download" />
           <span class="grow">{{ t('pwa.updated') }}</span>
           <button type="button" class="btn btn-primary" @click="reload">{{ t('pwa.reload') }}</button>
+        </div>
+        <div v-else-if="deviceWaiting" class="notice notice-info app-banner" role="status">
+          <AppIcon name="shield" />
+          <span class="grow">{{ t('keys.waitingBanner') }}</span>
+          <RouterLink to="/profile#keys" class="btn btn-primary">{{ t('keys.waitingOpen') }}</RouterLink>
         </div>
         <slot />
       </main>

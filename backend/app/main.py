@@ -33,6 +33,7 @@ from .routers import (
     help,
     holidays,
     ideas,
+    keys,
     meetings,
     notifications,
     office,
@@ -191,5 +192,6 @@ for router in (
     craft.router,
     sso.router,
     backups.router,
+    keys.router,
 ):
     app.include_router(router)

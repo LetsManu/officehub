@@ -5,6 +5,7 @@ import FormField from '@/components/FormField.vue'
 import PhotoPicker from '@/components/PhotoPicker.vue'
 import DeputySettings from '@/components/DeputySettings.vue'
 import AppPasswords from '@/components/AppPasswords.vue'
+import MeetingKeys from '@/components/MeetingKeys.vue'
 import DesktopSettings from '@/components/DesktopSettings.vue'
 import MyEquipment from '@/components/MyEquipment.vue'
 import TwoFactorSettings from '@/components/TwoFactorSettings.vue'
@@ -224,6 +225,8 @@ async function changePassword() {
     </section>
 
     <AppPasswords />
+
+    <MeetingKeys />
 
     <DesktopSettings />
 

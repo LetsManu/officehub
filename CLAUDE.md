@@ -33,6 +33,10 @@ badge, offline notice and "updated, reload" (version in the summary).
     run MLS (`frontend/src/lib/e2ee/mls.ts`, ts-mls) and SFrame on the media (`e2ee/sframe*.ts`, encoded transforms),
     or hand the MLS-derived key to lib-jitsi-meet (externally managed key). Chat, reactions and whiteboard travel as MLS
     messages; the server refuses them in plaintext there. Never send keys or plaintext content to the server.
+    Who is who: every browser has a device key (ECDSA, non-extractable, `e2ee/identity.ts`; public part, signatures
+    between a person's devices and signed "checked in person" notes in `services/keys.py`, `/api/keys/*`). It signs the
+    MLS key in the credential; members check signature, device chain and root (trust on first use, security number,
+    QR). OfficeHub never signs anything; policy `warn`/`strict` (Administration → Security & e-mail).
   - `app/routers/sso.py`, `app/services/sso.py` – company login with the company's own OpenID Connect server
     (Authentik, Keycloak); set up in Administration, password sign-in always stays.
   - `app/routers/webdav.py` – spaces as a network drive (`/dav/`, Basic auth with app passwords only,
