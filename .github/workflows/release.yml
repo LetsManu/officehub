@@ -158,13 +158,28 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
+  # The Windows and Android apps (apps/, see apps.yml)
+  apps:
+    needs: [check, test]
+    uses: ./.github/workflows/apps.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      ref: ${{ needs.check.outputs.ref }}
+    secrets: inherit
+
   release:
-    needs: [check, images]
+    needs: [check, images, apps]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.check.outputs.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: app-*
+          path: apps-dist
+          merge-multiple: true
 
       - name: Prepare release files
         id: vars
@@ -200,15 +215,25 @@ jobs:
           - \`ghcr.io/${OWNER}/officehub-frontend:${VERSION#v}\`
           - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (WordCraft and DeckCraft in the browser)
 
+          ## Apps
+
+          - **Windows:** \`OfficeHub-Setup.exe\` – installs for the signed-in person (no admin rights needed)
+          - **Android:** \`OfficeHub.apk\`
+
+          On first start the apps ask for the address of your OfficeHub. Everyone also finds the downloads in
+          OfficeHub under **Install as app**.
+
           Full guide: \`DEPLOYMENT.md\` (also in the repository under \`docs/deployment-portainer.md\`).
           NOTES
           if gh release view "$VERSION" > /dev/null 2>&1; then
-            gh release upload "$VERSION" dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip --clobber
+            gh release upload "$VERSION" dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip \
+            apps-dist/OfficeHub-Setup.exe apps-dist/OfficeHub.apk --clobber
           else
             gh release create "$VERSION" \
               --title "OfficeHub $VERSION" \
               --notes-file notes.md \
               --generate-notes \
               --target "${{ needs.check.outputs.ref }}" \
-              dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip
+              dist/docker-compose.yml dist/stack.env dist/officehub-*-portainer.zip \
+              apps-dist/OfficeHub-Setup.exe apps-dist/OfficeHub.apk
           fi

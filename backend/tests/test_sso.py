@@ -66,7 +66,10 @@ def test_settings_only_for_admins_and_secret_stays_hidden(anna, julia, idp):
     assert saved["client_secret"] == "" and saved["has_secret"] is True
     again = julia.put("/api/admin/sso", json={**saved, "label": "Firmenkonto"}).json()  # empty secret = keep it
     assert again["has_secret"] is True
-    assert anna.get("/api/config").json()["sso"] == {"label": "Firmenkonto"}
+    sso_config = anna.get("/api/config").json()["sso"]
+    assert sso_config["label"] == "Firmenkonto"
+    # The apps open the company login page in their own window: its address(es)
+    assert sso_config["origins"] and all(o.startswith("http") and o.count("/") == 2 for o in sso_config["origins"])
     assert julia.put("/api/admin/sso", json={**saved, "issuer": ""}).json()["code"] == "sso_issuer"
 
 

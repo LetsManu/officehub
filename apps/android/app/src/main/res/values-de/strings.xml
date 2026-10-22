@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connect_title">Willkommen bei OfficeHub</string>
+    <string name="connect_text">Gib die Adresse eures OfficeHub ein – so, wie du sie im Browser öffnest.</string>
+    <string name="address">Adresse</string>
+    <string name="address_hint">portal.firma.de</string>
+    <string name="connect">Verbinden</string>
+    <string name="checking">Wird geprüft …</string>
+    <string name="address_invalid">Das sieht nicht wie eine Adresse aus.</string>
+    <string name="address_unreachable">Unter dieser Adresse läuft kein OfficeHub – oder sie ist nicht erreichbar. Bist du im Firmennetz?</string>
+    <string name="call_incoming">ruft dich an …</string>
+    <string name="call_accept">Annehmen</string>
+    <string name="call_decline">Ablehnen</string>
+</resources>

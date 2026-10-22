@@ -13,17 +13,18 @@ import de from '@/locales/de'
 
 type Invoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 
+/** Android: a WebMessageListener only the company's address can reach (apps/android MainActivity). */
 interface AndroidBridge {
-  post(message: string): void
+  postMessage(message: string): void
 }
 
-const win = (typeof window !== 'undefined' ? window : {}) as unknown as {
-  OfficeHubAndroid?: AndroidBridge
-  __TAURI_INTERNALS__?: { invoke?: Invoke }
-}
+type Host = { OfficeHubAndroid?: AndroidBridge; __TAURI_INTERNALS__?: { invoke?: Invoke } }
+
+const host = () => (typeof window !== 'undefined' ? window : {}) as unknown as Host
 
 /** Which app hosts the portal, if any. */
 export function appKind(): 'windows' | 'android' | null {
+  const win = host()
   if (win.OfficeHubAndroid) return 'android'
   if (win.__TAURI_INTERNALS__?.invoke) return 'windows'
   return null
@@ -32,8 +33,9 @@ export function appKind(): 'windows' | 'android' | null {
 export const inApp = () => appKind() !== null
 
 function send(message: Record<string, unknown>) {
+  const win = host()
   try {
-    if (win.OfficeHubAndroid) win.OfficeHubAndroid.post(JSON.stringify(message))
+    if (win.OfficeHubAndroid) win.OfficeHubAndroid.postMessage(JSON.stringify(message))
     else void win.__TAURI_INTERNALS__?.invoke?.('app_message', { message }).catch(() => undefined)
   } catch {
     /* the app went away */

@@ -98,7 +98,13 @@ every save is a new version, and a file checked out by someone else cannot be ov
 each other directly. Either switch on `jitsi` with `JITSI_PUBLIC_IP`, or point `ICE_SERVERS` to a TURN server of your
 own (e.g. `turn:turn.your-company.example:3478`, with `ICE_USERNAME` and `ICE_PASSWORD`).
 
-**Desktop and phone apps later:** everything the web page uses is a normal OfficeHub API.
+**Windows and Android apps:** every release has `OfficeHub-Setup.exe` and `OfficeHub.apk` attached; people find
+them in OfficeHub under **Install as app**. Nothing to set up on the server. Sign-ins from the apps last
+`APP_SESSION_DAYS` (default 90) and are extended while used; `APP_DOWNLOAD_URL` points the download buttons
+elsewhere (e.g. your own file share). The Android app keeps its own connection to OfficeHub for notifications and
+calls (`GET /api/me/feed`), so no Google or Microsoft push service is involved. For your own builds see `apps/README.md`.
+
+**Everything is a normal OfficeHub API.**
 `POST /api/meetings/{id}/join` and `POST /api/calls` return the connection details (built in: a ticket for
 `/api/rtc`; Jitsi: conference, token and server address), and `GET /api/calls/incoming` lists ringing calls.
 

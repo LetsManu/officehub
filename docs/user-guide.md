@@ -31,6 +31,21 @@ until it is installed (*Don't show again* hides it). The installed app
 - takes photos, documents and links from other apps: choose **Share → OfficeHub**, then pick the space for the files
   or the chat for the text;
 - says when there is no connection, and offers **Reload** when OfficeHub was updated.
+
+**The OfficeHub apps for Windows and Android (like Teams):** under **Install as app** you also find
+**Download for Windows** and **Download for Android**. On first start the app asks for the address of your OfficeHub
+(the one you open in the browser), then you sign in as usual – and stay signed in for up to 90 days.
+
+- **Windows:** OfficeHub opens in its own window with the Windows 11 look and starts with Windows. Closing the
+  window keeps it running in the notification area (bottom right): messages and notices come as Windows
+  notifications, the taskbar icon shows the number of new items, and a call rings with a small window
+  (**Accept** / **Decline**). Right-click the icon for **Start with Windows** on/off, **Connect to another
+  OfficeHub** or **Quit**. The first time, Windows may warn about an unknown publisher: **More info → Run anyway**.
+- **Android:** messages, notices, meeting reminders and calls arrive right away, also when the app is closed and the
+  phone is locked – calls ring full screen like a phone call. For that the app stays connected to your OfficeHub
+  (shown as a small permanent notification "OfficeHub is connected"; no outside push service). Allow notifications
+  and "no battery restrictions" when asked. Camera and microphone for meetings, uploading and downloading files work
+  as in the browser.
 OfficeHub then opens in its own window like a normal program.
 
 ---

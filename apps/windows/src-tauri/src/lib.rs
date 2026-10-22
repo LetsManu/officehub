@@ -15,7 +15,9 @@ use serde_json::Value;
 use tauri::ipc::CapabilityBuilder;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{
+    AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 mod badge;
@@ -46,10 +48,15 @@ struct AppState {
     /// How many portal permissions were added (each needs its own name)
     grants: Mutex<u32>,
     tray: Mutex<Option<TrayIcon>>,
+    /// The company login page (Authentik, Keycloak …): it opens in the app's window, not in the browser
+    sign_in: Mutex<Vec<String>>,
 }
 
 fn settings_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("settings.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("settings.json"))
 }
 
 fn load_settings(app: &AppHandle) -> Settings {
@@ -80,7 +87,11 @@ fn normalize(address: &str) -> Result<Url, String> {
     if trimmed.is_empty() {
         return Err("empty".into());
     }
-    let with_scheme = if trimmed.contains("://") { trimmed.to_string() } else { format!("https://{trimmed}") };
+    let with_scheme = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
     let mut url = Url::parse(&with_scheme).map_err(|_| "invalid".to_string())?;
     if url.scheme() != "https" && url.scheme() != "http" {
         return Err("invalid".into());
@@ -92,19 +103,61 @@ fn normalize(address: &str) -> Result<Url, String> {
 }
 
 /// Is there an OfficeHub at this address? Its public settings name the version.
-fn check_server(url: &Url) -> Result<(), String> {
+fn check_server(url: &Url) -> Result<Value, String> {
     let config = url.join("api/config").map_err(|_| "invalid".to_string())?;
-    let response = ureq::get(config.as_str())
+    // The system's TLS (Schannel on Windows): company certificates from the Windows store are trusted as in Edge
+    let tls = native_tls::TlsConnector::new().map_err(|_| "unreachable".to_string())?;
+    let agent = ureq::AgentBuilder::new()
+        .tls_connector(std::sync::Arc::new(tls))
+        .build();
+    let response = agent
+        .get(config.as_str())
         .set("User-Agent", USER_AGENT)
         .timeout(std::time::Duration::from_secs(10))
         .call()
         .map_err(|_| "unreachable".to_string())?;
-    let body: Value = response.into_json().map_err(|_| "not_officehub".to_string())?;
+    let body: Value = response
+        .into_json()
+        .map_err(|_| "not_officehub".to_string())?;
     if body.get("version").is_some() && body.get("meetings_enabled").is_some() {
-        Ok(())
+        Ok(body)
     } else {
         Err("not_officehub".into())
     }
+}
+
+/// The company login (OpenID Connect) named in the portal's public settings.
+fn remember_sign_in(app: &AppHandle, config: &Value) {
+    let origins: Vec<String> = config
+        .pointer("/sso/origins")
+        .and_then(Value::as_array)
+        .map(|list| {
+            list.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    *state(app).sign_in.lock().unwrap_or_else(|e| e.into_inner()) = origins;
+}
+
+/// At every start: the company login may have been set up (or moved) since.
+fn refresh_sign_in(app: &AppHandle) {
+    let server = state(app)
+        .settings
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .server
+        .clone();
+    let Some(url) = server.and_then(|s| Url::parse(&s).ok()) else {
+        return;
+    };
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if let Ok(config) = check_server(&url) {
+            remember_sign_in(&handle, &config);
+        }
+    });
 }
 
 fn origin_of(url: &Url) -> String {
@@ -143,13 +196,20 @@ fn show_main(app: &AppHandle) {
 /// Tell the portal something (it listens for "officehub-app" events, see frontend lib/native.ts).
 fn tell_page(app: &AppHandle, detail: Value) {
     if let Some(window) = main_window(app) {
-        let script = format!("window.dispatchEvent(new CustomEvent('officehub-app', {{ detail: {detail} }}))");
+        let script = format!(
+            "window.dispatchEvent(new CustomEvent('officehub-app', {{ detail: {detail} }}))"
+        );
         let _ = window.eval(&script);
     }
 }
 
 fn open_main(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
-    let server = state(app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
+    let server = state(app)
+        .settings
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .server
+        .clone();
     let server_url = server.as_deref().and_then(|s| Url::parse(s).ok());
     let url = match &server_url {
         Some(url) => {
@@ -168,9 +228,27 @@ fn open_main(app: &AppHandle, hidden: bool) -> tauri::Result<()> {
         .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
         .on_navigation(move |url| {
             // Within OfficeHub (and the app's own pages) stay here; everything else opens in the browser
-            let server = state(&handle).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
-            let inside = server.and_then(|s| Url::parse(&s).ok()).is_some_and(|s| origin_of(&s) == origin_of(url));
-            if inside || local_page(&handle, url) || url.scheme() == "about" || url.scheme() == "blob" || url.scheme() == "data" {
+            let server = state(&handle)
+                .settings
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .server
+                .clone();
+            let inside = server
+                .and_then(|s| Url::parse(&s).ok())
+                .is_some_and(|s| origin_of(&s) == origin_of(url));
+            let sign_in = state(&handle)
+                .sign_in
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .contains(&origin_of(url));
+            if inside
+                || sign_in
+                || local_page(&handle, url)
+                || url.scheme() == "about"
+                || url.scheme() == "blob"
+                || url.scheme() == "data"
+            {
                 return true;
             }
             let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
@@ -208,8 +286,6 @@ struct Ring {
 // async: making the ringing window from a synchronous command would block the main thread on Windows
 #[tauri::command]
 async fn app_message(app: AppHandle, message: Value) {
-    #[cfg(debug_assertions)]
-    eprintln!("portal → app: {message}");
     match message.get("type").and_then(Value::as_str).unwrap_or("") {
         "notify" => {
             if let Ok(n) = serde_json::from_value::<Notify>(message) {
@@ -262,7 +338,11 @@ fn set_badge(app: &AppHandle, count: i64) {
     if let Some(window) = main_window(app) {
         #[cfg(windows)]
         {
-            let icon = if count > 0 { Some(badge::image(count)) } else { None };
+            let icon = if count > 0 {
+                Some(badge::image(count))
+            } else {
+                None
+            };
             let _ = window.set_overlay_icon(icon);
         }
         #[cfg(not(windows))]
@@ -270,8 +350,17 @@ fn set_badge(app: &AppHandle, count: i64) {
             let _ = window.set_badge_count(if count > 0 { Some(count) } else { None });
         }
     }
-    if let Some(tray) = state(app).tray.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
-        let tip = if count > 0 { format!("OfficeHub ({count})") } else { "OfficeHub".to_string() };
+    if let Some(tray) = state(app)
+        .tray
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+    {
+        let tip = if count > 0 {
+            format!("OfficeHub ({count})")
+        } else {
+            "OfficeHub".to_string()
+        };
         let _ = tray.set_tooltip(Some(tip));
     }
 }
@@ -286,9 +375,8 @@ fn ring(app: &AppHandle, call: Ring) {
         *ringing = Some(call.meeting_id);
     }
     // The portal rings itself when it is in front; otherwise a small window like Teams, bottom right
-    let in_front = main_window(app).is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false));
-    #[cfg(debug_assertions)]
-    let in_front = in_front && std::env::var("OFFICEHUB_RING_WINDOW").is_err();
+    let in_front = main_window(app)
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false));
     if let Some(window) = main_window(app) {
         let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
     }
@@ -306,7 +394,10 @@ fn ring(app: &AppHandle, call: Ring) {
         ("accept", call.accept),
         ("decline", call.decline),
     ];
-    let query: Vec<String> = pairs.iter().map(|(k, v)| format!("{k}={}", url_encode(v))).collect();
+    let query: Vec<String> = pairs
+        .iter()
+        .map(|(k, v)| format!("{k}={}", url_encode(v)))
+        .collect();
     page.push_str(&query.join("&"));
     let (width, height) = (380.0, 168.0);
     let mut builder = WebviewWindowBuilder::new(app, "ring", WebviewUrl::App(page.into()))
@@ -338,7 +429,9 @@ fn url_encode(text: &str) -> String {
     let mut out = String::new();
     for byte in text.bytes() {
         match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(byte as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
             _ => out.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -348,7 +441,11 @@ fn url_encode(text: &str) -> String {
 /// Accept or decline in the ringing window: the portal does the rest (frontend IncomingCall.vue).
 #[tauri::command]
 async fn ring_answer(app: AppHandle, action: String) {
-    let id = state(&app).ringing.lock().unwrap_or_else(|e| e.into_inner()).take();
+    let id = state(&app)
+        .ringing
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take();
     if let Some(window) = app.get_webview_window("ring") {
         let _ = window.close();
     }
@@ -356,7 +453,10 @@ async fn ring_answer(app: AppHandle, action: String) {
     if action == "accept" {
         show_main(&app);
     }
-    tell_page(&app, serde_json::json!({ "call": id, "action": if action == "accept" { "accept" } else { "decline" } }));
+    tell_page(
+        &app,
+        serde_json::json!({ "call": id, "action": if action == "accept" { "accept" } else { "decline" } }),
+    );
 }
 
 // ---------- the address screen ----------
@@ -365,8 +465,28 @@ async fn ring_answer(app: AppHandle, action: String) {
 #[tauri::command]
 async fn connect(app: AppHandle, address: String) -> Result<(), String> {
     let url = normalize(&address)?;
-    let probe = url.clone();
-    tauri::async_runtime::spawn_blocking(move || check_server(&probe)).await.map_err(|_| "unreachable".to_string())??;
+    // Without "http://" try https first, then http (many company servers run plain http inside the network)
+    let candidates = if address.contains("://") {
+        vec![url]
+    } else {
+        let mut plain = url.clone();
+        let _ = plain.set_scheme("http");
+        vec![url, plain]
+    };
+    let url = tauri::async_runtime::spawn_blocking(move || {
+        let mut last = Err("unreachable".to_string());
+        for candidate in candidates {
+            match check_server(&candidate) {
+                Ok(config) => return Ok((candidate, config)),
+                Err(error) => last = Err(error),
+            }
+        }
+        last
+    })
+    .await
+    .map_err(|_| "unreachable".to_string())??;
+    let (url, config) = url;
+    remember_sign_in(&app, &config);
     {
         let st = state(&app);
         let mut settings = st.settings.lock().unwrap_or_else(|e| e.into_inner());
@@ -407,14 +527,39 @@ fn change_server(app: &AppHandle) {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let t = texts::for_system();
-    let label = |key: &str| t.get(key).and_then(Value::as_str).unwrap_or(key).to_string();
+    let label = |key: &str| {
+        t.get(key)
+            .and_then(Value::as_str)
+            .unwrap_or(key)
+            .to_string()
+    };
     let open = MenuItem::with_id(app, "open", label("trayOpen"), true, None::<&str>)?;
     let autostart_on = app.autolaunch().is_enabled().unwrap_or(false);
-    let autostart = CheckMenuItem::with_id(app, "autostart", label("trayAutostart"), true, autostart_on, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        label("trayAutostart"),
+        true,
+        autostart_on,
+        None::<&str>,
+    )?;
     let server = MenuItem::with_id(app, "server", label("trayServer"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", label("trayQuit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &autostart, &server, &PredefinedMenuItem::separator(app)?, &quit])?;
-    let mut builder = TrayIconBuilder::with_id("main").tooltip("OfficeHub").menu(&menu).show_menu_on_left_click(false);
+    let menu = Menu::with_items(
+        app,
+        &[
+            &open,
+            &PredefinedMenuItem::separator(app)?,
+            &autostart,
+            &server,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
+    let mut builder = TrayIconBuilder::with_id("main")
+        .tooltip("OfficeHub")
+        .menu(&menu)
+        .show_menu_on_left_click(false);
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
@@ -424,14 +569,23 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "autostart" => {
                 let launcher = app.autolaunch();
                 let on = launcher.is_enabled().unwrap_or(false);
-                let _ = if on { launcher.disable() } else { launcher.enable() };
+                let _ = if on {
+                    launcher.disable()
+                } else {
+                    launcher.enable()
+                };
             }
             "server" => change_server(app),
             "quit" => app.exit(0),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 show_main(tray.app_handle());
             }
         })
@@ -444,13 +598,27 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     let hidden = std::env::args().any(|a| a == "--hidden");
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
-        .plugin(tauri_plugin_window_state::Builder::default().with_denylist(&["ring"]).build())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main(app)
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["ring"])
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![app_message, connect, ring_answer, ui_texts])
+        .invoke_handler(tauri::generate_handler![
+            app_message,
+            connect,
+            ring_answer,
+            ui_texts
+        ])
         .setup(move |app| {
             let handle = app.handle().clone();
             let settings = load_settings(&handle);
@@ -459,24 +627,25 @@ pub fn run() {
                 let _ = handle.autolaunch().enable();
             }
             let first_autostart = !settings.autostart_set;
-            *state(&handle).settings.lock().unwrap_or_else(|e| e.into_inner()) = Settings { autostart_set: true, ..settings };
+            *state(&handle)
+                .settings
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Settings {
+                autostart_set: true,
+                ..settings
+            };
             if first_autostart {
-                save_settings(&handle, &state(&handle).settings.lock().unwrap_or_else(|e| e.into_inner()));
+                save_settings(
+                    &handle,
+                    &state(&handle)
+                        .settings
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner()),
+                );
             }
             build_tray(&handle)?;
+            refresh_sign_in(&handle);
             open_main(&handle, hidden)?;
-            #[cfg(debug_assertions)]
-            if std::env::var("OFFICEHUB_PROBE").is_ok() {
-                let probe = handle.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(20));
-                    if let Some(w) = main_window(&probe) {
-                        let _ = w.eval("(async()=>{let r=typeof window.__TAURI_INTERNALS__;try{await window.__TAURI_INTERNALS__.invoke('app_message',{message:{type:'probe'}});r+='-ok'}catch(e){r+='-'+encodeURIComponent(String(e).slice(0,120))}history.replaceState(null,'',location.pathname+'#'+r)})()");
-                        std::thread::sleep(std::time::Duration::from_secs(3));
-                        eprintln!("probe url: {:?}", w.url().map(|u| u.to_string()));
-                    }
-                });
-            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -498,7 +667,9 @@ pub fn run() {
                     };
                     if first {
                         let t = texts::for_system();
-                        let get = |key: &str| t.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+                        let get = |key: &str| {
+                            t.get(key).and_then(Value::as_str).unwrap_or("").to_string()
+                        };
                         notify(app, &get("hiddenTitle"), &get("hiddenBody"), None);
                     }
                 }

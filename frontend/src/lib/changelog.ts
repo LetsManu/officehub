@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8.0',
+    date: '2026-10-22',
+    de: [
+      'OfficeHub-Apps für Windows und Android – wie Teams: eigenes Fenster, Mitteilungen und Anrufe auch bei geschlossenem Fenster bzw. gesperrtem Handy, Zahl am Symbol, Start mit Windows. Download unter „Als App installieren“. In der App bleibst du bis zu 90 Tage angemeldet.',
+    ],
+    en: [
+      'OfficeHub apps for Windows and Android – like Teams: their own window, notifications and calls even with the window closed or the phone locked, a number on the icon, starts with Windows. Download under "Install as app". In the app you stay signed in for up to 90 days.',
+    ],
+  },
+  {
     version: '3.7.0',
     date: '2026-10-22',
     de: [

@@ -1,0 +1,160 @@
+# The Windows and Android apps (apps/): built and checked on pull requests that touch them, and by the release
+# (release.yml), which attaches OfficeHub-Setup.exe and OfficeHub.apk to the GitHub Release.
+#
+# Windows: signed with the company's code signing certificate in the cloud, when the repository has it:
+# - Azure Trusted Signing: secrets AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID and the repository variables
+#   WINDOWS_SIGNING_ENDPOINT (e.g. https://weu.codesigning.azure.net), WINDOWS_SIGNING_ACCOUNT, WINDOWS_SIGNING_PROFILE.
+# - any other provider: secret WINDOWS_SIGN_COMMAND, a command that signs the file "%1" (its tool must be installable
+#   on the runner; credentials in secrets WINDOWS_SIGN_SECRET_1 … _3, available as environment variables).
+# Without either, Windows shows "unknown publisher" on first start.
+#
+# Android: for updates without uninstalling, every release must be signed with the same key. Put it in the
+# repository secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and
+# ANDROID_KEY_PASSWORD. Without them the APK is signed with a throwaway debug key (installs, but each release has to
+# be installed fresh).
+
+name: Apps
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "frontend/src/lib/native.ts"
+      - ".github/workflows/apps.yml"
+  workflow_call:
+    inputs:
+      version:
+        description: "Version like v1.2.3"
+        type: string
+        required: true
+      ref:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/windows/src-tauri
+      - name: Version
+        if: inputs.version != ''
+        shell: pwsh
+        working-directory: apps/windows
+        run: |
+          $v = "${{ inputs.version }}".TrimStart('v')
+          (Get-Content src-tauri/tauri.conf.json) -replace '"version": "[^"]*"', "`"version`": `"$v`"" | Set-Content src-tauri/tauri.conf.json
+          (Get-Content src-tauri/Cargo.toml) -replace '^version = "[^"]*"', "version = `"$v`"" | Set-Content src-tauri/Cargo.toml
+      - name: Tests
+        working-directory: apps/windows/src-tauri
+        run: cargo test --release
+      - name: Signing (when the repository has it)
+        id: signing
+        shell: pwsh
+        working-directory: apps/windows
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          SIGNING_ENDPOINT: ${{ vars.WINDOWS_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.WINDOWS_SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.WINDOWS_SIGNING_PROFILE }}
+          SIGN_COMMAND: ${{ secrets.WINDOWS_SIGN_COMMAND }}
+        run: |
+          if ($env:AZURE_CLIENT_ID -and $env:SIGNING_ENDPOINT) {
+            cargo install trusted-signing-cli --locked
+            $command = "trusted-signing-cli -e $env:SIGNING_ENDPOINT -a $env:SIGNING_ACCOUNT -c $env:SIGNING_PROFILE -d OfficeHub %1"
+          } elseif ($env:SIGN_COMMAND) {
+            $command = $env:SIGN_COMMAND
+          } else {
+            Write-Output "::warning::No Windows code signing set up: Windows will show 'unknown publisher'."
+            exit 0
+          }
+          # Tauri signs the app and the installer with it (bundle.windows.signCommand)
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $conf.bundle.windows | Add-Member -NotePropertyName signCommand -NotePropertyValue $command -Force
+          $conf | ConvertTo-Json -Depth 20 | Set-Content src-tauri/tauri.conf.json
+          "signed=true" >> $env:GITHUB_OUTPUT
+      - name: Build the installer
+        working-directory: apps/windows
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          WINDOWS_SIGN_SECRET_1: ${{ secrets.WINDOWS_SIGN_SECRET_1 }}
+          WINDOWS_SIGN_SECRET_2: ${{ secrets.WINDOWS_SIGN_SECRET_2 }}
+          WINDOWS_SIGN_SECRET_3: ${{ secrets.WINDOWS_SIGN_SECRET_3 }}
+        run: |
+          npm ci
+          npx tauri build
+      - name: Collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Get-ChildItem apps/windows/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1 | Copy-Item -Destination dist/OfficeHub-Setup.exe
+      - name: Check the signature
+        if: steps.signing.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature dist/OfficeHub-Setup.exe
+          Write-Output "Signed by: $($signature.SignerCertificate.Subject)"
+          if ($signature.Status -ne 'Valid') { throw "The installer is not validly signed: $($signature.Status)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-windows
+          path: dist/OfficeHub-Setup.exe
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signing key (when the repository has one)
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/officehub.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/officehub.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No Android signing key (ANDROID_KEYSTORE_BASE64): the APK is signed with a debug key."
+          fi
+      - name: Version
+        if: inputs.version != ''
+        run: |
+          V="${{ inputs.version }}"; V="${V#v}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "$V"
+          echo "APP_VERSION_NAME=$V" >> "$GITHUB_ENV"
+          echo "APP_VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))" >> "$GITHUB_ENV"
+      - name: Tests, checks and build
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+      - name: Collect
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/dist/OfficeHub.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-android
+          path: dist/OfficeHub.apk

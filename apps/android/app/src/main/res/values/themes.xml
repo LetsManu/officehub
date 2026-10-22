@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material You: the phone's own colours where Android has them (dynamic colour), OfficeHub blue otherwise -->
+    <style name="Theme.OfficeHub" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.OfficeHub.Call" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/call_background</item>
+        <item name="android:statusBarColor">@color/call_background</item>
+        <item name="android:navigationBarColor">@color/call_background</item>
+    </style>
+</resources>

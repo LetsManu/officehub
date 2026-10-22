@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#1D4ED8</color>
+    <color name="accept">#0F7B0F</color>
+    <color name="decline">#C42B1C</color>
+    <color name="call_background">#111827</color>
+</resources>

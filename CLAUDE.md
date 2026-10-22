@@ -48,6 +48,12 @@ badge, offline notice and "updated, reload" (version in the summary).
     relays Yjs updates per file (`/api/craft/collab/<file>`, long polling like `/api/rtc`), one shared lock
     `craft:0:<token>`; automatic saves (`?auto=1`) go into one "together" version.
   - `tests/` – pytest, uses demo data; run `python -m pytest -q` in `backend/`.
+- `apps/` – the Windows app (`apps/windows`, Tauri 2: own window, tray, autostart, Windows notifications, taskbar
+  number, ringing window) and the Android app (`apps/android`, Kotlin + WebView, Material You, `FeedService` keeps a
+  connection to `GET /api/me/feed` for notifications and calls, no cloud push). Both load the company's portal; the
+  portal talks to them through `frontend/src/lib/native.ts` (only the company's address may: Tauri runtime capability,
+  Android WebMessageListener). App sign-ins (`OfficeHubApp/` in the user agent) last `APP_SESSION_DAYS`. Built by
+  `.github/workflows/apps.yml` and attached to every release.
 - `frontend/` – Vue 3 + Vite + TypeScript, no UI library.
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.
   - `src/components/` – shared building blocks (BaseModal, FormField, EmptyState, StatusBadge …).

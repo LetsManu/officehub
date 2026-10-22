@@ -46,6 +46,24 @@ class SsoError(Exception):
         self.code = code
 
 
+def sign_in_origins(db: Session) -> list[str]:
+    """Where the company login page lives: the Windows and Android apps open it in their own window (apps/), everything
+    else from other addresses goes to the browser."""
+    from urllib.parse import urlsplit
+
+    def origin(url: str) -> str | None:
+        parts = urlsplit(url)
+        return f"{parts.scheme}://{parts.netloc}" if parts.scheme in ("http", "https") and parts.netloc else None
+
+    o = options(db)
+    found = [origin(o["issuer"])]
+    try:
+        found.append(origin(discovery(o["issuer"])["authorization_endpoint"]))
+    except Exception:  # noqa: BLE001 - the login server is unreachable right now: the issuer is enough
+        pass
+    return sorted({f for f in found if f})
+
+
 def options(db: Session) -> dict:
     stored = get_setting(db, "sso", {}) or {}
     return {**DEFAULTS, **{k: stored[k] for k in DEFAULTS if k in stored}}

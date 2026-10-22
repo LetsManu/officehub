@@ -34,7 +34,11 @@ pub fn pixels(count: i64) -> Vec<u8> {
             rgba[i + 3] = (alpha * 255.0) as u8;
         }
     }
-    let glyphs: Vec<usize> = if count > 9 { vec![9, 10] } else { vec![count.clamp(0, 9) as usize] };
+    let glyphs: Vec<usize> = if count > 9 {
+        vec![9, 10]
+    } else {
+        vec![count.clamp(0, 9) as usize]
+    };
     let scale = if glyphs.len() == 1 { 4 } else { 3 };
     let glyph_w = 3 * scale;
     let gap = scale;

@@ -148,7 +148,7 @@ def public_config() -> dict:
     }
     with SessionLocal() as db:
         if sso_service.enabled(db):
-            config["sso"] = {"label": sso_service.options(db)["label"]}
+            config["sso"] = {"label": sso_service.options(db)["label"], "origins": sso_service.sign_in_origins(db)}
     if settings.demo_mode:
         config["demo_accounts"] = seed.demo_accounts()
         config["demo_password"] = seed.DEMO_PASSWORD
