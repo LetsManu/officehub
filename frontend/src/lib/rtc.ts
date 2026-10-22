@@ -205,8 +205,16 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
       else t.video = remote
     }
     pc.onconnectionstatechange = () => {
+      const t = state.tiles.find((x) => x.id === id)
+      if (pc.connectionState === 'connected' && t) t.unreachable = false
+      if (pc.connectionState !== 'failed' || !active) return
+      // Nothing gets through (e.g. other networks without the relay): say so once instead of a black picture
+      if (t && !t.unreachable) {
+        t.unreachable = true
+        state.notices.push({ key: Date.now(), text: 'meeting.noConnection', params: { name: t.name || '?' } })
+      }
       // Network changed (e.g. Wi-Fi to cable): the one who called starts over
-      if (pc.connectionState === 'failed' && entry.initiator && active) offer(id, true).catch(() => undefined)
+      if (entry.initiator) offer(id, true).catch(() => undefined)
     }
     return entry
   }

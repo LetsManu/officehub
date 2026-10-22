@@ -2,6 +2,8 @@
 
 import os
 import secrets
+import socket
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,6 +24,28 @@ def _app_download_url() -> str:
     if version.startswith("v") and version.count(".") == 2:
         return f"{base}/download/{version}/"
     return f"{base}/latest/download/"
+
+
+def _public_address(portal_url: str) -> str | None:
+    """The server's address as people reach it: PUBLIC_IP, else what the portal's name resolves to (no outside
+    service). Written to /shared/public_ip for the meeting servers of the stack (the videobridge and the relay for
+    people outside the office), so nobody has to look it up and copy it."""
+    address = os.getenv("PUBLIC_IP") or os.getenv("JITSI_PUBLIC_IP")
+    host = urlparse(portal_url).hostname
+    if not address and host and host != "localhost":
+        try:
+            address = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
+        except (OSError, IndexError):
+            address = None
+    if not address or address.startswith("127."):
+        return None
+    folder = Path(os.getenv("SHARED_DIR", "/shared"))
+    try:
+        if folder.is_dir():
+            (folder / "public_ip").write_text(address)
+    except OSError:
+        pass
+    return address
 
 
 def _shared_secret(name: str) -> str | None:
@@ -93,6 +117,10 @@ class Settings:
     ice_servers: tuple[str, ...]
     ice_username: str | None
     ice_password: str | None
+    # The stack's own relay (coturn) for people on other networks: shared secret for short-lived passwords
+    turn_secret: str | None
+    turn_port: int
+    public_address: str | None
     # WordCraft / DeckCraft in the browser (optional container): how the backend checks that it runs
     craft_internal_url: str | None
 
@@ -145,6 +173,9 @@ def load_settings() -> Settings:
         ice_servers=tuple(u.strip() for u in os.getenv("ICE_SERVERS", "").split(",") if u.strip()),
         ice_username=os.getenv("ICE_USERNAME") or None,
         ice_password=os.getenv("ICE_PASSWORD") or None,
+        turn_secret=os.getenv("TURN_SECRET") or _shared_secret("turn_secret"),
+        turn_port=int(os.getenv("TURN_PORT", "3478")),
+        public_address=_public_address(os.getenv("PORTAL_URL", "http://localhost:8080")),
         craft_internal_url=(os.getenv("CRAFT_INTERNAL_URL") or "").rstrip("/") or None,
     )
 

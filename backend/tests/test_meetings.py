@@ -197,3 +197,43 @@ def test_jitsi_is_used_only_while_it_runs(anna, jitsi, monkeypatch):
     assert anna.get("/api/meetings/config").json()["mode"] == "jitsi"
     monkeypatch.setattr(meeting_service, "reachable", lambda url: False)  # container stopped
     assert anna.get("/api/meetings/config").json()["mode"] == "builtin"
+
+
+def test_relay_for_people_on_other_networks(monkeypatch):
+    """With the stack's own relay (coturn) built-in meetings work across networks: short-lived TURN passwords made
+    from the shared secret, in the form coturn's use-auth-secret checks."""
+    import base64
+    import dataclasses
+    import hashlib
+    import hmac
+    import time
+
+    from app.services import meetings
+
+    patched = dataclasses.replace(meetings.settings, turn_secret="s3cret", portal_url="https://hub.example.com",
+                                  ice_servers=())
+    monkeypatch.setattr(meetings, "settings", patched)
+    [server] = meetings.ice_servers("u7")
+    assert server["urls"] == ["stun:hub.example.com:3478", "turn:hub.example.com:3478?transport=udp",
+                              "turn:hub.example.com:3478?transport=tcp"]
+    expires, who = server["username"].split(":")
+    assert who == "u7" and int(expires) > time.time() + 3600
+    digest = hmac.new(b"s3cret", server["username"].encode(), hashlib.sha1).digest()
+    assert server["credential"] == base64.b64encode(digest).decode()
+
+    # Servers of your own replace it
+    own = dataclasses.replace(patched, ice_servers=("turn:turn.example.com:3478",), ice_username="a", ice_password="b")
+    monkeypatch.setattr(meetings, "settings", own)
+    assert meetings.ice_servers("u7") == [{"urls": ["turn:turn.example.com:3478"], "username": "a", "credential": "b"}]
+
+
+def test_public_address_is_shared_with_the_meeting_servers(monkeypatch, tmp_path):
+    from app.config import _public_address
+
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path))
+    monkeypatch.setenv("PUBLIC_IP", "203.0.113.7")
+    assert _public_address("https://hub.example.com") == "203.0.113.7"
+    assert (tmp_path / "public_ip").read_text() == "203.0.113.7"
+    monkeypatch.delenv("PUBLIC_IP")
+    monkeypatch.delenv("JITSI_PUBLIC_IP", raising=False)
+    assert _public_address("http://localhost:8080") is None

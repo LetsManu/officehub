@@ -123,7 +123,8 @@ flowchart LR
         COOL["collabora<br/>Word / Excel / PowerPoint"]
         OO["onlyoffice<br/>(optional)"]
         CRAFT["craft<br/>WordCraft / DeckCraft web"]
-        JITSI["jitsi-web, prosody,<br/>jicofo, jvb (optional)"]
+        JITSI["jitsi-web, prosody,<br/>jicofo, jvb"]
+        TURN["turn<br/>relay for other networks"]
     end
     IDP["Your OpenID Connect server<br/>Authentik, Keycloak (optional)"]
     UI -- "HTTPS" --> NGINX
@@ -140,6 +141,7 @@ flowchart LR
     UI -. "company login" .-> IDP
     API -. "token check" .-> IDP
     UI -. "audio / video<br/>(WebRTC, end-to-end encrypted if chosen)" .-> UI
+    UI -. "UDP/TCP 3478<br/>(other networks)" .-> TURN
 ```
 
 | Part | Technology | Notes |
@@ -255,9 +257,9 @@ npm test && npm run build
 | `SMTP_SECURITY` | `starttls` | `starttls`, `ssl` or `none` |
 | `SMTP_USER` / `SMTP_PASSWORD` | – | Mail server login, if needed |
 | `SMTP_FROM` | – | Sender address, e.g. `officehub@your-company.example` |
-| `COMPOSE_PROFILES` | – | Extra parts: `jitsi` (meeting server), `onlyoffice` (second editor), e.g. `jitsi,onlyoffice` |
-| `JITSI_PUBLIC_IP` | – | With Jitsi: public IP of the server for people outside the office network |
-| `ICE_SERVERS` | – | Built-in meetings: your own STUN/TURN server(s) for people outside the office, comma-separated (`ICE_USERNAME`, `ICE_PASSWORD`) |
+| `COMPOSE_PROFILES` | – | Extra parts: `onlyoffice` (second editor) |
+| `PUBLIC_IP` | – | Public IP of the server for meetings with people outside the office (empty: what `PORTAL_URL` resolves to) |
+| `ICE_SERVERS` | – | Replaces the stack's relay with STUN/TURN server(s) of your own, comma-separated (`ICE_USERNAME`, `ICE_PASSWORD`) |
 
 Passwords between OfficeHub and the office/meeting servers (`ONLYOFFICE_JWT_SECRET`, `JITSI_APP_SECRET`,
 `JITSI_INTERNAL_PASSWORD`) are made automatically on the first start and kept in the `shared` volume. Set them only if

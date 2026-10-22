@@ -1108,6 +1108,8 @@ const de = {
     removeTitle: '{name} aus dem Meeting entfernen?',
     removeText: 'Die Person wird getrennt und kann diesem Meeting heute nicht wieder beitreten.',
     removed: 'Du wurdest aus dem Meeting entfernt.',
+    noConnection: 'Zu {name} kommt keine Verbindung zustande – Bild und Ton fehlen. Meist liegt es am Netzwerk; die IT kann die Ports für Meetings freigeben.',
+    unreachable: 'Keine Verbindung',
     mutedBy: '{name} hat dich stummgeschaltet.',
     onStage: 'Du bist auf der Bühne – du kannst jetzt sprechen und dein Video zeigen.',
     offStage: 'Du schaust wieder zu.',

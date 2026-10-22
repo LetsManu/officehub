@@ -36,7 +36,9 @@ services:
       JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
       JITSI_INTERNAL_URL: ${JITSI_INTERNAL_URL:-http://jitsi-web}
       CRAFT_INTERNAL_URL: ${CRAFT_INTERNAL_URL:-http://craft:8080}
-      # Built-in meetings need nothing. Optional: your own STUN/TURN server for people outside the office
+      # The server's public IP address for meetings with people outside the office. Empty: what PORTAL_URL's name
+      # resolves to. Meetings use the stack's own relay (turn); ICE_SERVERS replaces it with STUN/TURN servers of your own.
+      PUBLIC_IP: ${PUBLIC_IP:-${JITSI_PUBLIC_IP:-}}
       ICE_SERVERS: ${ICE_SERVERS:-}
       ICE_USERNAME: ${ICE_USERNAME:-}
       ICE_PASSWORD: ${ICE_PASSWORD:-}
@@ -101,13 +103,45 @@ services:
     build: ./craft
     restart: unless-stopped
 
-  # ---- Optional: Jitsi Meet: all meetings and calls go through it while it runs ----
-  # Meetings and calls work without it (built in). Start it with COMPOSE_PROFILES=jitsi and OfficeHub uses it
-  # by itself; passwords are made automatically. People reach it through the portal (/jitsi/, /colibri-ws/);
-  # audio and video use UDP port 10000, and people outside the office need JITSI_PUBLIC_IP.
+  # ---- Relay for meetings and calls across networks (people at home, on mobile data) ----
+  # Audio and video go directly between the browsers when they can; otherwise this relay of your own forwards them
+  # (no outside service). Its password is made on the first start and its public address comes from PORTAL_URL.
+  # People outside the office need ports 3478 (UDP and TCP) and 49160-49200 (UDP) open to this server.
+  turn:
+    image: coturn/coturn:4.18.0-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        IP="$${PUBLIC_IP:-$$(cat /shared/public_ip 2>/dev/null)}";
+        exec turnserver -n --listening-port=3478 --min-port=49160 --max-port=49200
+        --use-auth-secret --static-auth-secret="$$(cat /shared/turn_secret)" --realm=officehub
+        --fingerprint --no-cli --no-tls --no-dtls --no-software-attribute --no-multicast-peers
+        --denied-peer-ip=0.0.0.0-0.255.255.255 --denied-peer-ip=127.0.0.0-127.255.255.255
+        --denied-peer-ip=169.254.0.0-169.254.255.255 --denied-peer-ip=172.16.0.0-172.31.255.255
+        --log-file=stdout --simple-log $${IP:+--external-ip=$$IP}
+    environment:
+      PUBLIC_IP: ${PUBLIC_IP:-${JITSI_PUBLIC_IP:-}}
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+    volumes:
+      - shared:/shared:ro
+    # Its own network: the relay can never reach the other parts of the stack
+    networks: [relay]
+
+  # ---- Jitsi Meet: all meetings and calls go through it while it runs ----
+  # Runs by default (needs about 1 GB RAM); remove the four jitsi-* services and meetings run built in. OfficeHub
+  # uses it by itself, passwords and the public address are made automatically. People reach it through the
+  # portal (/jitsi/, /colibri-ws/); audio and video use UDP port 10000 (open it for people outside the office),
+  # with the relay above as fallback. No outside STUN server.
   jitsi-web:
     image: jitsi/web:stable-10978
-    profiles: ["jitsi"]
     restart: unless-stopped
     environment: &jitsi
       PUBLIC_URL: ${PORTAL_URL:-http://localhost:8080}
@@ -133,20 +167,33 @@ services:
       DISABLE_HTTPS: "1"
       ENABLE_HTTP_REDIRECT: "0"
       ENABLE_LETSENCRYPT: "0"
-      JVB_ADVERTISE_IPS: ${JITSI_PUBLIC_IP:-}
+      JVB_ADVERTISE_IPS: ${PUBLIC_IP:-${JITSI_PUBLIC_IP:-}}  # empty: the address OfficeHub found (see entrypoint)
+      JVB_DISABLE_STUN: "1"
+      # The relay of the stack, also for Jitsi (TURN over TCP when UDP is blocked)
+      TURN_PORT: "3478"
+      TURN_TRANSPORT: udp,tcp
     networks:
       default:
         aliases: [meet.jitsi]
 
   jitsi-prosody:
     image: jitsi/prosody:stable-10978
-    profiles: ["jitsi"]
     restart: unless-stopped
     environment: *jitsi
     depends_on:
       backend:
         condition: service_healthy
-    entrypoint: &jitsi-secrets ["/bin/sh", "-c", "export JWT_APP_SECRET=\"$${JWT_APP_SECRET:-$$(cat /shared/jitsi_app_secret)}\" JICOFO_AUTH_PASSWORD=\"$${JICOFO_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}\" JVB_AUTH_PASSWORD=\"$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}\"; exec /init"]
+    entrypoint: &jitsi-secrets
+      - /bin/sh
+      - -c
+      - >-
+        H="$${PUBLIC_URL#*://}"; H="$${H%%/*}"; H="$${H%%:*}";
+        export JWT_APP_SECRET="$${JWT_APP_SECRET:-$$(cat /shared/jitsi_app_secret)}"
+        JICOFO_AUTH_PASSWORD="$${JICOFO_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
+        JVB_AUTH_PASSWORD="$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
+        JVB_ADVERTISE_IPS="$${JVB_ADVERTISE_IPS:-$$(cat /shared/public_ip 2>/dev/null)}"
+        TURN_CREDENTIALS="$$(cat /shared/turn_secret 2>/dev/null)" TURN_HOST="$$H";
+        exec /init
     volumes:
       - shared:/shared:ro
     networks:
@@ -155,7 +202,6 @@ services:
 
   jitsi-jicofo:
     image: jitsi/jicofo:stable-10978
-    profiles: ["jitsi"]
     restart: unless-stopped
     environment: *jitsi
     depends_on: [jitsi-prosody]
@@ -165,7 +211,6 @@ services:
 
   jitsi-jvb:
     image: jitsi/jvb:stable-10978
-    profiles: ["jitsi"]
     restart: unless-stopped
     environment: *jitsi
     ports:
@@ -182,3 +227,7 @@ volumes:
   onlyoffice-data:
   # Passwords OfficeHub makes on its first start for the office and meeting servers
   shared:
+
+networks:
+  default:
+  relay:

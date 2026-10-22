@@ -61,6 +61,7 @@ export interface Tile {
   who: string // the person behind the tile (same in every room of the meeting)
   mod: boolean // leads the meeting
   reaction: string // a reaction shown for a few seconds
+  unreachable?: boolean // built in: no connection to this person (other network, nothing gets through)
 }
 
 /** One line on the whiteboard; points are x,y pairs from 0 to 1000 so every screen size shows the same. */

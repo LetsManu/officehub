@@ -11,6 +11,7 @@ import BaseModal from './BaseModal.vue'
 import MeetingBreakouts from './MeetingBreakouts.vue'
 import MeetingWhiteboard from './MeetingWhiteboard.vue'
 import VerifyPerson from './VerifyPerson.vue'
+import DeviceSelect from './DeviceSelect.vue'
 import VideoTile from './VideoTile.vue'
 import { ApiError, api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
@@ -589,7 +590,7 @@ function onKeyUp(event: KeyboardEvent) {
 
 // Messages for me: muted by the organizer, brought on stage, someone records …
 watch(() => meeting.state.notices.length, (n, old) => {
-  for (const item of meeting.state.notices.slice(old ?? 0, n)) showToast(t(item.text, item.params ?? {}), item.text === 'meeting.removed' ? 'error' : 'success')
+  for (const item of meeting.state.notices.slice(old ?? 0, n)) showToast(t(item.text, item.params ?? {}), ['meeting.removed', 'meeting.noConnection'].includes(item.text) ? 'error' : 'success')
 })
 watch(() => meeting.state.breakoutsChanged, () => pollBreakouts())
 
@@ -669,33 +670,15 @@ onBeforeUnmount(() => {
         <h1 class="pre-title">{{ title }}</h1>
         <p class="muted-light">{{ t('meeting.joinAs', { name: displayName }) }}</p>
         <p v-if="mediaProblem" class="media-note" role="status">{{ t(`meeting.media.${mediaProblem}`) }}</p>
-        <label v-if="devices.cameras.length > 1" class="field">
-          <span>{{ t('meeting.camera') }}</span>
-          <select v-model="prefs.camera" class="select" @change="refreshPreview">
-            <option value="">{{ t('meeting.defaultDevice') }}</option>
-            <option v-for="d in devices.cameras" :key="d.deviceId" :value="d.deviceId">{{ d.label || t('meeting.camera') }}</option>
-          </select>
-        </label>
-        <label v-if="devices.mics.length > 1" class="field">
-          <span>{{ t('meeting.microphone') }}</span>
-          <select v-model="prefs.micId" class="select" @change="refreshPreview">
-            <option value="">{{ t('meeting.defaultDevice') }}</option>
-            <option v-for="d in devices.mics" :key="d.deviceId" :value="d.deviceId">{{ d.label || t('meeting.microphone') }}</option>
-          </select>
-        </label>
+        <DeviceSelect v-if="devices.cameras.length > 1" v-model="prefs.camera" :label="t('meeting.camera')" :devices="devices.cameras" @change="refreshPreview" />
+        <DeviceSelect v-if="devices.mics.length > 1" v-model="prefs.micId" :label="t('meeting.microphone')" :devices="devices.mics" @change="refreshPreview" />
         <div v-if="prefs.mic" class="level-row">
           <span class="small muted-light">{{ t('meeting.micTest') }}</span>
           <span class="meter" role="meter" :aria-label="t('meeting.micTest')" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(micLevel * 100)">
             <span class="meter-fill" :style="{ transform: `scaleX(${micLevel})` }" />
           </span>
         </div>
-        <label v-if="speakerChoice" class="field">
-          <span>{{ t('meeting.speaker') }}</span>
-          <select v-model="speaker" class="select">
-            <option value="">{{ t('meeting.defaultDevice') }}</option>
-            <option v-for="d in devices.speakers" :key="d.deviceId" :value="d.deviceId">{{ d.label || t('meeting.speaker') }}</option>
-          </select>
-        </label>
+        <DeviceSelect v-if="speakerChoice" v-model="speaker" :label="t('meeting.speaker')" :devices="devices.speakers" />
         <button type="button" class="btn btn-ghost light test-sound" @click="testSound"><AppIcon name="bell" :size="18" />{{ t('meeting.testSound') }}</button>
         <button type="button" class="btn btn-primary join-btn" :disabled="joining" @click="enter">
           <AppIcon name="video" />{{ joining ? t('meeting.joining') : t('meeting.joinNow') }}
@@ -842,13 +825,7 @@ onBeforeUnmount(() => {
           <template v-else-if="panel === 'settings'">
             <label class="switch-row"><input v-model="noiseSuppression" type="checkbox" /><span><strong>{{ t('meeting.noise') }}</strong><span class="muted-light small block">{{ t('meeting.noiseHint') }}</span></span></label>
             <label class="switch-row"><input v-model="pushToTalk" type="checkbox" /><span><strong>{{ t('meeting.ptt') }}</strong><span class="muted-light small block">{{ t('meeting.pttHint') }}</span></span></label>
-            <label v-if="speakerChoice" class="field">
-              <span>{{ t('meeting.speaker') }}</span>
-              <select v-model="speaker" class="select">
-                <option value="">{{ t('meeting.defaultDevice') }}</option>
-                <option v-for="d in devices.speakers" :key="d.deviceId" :value="d.deviceId">{{ d.label || t('meeting.speaker') }}</option>
-              </select>
-            </label>
+            <DeviceSelect v-if="speakerChoice" v-model="speaker" :label="t('meeting.speaker')" :devices="devices.speakers" />
             <button type="button" class="btn btn-ghost light" @click="testSound"><AppIcon name="bell" :size="18" />{{ t('meeting.testSound') }}</button>
             <p class="muted-light small">{{ t('meeting.shortcuts') }}</p>
           </template>
@@ -1046,7 +1023,8 @@ onBeforeUnmount(() => {
   color: var(--m-muted);
 }
 
-.field .select {
+.field .select,
+.field :deep(.select) {
   background: var(--m-surface);
   border-color: var(--m-border);
   color: var(--m-text);
