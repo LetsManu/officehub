@@ -303,7 +303,9 @@ with **New space** (you become its manager). Each space has these tabs:
   someone who forgot.
 - **WordCraft / DeckCraft**: Word files open in the open-source word processor WordCraft, PowerPoint files in
   DeckCraft (`.pptx`, `.deckcraft`), right in the browser (HR can choose the office editor instead). WordCraft and
-  DeckCraft are for one person at a time; to work in a file **together** at the same time, click **Edit together**
+  DeckCraft are for one person at a time: while someone has a file open, everyone else sees "… is editing this file"
+  and can only look at it until that person goes back or closes the tab (after two minutes at the latest when their
+  computer went to sleep). To work in a file **together** at the same time, click **Edit together**
   (the people icon) – it opens the file in the office editor, where everyone sees the others typing. **Save** puts the file back here as a new version; exports such as
   PDF still download.
 - **On the computer**: create an **app password** under **Profile → Programs and network drive**, then connect the

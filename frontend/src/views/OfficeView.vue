@@ -14,6 +14,7 @@ import { errorText, t } from '@/lib/i18n'
 import { craftApp, loadCraftConfig, loadOfficeConfig } from '@/lib/spaces'
 import type { OfficeConfig, OfficeOpen, SpaceFileDetail } from '@/lib/types'
 import { setActivity } from '@/lib/summary'
+import { showToast } from '@/lib/toast'
 
 declare global {
   interface Window {
@@ -39,10 +40,47 @@ let editor: { destroyEditor: () => void } | null = null
 
 // ---------- WordCraft / DeckCraft, shown inside the portal (with this bar and its way back) ----------
 
-const craft = ref<{ app: 'wordcraft' | 'deckcraft'; url: string; can_write: boolean } | null>(null)
+interface CraftOpen {
+  app: 'wordcraft' | 'deckcraft'
+  url: string
+  can_write: boolean
+  /** While we may save: the lock that keeps others read-only. Renewed every minute, given back on leaving. */
+  lock: string | null
+  editing_by: string | null
+}
+
+const craft = ref<CraftOpen | null>(null)
 const craftFrame = ref<HTMLIFrameElement | null>(null)
 const leaveTo = ref<RouteLocationRaw | null>(null)
 let leaving = false
+let lockTimer: number | undefined
+
+/** Someone else has the file open for editing: their name ('' when the office editor has it open), else null */
+const editingBy = computed(() => craft.value?.editing_by ?? session.value?.editing_by ?? null)
+
+async function renewLock() {
+  const c = craft.value
+  if (!c?.lock) return
+  try {
+    await api.post(`/api/craft/lock/${props.id}`, { lock: c.lock })
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'file_locked') return // offline for a moment: try again next minute
+    window.clearInterval(lockTimer)
+    c.lock = null
+    showToast(t('office.lockLost'), 'error')
+  }
+}
+
+function releaseLock() {
+  window.clearInterval(lockTimer)
+  const lock = craft.value?.lock
+  if (!lock) return
+  craft.value!.lock = null
+  // keepalive: the request still goes out when the tab is being closed
+  void fetch(`/api/craft/lock/${props.id}?lock=${encodeURIComponent(lock)}`, {
+    method: 'DELETE', keepalive: true, credentials: 'same-origin', headers: { 'X-Requested-With': 'OfficeHub' },
+  }).catch(() => undefined)
+}
 
 /** Does the program have changes that are not saved yet? WordCraft says so to the browser's "leave page?"
  * check (same site, so we can ask it); DeckCraft cannot tell, so we ask the person. */
@@ -147,10 +185,20 @@ onMounted(async () => {
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
     if (!together && office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
-      craft.value = await api.post<{ app: 'wordcraft' | 'deckcraft'; url: string; can_write: boolean }>(`/api/craft/open/${props.id}`)
-      loading.value = false
-      setActivity(`file:${props.id}`)
-      return
+      const opened = await api.post<CraftOpen>(`/api/craft/open/${props.id}`)
+      // Others already work in it together in the office editor: join them there instead of a read-only copy
+      const joinTogether = !opened.can_write && opened.editing_by === '' && office.value.default
+        && (office.value.editable[office.value.default] ?? []).includes(file.value.file_type)
+      if (!joinTogether) {
+        craft.value = opened
+        if (opened.lock) {
+          lockTimer = window.setInterval(renewLock, 60_000)
+          window.addEventListener('pagehide', releaseLock)
+        }
+        loading.value = false
+        setActivity(`file:${props.id}`)
+        return
+      }
     }
     engine.value = office.value.default
     if (!engine.value) {
@@ -168,6 +216,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('message', onMessage)
+  window.removeEventListener('pagehide', releaseLock)
+  releaseLock()
   editor?.destroyEditor()
   setActivity('')
 })
@@ -197,6 +247,9 @@ onBeforeUnmount(() => {
         <RouterLink :to="backTo" class="btn btn-secondary">{{ t('office.back') }}</RouterLink>
       </div>
       <template v-else>
+        <div v-if="editingBy !== null" class="notice notice-info editing" role="status">
+          <AppIcon name="edit" :size="18" />{{ editingBy ? t('office.editingBy', { name: editingBy }) : t('office.editingBySomeone') }}
+        </div>
         <div v-if="loading" class="loading" role="status"><span class="spinner" aria-hidden="true" />{{ t('office.loading') }}</div>
         <template v-if="session?.engine === 'collabora'">
           <form ref="form" :action="session.action_url ?? ''" method="post" target="office-frame" class="visually-hidden">
@@ -256,8 +309,22 @@ onBeforeUnmount(() => {
 
 .stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   background: var(--color-surface-muted);
+}
+
+.notice.editing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-width: 0 0 1px;
+  border-radius: 0;
+  font-size: var(--text-sm);
 }
 
 .frame,
@@ -266,6 +333,12 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.frame {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 .loading {
