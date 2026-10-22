@@ -157,6 +157,14 @@ fn two_computers_stay_in_sync() {
     let events = a.engine.take_events();
     assert_eq!(events.iter().filter(|e| matches!(e, Event::NotSupported { .. })).count(), 1, "{events:?}");
 
+    // A file right in the OfficeHub folder (not in a space's folder) is not uploaded, and the person hears why
+    std::fs::write(a.root.join("Lose Notiz.txt"), "x").unwrap();
+    a.push();
+    a.push();
+    let events = a.engine.take_events();
+    assert_eq!(events.iter().filter(|e| matches!(e, Event::OutsideSpace { .. })).count(), 1, "{events:?}");
+    std::fs::remove_file(a.root.join("Lose Notiz.txt")).unwrap();
+
     // State survives a restart
     let file = a.root.join("..").join(format!("officehub-sync-e2e-state-{}.json", std::process::id()));
     a.engine.state.save(&file).unwrap();

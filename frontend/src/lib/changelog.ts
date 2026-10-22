@@ -9,6 +9,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8.3',
+    date: '2026-10-23',
+    de: [
+      'Windows-App: Unter „Dateien“ siehst du jetzt, wo dein OfficeHub-Ordner liegt (C:\\Users\\…\\OfficeHub), ob alles aktuell ist und welche Dateien nicht hochgeladen wurden – mit Grund. Knöpfe zum Öffnen, Abgleichen und Anhalten sind gleich dabei.',
+      'Klappt ein Hochladen nicht (Datei direkt im OfficeHub-Ordner statt in einem Bereich, Bereich schreibgeschützt, Datei zu groß), sagt dir Windows jetzt, warum.',
+    ],
+    en: [
+      'Windows app: "Files" now shows where your OfficeHub folder is (C:\\Users\\…\\OfficeHub), whether everything is up to date and which files were not uploaded – and why. Buttons to open, sync and pause are right there.',
+      'If an upload does not work (a file right in the OfficeHub folder instead of a space, a read-only space, a file too large), Windows now tells you why.',
+    ],
+  },
+  {
     version: '3.8.2',
     date: '2026-10-22',
     de: [

@@ -326,6 +326,20 @@ async fn app_message(app: AppHandle, message: Value) {
                 }
             }
         }
+        // The portal's Files page: where the folder is, how it is doing, and its buttons
+        "sync-status" => push_sync_status(&app),
+        "sync-open" => files::open_folder(),
+        "sync-now" => files::sync_now(),
+        "sync-pause" => {
+            files::toggle_pause(&app);
+            push_sync_status(&app);
+        }
+        "sync-setup" => {
+            let server = state(&app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
+            if server.is_some_and(|s| !files::is_set_up(&app, &s)) {
+                tell_page(&app, serde_json::json!({ "syncSetup": { "device": std::env::var("COMPUTERNAME").unwrap_or_default() } }));
+            }
+        }
         "sync-credentials" => {
             let server = state(&app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
             let login = message.get("login").and_then(Value::as_str).unwrap_or("");
@@ -409,6 +423,13 @@ fn update_tooltip(app: &AppHandle) {
 }
 
 /// The sync's status in the tray icon's tooltip (files.rs).
+/// Tells the portal (Files page) where the OfficeHub folder is and how the sync is doing.
+pub(crate) fn push_sync_status(app: &AppHandle) {
+    let server = state(app).settings.lock().unwrap_or_else(|e| e.into_inner()).server.clone();
+    let status = files::status_json(app, server.as_deref());
+    tell_page(app, serde_json::json!({ "syncStatus": status }));
+}
+
 pub(crate) fn set_tray_status(app: &AppHandle, text: &str) {
     *state(app).sync_status.lock().unwrap_or_else(|e| e.into_inner()) = text.to_string();
     update_tooltip(app);

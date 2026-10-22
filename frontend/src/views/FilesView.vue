@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SyncFolderCard from '@/components/SyncFolderCard.vue'
 import { api } from '@/lib/api'
 import { errorText, formatDateTime, t } from '@/lib/i18n'
 import { fileIcon, fileSize, fileTone, isOffice } from '@/lib/spaces'
@@ -39,6 +40,7 @@ onMounted(load)
 <template>
   <div class="page">
     <PageHeader :title="t('filesPage.title')" :subtitle="t('filesPage.subtitle')" />
+    <SyncFolderCard />
 
     <div class="shortcuts">
       <RouterLink to="/documents" class="card shortcut">

@@ -45,13 +45,15 @@ until it is installed (*Don't show again* hides it). The installed app
   is in the background, the taskbar icon flashes for new messages. The first time, Windows may warn about an unknown
   publisher: **More info → Run anyway**.
 - **The OfficeHub folder (Windows, like OneDrive):** after the first sign-in in the app, Explorer shows **OfficeHub**
-  in its left pane, with one folder per space. Files take no space until you open them – then they download (a cloud
+  in its left pane, with one folder per space. The folder itself is `C:\Users\<your name>\OfficeHub`; the **Files**
+  page in the app shows it too, with its status and any file that could not be uploaded. Put files into a space's
+  folder – files right in the OfficeHub folder stay on your PC. Files take no space until you open them – then they download (a cloud
   icon means "online only", a green tick "on this PC"). Right-click → **Always keep on this device** keeps a file or
   folder offline, **Free up space** removes the local copy again. Whatever you save, create, rename, move or delete
   there reaches the space in OfficeHub (deleted files go to the space's trash), and changes from colleagues arrive by
   themselves. If someone changed the same file at the same time, nothing is lost: your version is kept next to it as
   "Name (Konflikt PC-NAME date)". Files someone has checked out are read-only. New spaces are made in the portal.
-  The tray menu opens the folder and pauses syncing. The app signs in with its own app password ("OfficeHub folder
+  The tray menu and the **Files** page open the folder, sync now and pause syncing. The app signs in with its own app password ("OfficeHub folder
   on …" under Profile → Programs and network drive); removing it there stops the folder on that PC.
 - **Android:** messages, notices, meeting reminders and calls arrive right away, also when the app is closed and the
   phone is locked – calls ring full screen like a phone call. For that the app stays connected to your OfficeHub

@@ -70,6 +70,14 @@ pub fn for_system() -> Value {
             "syncDeletesBody": "{count} Dateien und Ordner wurden auf einmal gelöscht. Sicherheitshalber wurden sie wiederhergestellt – löschen bitte im Portal.",
             "syncNewSpaceTitle": "Neue Bereiche im Portal anlegen",
             "syncNewSpaceBody": "Der Ordner „{name}“ ist kein Bereich und wird nicht abgeglichen. Lege neue Bereiche in OfficeHub an.",
+            "syncOutsideTitle": "Datei in einen Bereich legen",
+            "syncOutsideBody": "„{name}“ liegt direkt im OfficeHub-Ordner und wird nicht hochgeladen. Leg sie in den Ordner eines Bereichs.",
+            "syncReadOnlyTitle": "Bereich ist schreibgeschützt",
+            "syncReadOnlyBody": "„{name}“ bleibt nur auf diesem PC: In diesem Bereich darfst du nichts ändern (oder er ist archiviert).",
+            "syncTooLargeTitle": "Datei ist zu groß",
+            "syncTooLargeBody": "„{name}“ ist größer, als OfficeHub erlaubt, und bleibt nur auf diesem PC.",
+            "syncFailedTitle": "Hochladen hat nicht geklappt",
+            "syncFailedBody": "„{name}“ konnte nicht hochgeladen werden. OfficeHub versucht es später noch einmal.",
             "hiddenTitle": "OfficeHub läuft weiter",
             "hiddenBody": "Du bekommst weiter Nachrichten und Anrufe. Öffnen und Beenden über das Symbol unten rechts."
         })
@@ -119,6 +127,14 @@ pub fn for_system() -> Value {
             "syncDeletesBody": "{count} files and folders were deleted at once. To be safe they were restored – please delete them in the portal.",
             "syncNewSpaceTitle": "Create new spaces in the portal",
             "syncNewSpaceBody": "The folder \"{name}\" is not a space and does not sync. Create new spaces in OfficeHub.",
+            "syncOutsideTitle": "Put the file into a space",
+            "syncOutsideBody": "\"{name}\" is right in the OfficeHub folder and is not uploaded. Move it into a space's folder.",
+            "syncReadOnlyTitle": "This space is read only",
+            "syncReadOnlyBody": "\"{name}\" stays only on this PC: you may not change this space (or it is archived).",
+            "syncTooLargeTitle": "File too large",
+            "syncTooLargeBody": "\"{name}\" is larger than OfficeHub allows and stays only on this PC.",
+            "syncFailedTitle": "Upload did not work",
+            "syncFailedBody": "\"{name}\" could not be uploaded. OfficeHub tries again later.",
             "hiddenTitle": "OfficeHub keeps running",
             "hiddenBody": "You still get messages and calls. Open or quit it from the icon at the bottom right."
         })

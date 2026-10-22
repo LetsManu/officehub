@@ -27,6 +27,14 @@ pub enum Event {
     ManyDeletes { count: usize },
     /// Folders right in the sync folder are spaces; new ones are made in the portal.
     NewSpaceFolder { name: String },
+    /// A file right in the sync folder: files belong in a space's folder.
+    OutsideSpace { name: String },
+    /// The space is read only (archived, or no right to change it): the file stays only on this computer.
+    ReadOnly { name: String },
+    /// Larger than the portal allows.
+    TooLarge { name: String },
+    /// The server refused it for another reason; tried again at the next scan.
+    UploadFailed { name: String },
 }
 
 /// Words for conflict copies (the person's language).
@@ -377,6 +385,8 @@ impl<S: Store> Engine<S> {
             if !item.path().is_dir() || !space_dirs.contains_key(&name.to_lowercase()) {
                 if item.path().is_dir() {
                     self.tell(format!("newspace:{name}"), Event::NewSpaceFolder { name });
+                } else {
+                    self.tell(format!("outside:{name}"), Event::OutsideSpace { name });
                 }
                 continue;
             }
@@ -535,10 +545,11 @@ impl<S: Store> Engine<S> {
 
     fn create_folder_from(&mut self, dir: &Path) {
         let Some((space_id, parent)) = dir.parent().and_then(|p| self.place_of(p)) else { return };
+        let name = Self::local_name(dir);
         if !self.state.spaces.get(&space_id).is_some_and(|s| s.writable) {
+            self.tell(format!("readonly:{}", key(dir)), Event::ReadOnly { name });
             return;
         }
-        let name = Self::local_name(dir);
         match self.api.create_folder(space_id, parent, &name) {
             Ok(item) => {
                 let _ = self.store.mark_dir(dir, &item);
@@ -553,16 +564,29 @@ impl<S: Store> Engine<S> {
                     },
                 );
             }
-            Err(_) => {}
+            Err(e) => self.refused(dir, name, &e),
+        }
+    }
+
+    /// Says once why something from this computer did not reach the server (offline is shown in the tray).
+    fn refused(&mut self, rel: &Path, name: String, error: &ApiError) {
+        let k = key(rel);
+        match error.status() {
+            None => {}
+            Some(413) => self.tell(format!("toolarge:{k}"), Event::TooLarge { name }),
+            Some(415 | 422) => self.tell(format!("unsupported:{k}"), Event::NotSupported { name }),
+            Some(403) => self.tell(format!("readonly:{k}"), Event::ReadOnly { name }),
+            Some(_) => self.tell(format!("failed:{k}"), Event::UploadFailed { name }),
         }
     }
 
     fn create_file_from(&mut self, rel: &Path) {
         let Some((space_id, folder)) = rel.parent().and_then(|p| self.place_of(p)) else { return };
+        let name = Self::local_name(rel);
         if !self.state.spaces.get(&space_id).is_some_and(|s| s.writable) {
+            self.tell(format!("readonly:{}", key(rel)), Event::ReadOnly { name });
             return;
         }
-        let name = Self::local_name(rel);
         let path = self.store.abs(rel);
         let (Ok(data), Some(time)) = (std::fs::read(&path), mtime(&path)) else { return };
         // Still being written (changed while reading): next time
@@ -587,10 +611,7 @@ impl<S: Store> Engine<S> {
                     },
                 );
             }
-            Err(e) if matches!(e.status(), Some(413 | 415 | 422)) => {
-                self.tell(format!("unsupported:{}", key(rel)), Event::NotSupported { name });
-            }
-            Err(_) => {}
+            Err(e) => self.refused(rel, name, &e),
         }
     }
 
@@ -628,10 +649,7 @@ impl<S: Store> Engine<S> {
             Err(e) if matches!(e.status(), Some(409 | 423)) => {
                 self.tell(format!("busy:{id}:{}", entry.version), Event::Busy { name: entry.name.clone() });
             }
-            Err(e) if matches!(e.status(), Some(413 | 415)) => {
-                self.tell(format!("unsupported:{id}"), Event::NotSupported { name: entry.name.clone() });
-            }
-            Err(_) => {}
+            Err(e) => self.refused(rel, entry.name.clone(), &e),
         }
     }
 
