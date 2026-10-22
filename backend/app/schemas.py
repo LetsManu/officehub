@@ -91,6 +91,7 @@ class UserOut(ORM):
     deputy_until: date | None = None
     totp_enabled: bool = False
     email_notifications: bool = True
+    e2ee_required: bool = False
 
     @field_validator("pinned_tiles", mode="before")
     @classmethod
@@ -161,6 +162,7 @@ class UserAdminUpdate(BaseModel):
     start_date: date | None = None
     vacation_days: Annotated[int, Field(ge=0, le=60)] | None = None
     weekly_minutes: Annotated[int, Field(ge=0, le=60 * 60)] | None = None
+    e2ee_required: bool | None = None
 
 
 class PasswordReset(BaseModel):

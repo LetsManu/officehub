@@ -12,12 +12,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '3.7.0',
     date: '2026-10-22',
     de: [
+      'Ende-zu-Ende-verschlüsselte Meetings wie bei Webex (MLS und SFrame): Beim Planen „Ende-zu-Ende verschlüsselt“ anhaken. Bild, Ton, Bildschirm, Chat, Reaktionen und Whiteboard können dann nur die Teilnehmenden lesen – nicht einmal OfficeHub. Ein Sicherheitscode zum Vergleichen zeigt, dass niemand mithört. HR kann es für einzelne Personen zur Pflicht machen.',
       'OfficeHub als App: „Als App installieren“ gibt es jetzt immer im Menü – mit Schritt-für-Schritt-Anleitung für Windows, Mac, Android und iPhone. Die Übersicht zeigt einen Tipp, bis die App installiert ist.',
       'Die installierte App trägt euren Firmennamen und eure Farbe, zeigt ungelesene Nachrichten als Zahl am Symbol und führt per langem Druck aufs Symbol direkt zu Chat, Kalender, Dateien oder einem neuen Antrag.',
       'Teilen an OfficeHub: Fotos, Dokumente und Links aus anderen Apps über „Teilen“ an OfficeHub schicken – Dateien landen in einem Bereich, Text in einem Chat.',
       'Ohne Verbindung sagt OfficeHub Bescheid, und nach einem Update bietet es „Neu laden“ an.',
     ],
     en: [
+      'End-to-end encrypted meetings as in Webex (MLS and SFrame): tick "End-to-end encrypted" when planning. Only the people in the meeting can then read video, sound, screen, chat, reactions and whiteboard – not even OfficeHub. A security code to compare shows that nobody is listening in. HR can make it a must for particular people.',
       'OfficeHub as an app: "Install as app" is now always in the menu – with step-by-step instructions for Windows, Mac, Android and iPhone. The home page shows a tip until the app is installed.',
       'The installed app carries your company name and colour, shows unread messages as a number on its icon, and a long press on the icon goes straight to chat, calendar, files or a new request.',
       'Share with OfficeHub: send photos, documents and links from other apps with "Share" – files go into a space, text into a chat.',

@@ -28,6 +28,11 @@ badge, offline notice and "updated, reload" (version in the summary).
     signalling or Jitsi JWTs. Keep these endpoints app-friendly (future Windows/Android apps use them).
     Moderation (`mod` in the room token: organizer, or everyone in space rooms/calls), reactions and whiteboard go as
     small "app" messages; breakout rooms (`services/breakouts.py`, `/api/rtc/breakouts`) work with either token kind.
+    End-to-end encrypted meetings (`Meeting.e2ee`, forced by `User.e2ee_required`): OfficeHub is only the MLS delivery
+    service (`services/mls.py`, `/api/rtc/mls/*`: key packages, ordered commits, welcomes, ciphertext); the browsers
+    run MLS (`frontend/src/lib/e2ee/mls.ts`, ts-mls) and SFrame on the media (`e2ee/sframe*.ts`, encoded transforms),
+    or hand the MLS-derived key to lib-jitsi-meet (externally managed key). Chat, reactions and whiteboard travel as MLS
+    messages; the server refuses them in plaintext there. Never send keys or plaintext content to the server.
   - `app/routers/sso.py`, `app/services/sso.py` – company login with the company's own OpenID Connect server
     (Authentik, Keycloak); set up in Administration, password sign-in always stays.
   - `app/routers/webdav.py` – spaces as a network drive (`/dav/`, Basic auth with app passwords only,

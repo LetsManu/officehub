@@ -46,7 +46,7 @@ rooms: dict[str, dict[str, Peer]] = {}
 removed: dict[str, set[str]] = {}  # meeting -> people a moderator removed (they cannot come back today)
 
 
-def _sweep(room: str) -> None:
+def sweep(room: str) -> None:
     """Forget people whose page stopped asking (closed tab, lost network) and tell the others."""
     peers = rooms.get(room, {})
     limit = time.monotonic() - GONE_SECONDS
@@ -55,7 +55,7 @@ def _sweep(room: str) -> None:
 
 
 def join(room: str, who: str, name: str, host: bool, mod: bool = False) -> tuple[Peer, list[Peer]]:
-    _sweep(room)
+    sweep(room)
     peers = rooms.setdefault(room, {})
     peer = Peer(id=secrets.token_hex(8), who=who, name=name, host=host, mod=mod)
     others = list(peers.values())
@@ -66,7 +66,7 @@ def join(room: str, who: str, name: str, host: bool, mod: bool = False) -> tuple
 
 
 def count(room: str) -> int:
-    _sweep(room)
+    sweep(room)
     return len(rooms.get(room, {}))
 
 
@@ -94,7 +94,6 @@ async def poll(peer: Peer, after: int) -> list[dict]:
             await asyncio.wait_for(peer.wake.wait(), POLL_SECONDS)
         except TimeoutError:
             pass
-    peer.seen = time.monotonic()
     return [{"seq": seq, **m} for seq, m in peer.queue if seq > after]
 
 

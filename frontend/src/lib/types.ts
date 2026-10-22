@@ -33,6 +33,7 @@ export interface User {
   deputy_until: string | null
   totp_enabled: boolean
   email_notifications: boolean
+  e2ee_required?: boolean
 }
 
 export interface UserBrief {
@@ -903,6 +904,8 @@ export interface Meeting {
   live: MeetingParticipant[]
   cancelled: boolean
   town_hall?: boolean
+  e2ee?: boolean
+  e2ee_forced?: boolean
   is_moderator?: boolean
 }
 
