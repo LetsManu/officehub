@@ -32,7 +32,7 @@ from ..services.office import (
 )
 from ..services import craft
 from ..services.settings import get_setting, set_setting
-from ..services.spaces import add_version, checked_out_by_other, current_path, get_file, role_in
+from ..services.spaces import add_version, checked_out_by_other, current_path, get_file, lock_owner_id, role_in
 
 router = APIRouter(prefix="/api/office", tags=["office"])
 wopi = APIRouter(prefix="/wopi", tags=["office (internal)"])
@@ -63,6 +63,8 @@ class OpenOut(BaseModel):
     engine: str
     can_write: bool
     file_name: str
+    # Who has it open in WordCraft/DeckCraft or on the network drive, when that is why it opened read-only
+    editing_by: str | None = None
     # Collabora: the page is loaded by posting the token to action_url inside an iframe
     action_url: str | None = None
     access_token: str | None = None
@@ -104,9 +106,15 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
     space = db.get(Space, item.space_id)
     can_write = (role_in(db, user, space) is not None and not space.archived
                  and item.file_type in EDITABLE[engine] and not checked_out_by_other(item, user))
+    # Editing together works only inside the office editor; someone in WordCraft/DeckCraft or on the drive blocks it
+    owner = lock_owner_id(item)
+    editing_by = None
+    if can_write and owner is not None and owner != user.id:
+        person = db.get(User, owner)
+        can_write, editing_by = False, person.full_name if person else ""
     token, expires = make_token(db, item.id, user.id, can_write, body.origin)
     if engine == "collabora":
-        return OpenOut(engine=engine, can_write=can_write, file_name=item.name,
+        return OpenOut(engine=engine, can_write=can_write, file_name=item.name, editing_by=editing_by,
                        action_url=collabora_action(item.file_type, can_write) + f"lang={user.language}&WOPISrc="
                        + urllib.request.quote(f"{settings.backend_internal_url}/wopi/files/{item.id}", safe=""),
                        access_token=token, access_token_ttl=expires)
@@ -137,7 +145,7 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
     }
     if settings.onlyoffice_jwt_secret:
         config["token"] = jwt_encode(config, settings.onlyoffice_jwt_secret)
-    return OpenOut(engine=engine, can_write=can_write, file_name=item.name,
+    return OpenOut(engine=engine, can_write=can_write, file_name=item.name, editing_by=editing_by,
                    script="/onlyoffice/web-apps/apps/api/documents/api.js", config=config)
 
 

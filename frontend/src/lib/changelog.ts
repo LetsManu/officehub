@@ -12,9 +12,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '3.6.0',
     date: '2026-10-21',
     de: [
+      'WordCraft und DeckCraft gemeinsam, live – wie in Google Docs: Alle, die ein Dokument oder eine Präsentation öffnen, bearbeiten es gleichzeitig, auch im selben Absatz oder Textfeld. Du siehst die Cursor der anderen mit Namen (WordCraft) bzw. was sie markiert haben (DeckCraft). Gespeichert wird automatisch; Rückgängig nimmt nur deine eigenen Änderungen zurück.',
+      'Automatische Sicherung jede Nacht: Datenbank und alle Dateien. Unter „Administration → Sicherungen“ siehst du, ob sie geklappt hat, kannst sofort sichern, herunterladen oder einen früheren Stand zurückholen.',
       'Firmen-Login: Mit dem Firmenkonto anmelden (z. B. Authentik oder Keycloak). Neue Kolleginnen und Kollegen bekommen beim ersten Anmelden automatisch ein Konto, Rollen kommen auf Wunsch aus den Gruppen.',
     ],
     en: [
+      'WordCraft and DeckCraft together, live – like Google Docs: everyone who opens a document or presentation edits it at the same time, even in the same paragraph or text box. You see the others\' carets with their names (WordCraft) or what they selected (DeckCraft). It saves by itself; Undo takes back only your own changes.',
+      'Automatic backup every night: database and all files. Under "Administration → Backups" you see whether it worked, can back up now, download or bring back an earlier state.',
       'Company login: sign in with your company account (e.g. Authentik or Keycloak). New colleagues get an account automatically at their first sign-in; roles can come from the groups.',
     ],
   },

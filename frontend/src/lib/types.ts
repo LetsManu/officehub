@@ -734,6 +734,8 @@ export interface OfficeOpen {
   engine: 'collabora' | 'onlyoffice'
   can_write: boolean
   file_name: string
+  /** Who has it open in WordCraft/DeckCraft or on the network drive ("" = someone), when that is why it is read-only */
+  editing_by: string | null
   action_url: string | null
   access_token: string | null
   access_token_ttl: number | null

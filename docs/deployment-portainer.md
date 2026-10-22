@@ -138,19 +138,17 @@ Read the release notes first, and make a backup before larger updates.
 
 ## 5. Backup
 
-All data lives in the volume `officehub_officehub-data` (`officehub.db` and the `uploads/` folder).
+OfficeHub backs itself up: every night (from 2:00, also when the server was off at that time) the database and all
+files go into one archive `officehub-YYYYMMDD-HHMMSS.tar.gz`. The newest 14 are kept. Under **Administration →
+Backups** you see whether the last one worked, change time and number, back up now, download an archive or restore
+one (the state before is backed up first).
 
-Using a shell on the Docker host:
+The archives go to their own volume `officehub_officehub-backups`. To keep them off the server, mount a NAS share on
+the Docker host and set `BACKUP_PATH` in the stack, e.g. `BACKUP_PATH=/mnt/nas/officehub-backups`. The folder must
+be writable for user ID 1000 (`chown 1000 /mnt/nas/officehub-backups`).
 
-```bash
-docker stop officehub-backend-1
-docker run --rm -v officehub_officehub-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/officehub-backup-$(date +%F).tar.gz -C /data .
-docker start officehub-backend-1
-```
-
-Container and volume names can differ slightly depending on the stack name – check them under **Containers** and **Volumes** in Portainer.
-To restore, stop the backend, extract the archive into the volume and start it again (see the README).
+To restore on a new server: deploy the stack, copy an archive into the backup folder and choose it under
+**Administration → Backups**.
 
 ## Notes
 
