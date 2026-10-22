@@ -55,6 +55,7 @@ from .routers import (
     time_tracking,
     trainings,
     visitors,
+    sync,
     webdav,
     wiki,
 )
@@ -198,5 +199,6 @@ for router in (
     backups.router,
     keys.router,
     apps.router,
+    sync.router,
 ):
     app.include_router(router)
