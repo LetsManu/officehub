@@ -1,4 +1,5 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, type RouteRecordRaw } from 'vue-router'
+import { calmHistory, notePlace } from './lib/address'
 import { nextTick } from 'vue'
 import { currentUser, loadSession } from './lib/session'
 import { branding } from './lib/branding'
@@ -83,7 +84,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: calmHistory(),
   routes,
   scrollBehavior: () => ({ top: 0 }),
 })
@@ -100,6 +101,7 @@ router.beforeEach(async (to) => {
 let firstNavigation = true
 
 router.afterEach(async (to, from) => {
+  notePlace(to.fullPath)
   const site = branding.value.company_name || 'OfficeHub'
   document.title = to.meta.title ? `${t(to.meta.title)} · ${site}` : site
   // Move focus to the page content after navigation so screen readers announce the new page.
