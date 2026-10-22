@@ -114,6 +114,8 @@ class AuthSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+    # Signed in from the Windows or Android app: lasts APP_SESSION_DAYS and is extended while it is used
+    app: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
 
     user: Mapped[User] = relationship()
 

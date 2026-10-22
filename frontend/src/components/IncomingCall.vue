@@ -9,6 +9,7 @@ import AppIcon from './AppIcon.vue'
 import UserAvatar from './UserAvatar.vue'
 import { api } from '@/lib/api'
 import { notifyDesktop, quiet } from '@/lib/desktop'
+import { appRing, onAppEvent } from '@/lib/native'
 import { t } from '@/lib/i18n'
 import type { IncomingCall } from '@/lib/types'
 
@@ -55,6 +56,9 @@ function tone() {
 }
 
 watch(call, (now, before) => {
+  // The Windows app rings with its own window while the portal is hidden in the tray
+  if (now && now.meeting_id !== before?.meeting_id) appRing({ meeting_id: now.meeting_id, name: now.caller?.full_name ?? now.title, text: t('call.incoming') })
+  if (!now && before) appRing(null)
   if (now && !before) {
     notifyDesktop({ title: now.caller?.full_name ?? now.title, body: t('call.incoming'), link: `/meetings/${now.meeting_id}/room`, tag: `call${now.meeting_id}`, sticky: true })
     // "Do not disturb": the call still shows, but without ringing
@@ -80,8 +84,16 @@ async function decline() {
   await api.post(`/api/calls/${c.meeting_id}/decline`).catch(() => undefined)
 }
 
+// Accepted or declined in the app's own ringing window
+const stopAppEvents = onAppEvent((e) => {
+  if (!e.call || e.call !== call.value?.meeting_id) return
+  if (e.action === 'accept') accept()
+  else if (e.action === 'decline') void decline()
+})
+
 onMounted(check)
 onBeforeUnmount(() => {
+  stopAppEvents()
   window.clearTimeout(timer)
   window.clearInterval(ringTimer)
   audio?.close().catch(() => undefined)

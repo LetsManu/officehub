@@ -18,6 +18,7 @@ from .services import sso as sso_service
 from .services import backup
 from .routers import (
     admin,
+    apps,
     announcements,
     assets,
     auth,
@@ -141,6 +142,9 @@ def public_config() -> dict:
         "version": settings.app_version,
         "mail_enabled": settings.mail_enabled,
         "meetings_enabled": True,
+        # The Windows and Android apps (apps/): installer and APK attached to every release
+        "apps": {"windows": f"{settings.app_download_url}OfficeHub-Setup.exe",
+                 "android": f"{settings.app_download_url}OfficeHub.apk"},
     }
     with SessionLocal() as db:
         if sso_service.enabled(db):
@@ -193,5 +197,6 @@ for router in (
     sso.router,
     backups.router,
     keys.router,
+    apps.router,
 ):
     app.include_router(router)

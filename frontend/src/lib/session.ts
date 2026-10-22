@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { api } from './api'
 import { setLanguage } from './i18n'
+import { appSignedIn } from './native'
 import type { PublicConfig, User } from './types'
 
 export const currentUser = ref<User | null>(null)
@@ -51,6 +52,7 @@ export async function signOut(): Promise<void> {
     await api.post('/api/auth/logout')
   } finally {
     currentUser.value = null
+    appSignedIn(false)
   }
 }
 

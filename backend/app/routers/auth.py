@@ -36,22 +36,30 @@ def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
             login_throttle.fail(key)
             raise ApiError(401, "two_factor_invalid", "The code is not correct.")
     login_throttle.reset(key)
-    open_session(db, user, response)
+    open_session(db, user, response, request)
     return user
 
 
-def open_session(db: DB, user: User, response: Response) -> None:
-    """Signed in: a new session and its cookie (password sign-in and company login)."""
+def is_app(request: Request | None) -> bool:
+    """The Windows and Android apps name themselves in the user agent (apps/)."""
+    return request is not None and "OfficeHubApp/" in request.headers.get("user-agent", "")
+
+
+def open_session(db: DB, user: User, response: Response, request: Request | None = None) -> None:
+    """Signed in: a new session and its cookie (password sign-in and company login). In the apps it lasts
+    APP_SESSION_DAYS and is extended while used (deps.get_current_user), so people stay signed in like in Teams."""
     now = utcnow()
     db.execute(delete(AuthSession).where(AuthSession.expires_at < now))
     token = new_session_token()
-    db.add(AuthSession(token_hash=hash_token(token), user_id=user.id, expires_at=now + timedelta(hours=settings.session_hours)))
+    app = is_app(request)
+    lifetime = timedelta(days=settings.app_session_days) if app else timedelta(hours=settings.session_hours)
+    db.add(AuthSession(token_hash=hash_token(token), user_id=user.id, expires_at=now + lifetime, app=app))
     db.commit()
 
     response.set_cookie(
         SESSION_COOKIE,
         token,
-        max_age=settings.session_hours * 3600,
+        max_age=int(lifetime.total_seconds()),
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",

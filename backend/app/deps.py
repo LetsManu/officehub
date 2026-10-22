@@ -1,11 +1,13 @@
 """Shared FastAPI dependencies: database session and current user."""
 
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import settings
 from .db import get_db
 from .errors import ApiError, forbidden
 from .models import AuthSession, User, utcnow
@@ -23,6 +25,12 @@ def get_current_user(request: Request, db: DB) -> User:
     session = db.scalar(select(AuthSession).where(AuthSession.token_hash == hash_token(token)))
     if session is None or session.expires_at < utcnow() or not session.user.is_active:
         raise ApiError(401, "session_expired", "Your session has ended. Please sign in again.")
+    if session.app:
+        # The apps stay signed in while they are used; the cookie keeps its own (long) lifetime
+        renewed = utcnow() + timedelta(days=settings.app_session_days)
+        if renewed - session.expires_at > timedelta(days=1):
+            session.expires_at = renewed
+            db.commit()
     return session.user
 
 
