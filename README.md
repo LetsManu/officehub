@@ -162,6 +162,7 @@ officehub/
 ├── frontend/             Vue app, nginx config, service worker, Dockerfile
 │   └── src/              views, components, locales (de/en), lib (meetings, e2ee, pwa, markdown)
 ├── craft/                WordCraft / DeckCraft web build (from the LetsManu forks)
+├── apps/                 Windows app (Tauri 2) and Android app (Kotlin), sign-release.ps1
 ├── docs/                 user guide, deployment, UI guidelines, screenshots
 ├── .github/workflows/    tests, images, releases
 ├── docker-compose.yml
