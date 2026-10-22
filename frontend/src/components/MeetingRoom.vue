@@ -42,7 +42,7 @@ const previewTracks = ref<any[]>([])
 const prefs = reactive({ mic: true, cam: true, camera: '', micId: '' })
 const devices = ref<{ cameras: MediaDeviceInfo[]; mics: MediaDeviceInfo[]; speakers: MediaDeviceInfo[] }>({ cameras: [], mics: [], speakers: [] })
 const joining = ref(false)
-type Panel = 'chat' | 'people' | 'notes' | 'breakouts' | 'settings'
+type Panel = 'chat' | 'people' | 'notes' | 'breakouts' | 'settings' | 'security'
 const panel = ref<Panel | null>(null)
 const chatText = ref('')
 const chatList = ref<HTMLElement | null>(null)
@@ -683,6 +683,9 @@ onBeforeUnmount(() => {
     <template v-else-if="phase === 'room'">
       <header class="top">
         <h1 class="room-title">{{ title }}<template v-if="roomLabel"> · {{ roomLabel }}</template></h1>
+        <button v-if="meeting.state.e2ee" type="button" class="e2ee-pill" :class="meeting.state.e2ee.status" :aria-label="t('meeting.e2ee.open')" @click="panel = panel === 'security' ? null : 'security'">
+          <AppIcon name="lock" :size="14" />{{ t(`meeting.e2ee.${meeting.state.e2ee.status}`) }}
+        </button>
         <span v-if="recording || someoneRecording" class="rec-pill" role="status"><span class="rec-dot" aria-hidden="true" />{{ t('meeting.recordingShort') }}</span>
         <span v-if="breakoutLeft" class="time" :aria-label="t('meeting.breakouts.timeLeft')"><AppIcon name="clock" :size="16" />{{ breakoutLeft }}</span>
         <span class="time" :aria-label="t('meeting.duration')">{{ duration }}</span>
@@ -776,6 +779,21 @@ onBeforeUnmount(() => {
           </template>
 
           <MeetingBreakouts v-else-if="panel === 'breakouts'" :state="breakouts" :tiles="tiles" :in-room="inRoom" :busy="breakoutBusy" @save="saveRooms" @visit="moveTo" />
+
+          <template v-else-if="panel === 'security' && meeting.state.e2ee">
+            <p class="small">{{ t('meeting.e2ee.about') }}</p>
+            <template v-if="meeting.state.e2ee.status === 'secure'">
+              <p class="muted-light small">{{ t('meeting.e2ee.codeLabel') }}</p>
+              <p class="e2ee-code" aria-live="polite">{{ meeting.state.e2ee.code }}</p>
+              <p class="muted-light small">{{ t('meeting.e2ee.codeHint') }}</p>
+              <h3 class="small">{{ t('meeting.e2ee.members', { n: meeting.state.e2ee.members.length }) }}</h3>
+              <ul class="e2ee-members">
+                <li v-for="(m, i) in meeting.state.e2ee.members" :key="`${m.who}-${i}`"><AppIcon name="lock" :size="14" />{{ m.name }}</li>
+              </ul>
+            </template>
+            <p v-else-if="meeting.state.e2ee.status === 'connecting'" class="muted-light small">{{ t('meeting.e2ee.connectingHint') }}</p>
+            <p v-else class="muted-light small">{{ t('meeting.e2ee.failedHint') }}</p>
+          </template>
 
           <template v-else-if="panel === 'settings'">
             <label class="switch-row"><input v-model="noiseSuppression" type="checkbox" /><span><strong>{{ t('meeting.noise') }}</strong><span class="muted-light small block">{{ t('meeting.noiseHint') }}</span></span></label>
@@ -1385,6 +1403,50 @@ onBeforeUnmount(() => {
 }
 
 /* recording */
+.e2ee-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 99px;
+  background: #14532d;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.e2ee-pill.connecting {
+  background: #57534e;
+}
+
+.e2ee-pill.failed {
+  background: #7f1d1d;
+}
+
+.e2ee-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  margin: var(--space-1) 0;
+}
+
+.e2ee-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.e2ee-members li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .rec-pill {
   display: inline-flex;
   align-items: center;

@@ -95,6 +95,8 @@ class MeetingOut(BaseModel):
     cancelled: bool
     town_hall: bool = False
     is_moderator: bool = False
+    e2ee: bool = False
+    e2ee_forced: bool = False  # the organizer's meetings are always encrypted (set by HR / Admin)
 
 
 class MeetingDetail(MeetingOut):
@@ -114,6 +116,7 @@ class MeetingIn(BaseModel):
     recurrence: Literal["", "daily", "weekdays", "weekly", "biweekly", "monthly"] = ""
     recurrence_until: date | None = None
     town_hall: bool = False
+    e2ee: bool = False
 
 
 class RespondIn(BaseModel):
@@ -215,7 +218,8 @@ def _out(db: DB, user: User, meeting: Meeting, cls=MeetingOut, **extra) -> Meeti
         my_response=mine, is_organizer=meeting.organizer_id == user.id,
         guest_link=f"/guest/{meeting.guest_token}" if meeting.guest_token and is_host(user, meeting) else None,
         live=_live(db, meeting), cancelled=meeting.cancelled, town_hall=meeting.town_hall,
-        is_moderator=is_moderator(user, meeting), **extra,
+        is_moderator=is_moderator(user, meeting), e2ee=meeting.e2ee,
+        e2ee_forced=bool(meeting.organizer and meeting.organizer.e2ee_required), **extra,
     )
 
 
@@ -297,7 +301,7 @@ def create_meeting(body: MeetingIn, user: CurrentUser, db: DB) -> MeetingDetail:
                       starts_at=_naive_utc(body.starts_at), ends_at=_naive_utc(body.ends_at), space_id=body.space_id,
                       organizer_id=user.id, guest_token=secrets.token_urlsafe(18) if body.allow_guests else None,
                       recurrence=body.recurrence, recurrence_until=body.recurrence_until if body.recurrence else None,
-                      town_hall=body.town_hall)
+                      town_hall=body.town_hall, e2ee=body.e2ee or user.e2ee_required)
     db.add(meeting)
     db.flush()
     _invite(db, user, meeting, set(body.invitee_ids) - {user.id})
@@ -320,6 +324,7 @@ def update_meeting(meeting_id: int, body: MeetingIn, user: CurrentUser, db: DB) 
     meeting.starts_at, meeting.ends_at = _naive_utc(body.starts_at), _naive_utc(body.ends_at)
     meeting.recurrence = body.recurrence
     meeting.town_hall = body.town_hall
+    meeting.e2ee = body.e2ee or user.e2ee_required
     meeting.recurrence_until = body.recurrence_until if body.recurrence else None
     if body.allow_guests and not meeting.guest_token:
         meeting.guest_token = secrets.token_urlsafe(18)
@@ -539,8 +544,10 @@ def start_call(body: CallIn, user: CurrentUser, db: DB) -> Join:
             raise not_found("Conversation")
         others = sorted(ids - {user.id})
         title = user.full_name
+    # A call is end-to-end encrypted when anyone it rings must have that (set by HR / Admin)
+    required = user.e2ee_required or any(u.e2ee_required for u in db.scalars(select(User).where(User.id.in_(others))))
     meeting = Meeting(kind="call", title=title, room=new_room("c"), space_id=channel.space_id, channel_id=channel.id,
-                      organizer_id=user.id)
+                      organizer_id=user.id, e2ee=required)
     db.add(meeting)
     db.flush()
     for uid in others:

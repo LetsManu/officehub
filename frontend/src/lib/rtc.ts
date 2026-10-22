@@ -4,6 +4,8 @@
  * is meant for calls and smaller meetings; with the company's own Jitsi server larger ones work too.
  */
 
+import type { MediaCrypto } from './e2ee/media'
+import type { E2eeKeys } from './e2ee/mls'
 import type { AppMessage, ChatLine, JoinInfo, MeetingState, Tile } from './meeting'
 
 type Kind = 'audio' | 'video'
@@ -105,7 +107,8 @@ class RtcError extends Error {
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
-export function builtinSession(state: MeetingState, tile: (id: string, name?: string) => Tile, onApp: (from: string, message: AppMessage) => void) {
+/** `media`: an end-to-end encrypted meeting, every sender and receiver goes through SFrame (e2ee/media.ts). */
+export function builtinSession(state: MeetingState, tile: (id: string, name?: string) => Tile, onApp: (from: string, message: AppMessage) => void, media: MediaCrypto | null = null) {
   let base = '/api/rtc'
   let token = ''
   let peerId = ''
@@ -172,19 +175,30 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
     }
   }
 
+  /** End-to-end encrypted meeting: encrypt everything this connection sends, decrypt everything it receives. */
+  function secure(pc: RTCPeerConnection) {
+    if (!media) return
+    for (const transceiver of pc.getTransceivers()) {
+      media.sender(transceiver.sender)
+      media.receiver(transceiver.receiver)
+    }
+  }
+
   function link(id: string, initiator: boolean): Link {
-    const pc = new RTCPeerConnection({ iceServers: ice })
+    const pc = new RTCPeerConnection({ iceServers: ice, ...(media?.peerConfig() ?? {}) } as RTCConfiguration)
     const entry: Link = { pc, pending: [], initiator }
     links.set(id, entry)
     if (initiator) {
       pc.addTransceiver('audio', { direction: 'sendrecv' })
       pc.addTransceiver('video', { direction: 'sendrecv' })
+      secure(pc)
       attachSenders(pc)
     }
     pc.onicecandidate = (event) => {
       if (event.candidate) signal(id, { candidate: event.candidate.toJSON() })
     }
     pc.ontrack = (event) => {
+      secure(pc)
       const t = tile(id)
       const remote = new RtcTrack(event.track, false, id)
       if (event.track.kind === 'audio') t.audio = remote
@@ -210,6 +224,7 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
       if (data.sdp.type === 'offer') {
         entry ??= link(from, false)
         await entry.pc.setRemoteDescription(data.sdp)
+        secure(entry.pc)
         attachSenders(entry.pc)
         const answer = await entry.pc.createAnswer()
         await entry.pc.setLocalDescription(answer)
@@ -491,5 +506,7 @@ export function builtinSession(state: MeetingState, tile: (id: string, name?: st
     state.status = 'left'
   }
 
-  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks }
+  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks, selfId: () => peerId,
+    // SFrame keys go straight to the worker (MediaCrypto); nothing to do here
+    setMediaKeys: (_keys: E2eeKeys) => undefined as void }
 }

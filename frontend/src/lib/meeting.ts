@@ -6,6 +6,7 @@
  */
 
 import { reactive, ref, shallowRef } from 'vue'
+import type { E2eeGroup, E2eeInfo, E2eeKeys, MediaCrypto, Sender } from './e2ee'
 import { builtinSession, createRtcTracks } from './rtc'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet has no type definitions here */
@@ -41,6 +42,8 @@ export interface JoinInfo {
     who?: string
     moderator?: boolean
     town_hall?: boolean
+    // end-to-end encrypted: the ticket for the meeting's MLS group
+    e2ee?: E2eeInfo
   }
 }
 
@@ -171,6 +174,8 @@ function newState() {
     breakoutsChanged: 0,
     moving: false, // switching to or from a breakout room
     notices: [] as Notice[],
+    // end-to-end encryption (null: an ordinary meeting)
+    e2ee: null as null | { status: 'connecting' | 'secure' | 'failed'; code: string; epoch: number; members: Sender[] },
   })
 }
 
@@ -191,6 +196,9 @@ function tileFinder(state: MeetingState, nameOf: (id: string) => string = () => 
 
 type Session = ReturnType<typeof builtinSession>
 
+/** Kinds that carry content: in an end-to-end encrypted meeting they travel only MLS-encrypted. */
+const SEALED_KINDS = new Set(['react', 'wb', 'wb-clear', 'wb-all'])
+
 /** Kinds that only count when they come from someone leading the meeting (the server checks this too). */
 const MOD_KINDS = new Set(['mute', 'mute-all', 'spotlight', 'stage', 'lower-hand', 'sync', 'breakouts'])
 const REACTION_MS = 4000
@@ -205,9 +213,42 @@ export function useMeeting() {
   const state = newState()
   let session: Session | null = null
   let info: JoinInfo | null = null
+  let group: E2eeGroup | null = null
+  let media: MediaCrypto | null = null
+  let sealedChat = 0
   const run = <K extends keyof Session>(key: K) => ((...args: Parameters<Session[K]>) => (session?.[key] as (...a: unknown[]) => unknown)?.(...args)) as Session[K]
   const tile = (id: string) => state.tiles.find((t) => t.id === id)
-  const app = (message: AppMessage, to?: string) => session?.app(message, to)
+  const app = (message: AppMessage, to?: string) => {
+    if (group && SEALED_KINDS.has(message.kind)) {
+      group.seal({ app: message, to: to ?? '', peer: session?.selfId() ?? '' }).catch(() => undefined)
+      return
+    }
+    session?.app(message, to)
+  }
+
+  /** A message from the encrypted group: a chat line, or a reaction / whiteboard stroke from someone's tile. */
+  function onSealed(payload: Record<string, unknown>, from: Sender) {
+    if (typeof payload.chat === 'string') {
+      state.chat.push({ id: 1_000_000 + ++sealedChat, from: from.name || '?', text: payload.chat.slice(0, 1000), at: Date.now(), mine: false })
+      state.unread += 1
+      return
+    }
+    const message = payload.app as AppMessage | undefined
+    if (!message || typeof message.kind !== 'string' || !SEALED_KINDS.has(message.kind)) return
+    if (payload.to && payload.to !== session?.selfId()) return
+    const peer = String(payload.peer ?? '')
+    // The tile must belong to the person who encrypted the message
+    if (tile(peer)?.who && tile(peer)?.who !== from.who) return
+    onApp(peer, message)
+  }
+
+  function send(text: string) {
+    const body = text.trim()
+    if (!body) return
+    if (!group) return session?.send(body)
+    group.seal({ chat: body }).catch(() => undefined)
+    state.chat.push({ id: 1_000_000 + ++sealedChat, from: tile('local')?.name ?? '', text: body, at: Date.now(), mine: true })
+  }
 
   /** In a town hall, people in the audience listen until someone leading it brings them on stage. */
   const mayTalk = () => !state.townHall || state.moderator || state.stage.includes(state.me)
@@ -305,9 +346,26 @@ export function useMeeting() {
     state.me = c.who ?? ''
     state.moderator = !!c.moderator
     state.townHall = !!c.town_hall
-    session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp) : jitsiSession(state, onApp)
+    state.e2ee = null
+    if (c.e2ee) {
+      const e2ee = await import('./e2ee')
+      if (!e2ee.e2eeSupported()) {
+        state.status = 'failed'
+        state.error = 'e2ee_unsupported'
+        for (const track of localTracks) track.dispose?.()
+        throw Object.assign(new Error('e2ee_unsupported'), { code: 'e2ee_unsupported' })
+      }
+      media = c.mode === 'builtin' ? new e2ee.MediaCrypto() : null
+      group = new e2ee.E2eeGroup(c.e2ee, (keys: E2eeKeys) => {
+        media?.setKeys(keys)
+        session?.setMediaKeys?.(keys)
+      }, onSealed)
+      state.e2ee = group.view
+    }
+    session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp, media) : jitsiSession(state, onApp, !!c.e2ee)
     const tracks = mayTalk() ? localTracks : []
     if (!mayTalk()) for (const track of localTracks) track.dispose?.()
+    await group?.start()
     await session.join(joinInfo, tracks, displayName)
     const me = tileFinder(state)('local')
     me.who = state.me
@@ -323,11 +381,19 @@ export function useMeeting() {
       return info
     },
     join: start,
-    leave: () => session?.leave() ?? Promise.resolve(),
+    leave: async () => {
+      group?.stop()
+      media?.stop()
+      group = media = null
+      await session?.leave()
+    },
     /** Go to a breakout room (or back): leave this room and join the other with fresh camera and microphone. */
     async move(next: JoinInfo, localTracks: Track[], displayName: string) {
       state.moving = true
       try {
+        group?.stop()
+        media?.stop()
+        group = media = null
         await session?.leave()
         state.strokes = []
         state.spotlight = ''
@@ -352,7 +418,7 @@ export function useMeeting() {
     },
     stopShare: run('stopShare'),
     toggleHand: run('toggleHand'),
-    send: run('send'),
+    send,
     setNoiseSuppression: run('setNoiseSuppression'),
     audioTracks: () => session?.audioTracks() ?? [],
     react(emoji: string) {
@@ -399,8 +465,12 @@ function isStroke(value: unknown): value is Stroke {
     && typeof s.size === 'number' && Array.isArray(s.points) && s.points.length <= 4000 && s.points.every((n) => typeof n === 'number')
 }
 
-function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMessage) => void) {
+/** `encrypted`: the meeting is end-to-end encrypted; the keys come from its MLS group (setMediaKeys) and the
+ * Jitsi server's own frame encryption uses them (lib-jitsi-meet, externally managed key). */
+function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMessage) => void, encrypted = false) {
   const conference = shallowRef<Conference | null>(null)
+  let keyed: () => void = () => undefined
+  const firstKey = new Promise<void>((resolve) => (keyed = resolve))
   let lib: any = null
   let connection: any = null
   let localAudio: Track | null = null
@@ -457,7 +527,11 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
     })
 
     // Everything goes through the company's videobridge, also calls between two people (no direct connection)
-    const room = connection.initJitsiConference(c.room, { p2p: { enabled: false }, openBridgeChannel: true })
+    const room = connection.initJitsiConference(c.room, {
+      p2p: { enabled: false },
+      openBridgeChannel: true,
+      ...(encrypted ? { e2ee: { externallyManagedKey: true }, enableEncodedTransformSupport: true } : {}),
+    })
     conference.value = room
     const ce = events.conference
     room.on(ce.TRACK_ADDED, (track: Track) => {
@@ -521,7 +595,8 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
       room.on(ce.CONFERENCE_JOINED, () => resolve())
       room.setDisplayName(displayName)
       for (const track of localTracks) {
-        room.addTrack(track)
+        // Encrypted: nothing is sent before the first key is set (below)
+        if (!encrypted) room.addTrack(track)
         if (track.getType() === 'audio') localAudio = track
         else localVideo = cameraTrack = track
         placeTrack(track)
@@ -532,6 +607,17 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
       room.setLocalParticipantProperty?.('ohmod', String(!!info.connection.moderator))
       room.join()
     })
+    if (encrypted) {
+      if (!room.isE2EESupported?.()) {
+        state.status = 'failed'
+        state.error = 'e2ee_unsupported'
+        await leave()
+        throw Object.assign(new Error('e2ee_unsupported'), { code: 'e2ee_unsupported' })
+      }
+      room.toggleE2EE(true)
+      await firstKey
+      for (const track of [localAudio, localVideo]) if (track) await room.addTrack(track)
+    }
     state.micOn = !!localAudio && !localAudio.isMuted()
     state.camOn = !!localVideo && !localVideo.isMuted()
     state.status = 'joined'
@@ -652,5 +738,15 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
     state.status = 'left'
   }
 
-  return { join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks }
+  async function setMediaKeys(keys: E2eeKeys) {
+    const encryptionKey = await crypto.subtle.importKey('raw', keys.shared as BufferSource, 'AES-GCM', false, ['encrypt', 'decrypt'])
+    conference.value?.setMediaEncryptionKey?.({ encryptionKey, index: keys.epoch % 16 })
+    keyed()
+  }
+
+  return {
+    join, leave, toggleMic, toggleCam, startShare, stopShare, toggleHand, send, app, remove, forceMute, setNoiseSuppression, audioTracks,
+    selfId: () => (conference.value?.myUserId?.() as string | undefined) ?? '',
+    setMediaKeys: (keys: E2eeKeys) => void setMediaKeys(keys),
+  }
 }

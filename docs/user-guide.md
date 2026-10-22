@@ -364,6 +364,20 @@ the company; nothing is recorded unless someone in the meeting starts a recordin
   meeting you can also save it to the space's files. Everyone in the meeting sees "Being recorded by …" – please ask
   first.
 
+### End-to-end encrypted meetings
+
+Tick **End-to-end encrypted** when planning a meeting. Then, as in Webex, only the devices of the people in the
+meeting hold the keys: video, sound, screen, chat, reactions and whiteboard are encrypted in the browser, and neither
+OfficeHub nor the company's meeting server can read along.
+
+- In the meeting the green **End-to-end** badge at the top opens the **security code** and the list of everyone who
+  holds the keys. Read the code out to each other: if everyone sees the same one, nobody else is listening in. It
+  changes whenever someone joins or leaves – that person can neither hear what was said before nor what is said after.
+- HR / Admin can make it a must for a person (**Administration → People → Meetings always encrypted**): meetings they
+  plan and calls with them are then always end-to-end encrypted.
+- It needs a current Chrome, Edge, Firefox or Safari. The **notes** on the meeting page are stored in OfficeHub as
+  usual and are not end-to-end encrypted; a recording is made in your own browser.
+
 ### Leading a meeting
 
 The organizer of a planned meeting leads it (in space rooms and calls everyone with an account does). In **People**

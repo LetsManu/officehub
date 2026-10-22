@@ -152,6 +152,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
         </PageHeader>
         <p v-if="seriesText" class="series-note"><AppIcon name="history" :size="16" />{{ t('meetings.repeats', { rule: seriesText }) }}</p>
         <p v-if="meeting.town_hall" class="series-note"><AppIcon name="megaphone" :size="16" />{{ t('meetings.townHallNote') }}</p>
+        <p v-if="meeting.e2ee" class="series-note"><AppIcon name="lock" :size="16" />{{ t('meetings.e2eeNote') }}</p>
 
         <p v-if="meeting.cancelled" class="notice notice-danger">{{ t('meetings.cancelledNotice') }}</p>
 
