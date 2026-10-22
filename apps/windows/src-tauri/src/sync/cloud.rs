@@ -192,16 +192,23 @@ pub struct Filter {
     pub api: Api,
 }
 
-impl SyncFilter for Filter {
-    fn fetch_data(&self, request: Request, ticket: ticket::FetchData, info: info::FetchData) -> CResult<()> {
-        let (id, version) = parse_blob(request.file_blob()).ok_or(CloudErrorKind::InvalidRequest)?;
-        let range = info.required_file_range();
+enum Failure {
+    /// Before anything was written: Windows is told it failed
+    Server(String),
+    /// Writing was refused: the download is no longer wanted
+    Cancelled(String),
+}
+
+impl Filter {
+    fn download_into(&self, request: &Request, ticket: &ticket::FetchData, range: std::ops::Range<u64>) -> Result<(), Failure> {
+        let (id, version) = parse_blob(request.file_blob())
+            .ok_or_else(|| Failure::Server(format!("no file id in {:?}", request.file_blob())))?;
         let mut position = range.start;
         while position < range.end {
             let end = (position + CHUNK).min(range.end);
-            let data = self.api.download(id, version, position, end).map_err(|_| CloudErrorKind::Unsuccessful)?;
+            let data = self.api.download(id, version, position, end).map_err(|e| Failure::Server(format!("server: {e}")))?;
             if data.is_empty() {
-                return Err(CloudErrorKind::Unsuccessful);
+                return Err(Failure::Server(format!("server sent nothing for {position}..{end}")));
             }
             // Whole 4 KiB blocks, except at the very end of the file
             let mut usable = data.len() as u64;
@@ -210,13 +217,34 @@ impl SyncFilter for Filter {
             }
             let usable = usize::try_from(usable).unwrap_or(0);
             if usable == 0 {
-                return Err(CloudErrorKind::Unsuccessful);
+                return Err(Failure::Server(format!("less than 4 KiB at {position}")));
             }
-            ticket.write_at(&data[..usable], position).map_err(|_| CloudErrorKind::Unsuccessful)?;
+            ticket
+                .write_at(&data[..usable], position)
+                .map_err(|e| Failure::Cancelled(format!("write at {position}: {e:?}")))?;
             position += usable as u64;
             let _ = ticket.report_progress(range.end, position);
         }
         Ok(())
+    }
+}
+
+impl SyncFilter for Filter {
+    fn fetch_data(&self, request: Request, ticket: ticket::FetchData, info: info::FetchData) -> CResult<()> {
+        let range = info.required_file_range();
+        match self.download_into(&request, &ticket, range.clone()) {
+            Ok(()) => Ok(()),
+            // Windows cancelled this download (another program's request took over, or the file was closed):
+            // reporting a failure now would itself fail, so it simply ends here
+            Err(Failure::Cancelled(why)) => {
+                eprintln!("OfficeHub: download of {} ended early: {why}", request.path().display());
+                Ok(())
+            }
+            Err(Failure::Server(why)) => {
+                eprintln!("OfficeHub: download of {} ({range:?}) failed: {why}", request.path().display());
+                Err(CloudErrorKind::Unsuccessful)
+            }
+        }
     }
 
     fn fetch_placeholders(

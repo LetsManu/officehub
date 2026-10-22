@@ -36,6 +36,7 @@ fn placeholders_download_on_open_and_uploads_work() {
     let content = "Hallo aus OfficeHub ".repeat(5000); // ~100 KB: several 4 KiB blocks
     api.create_file(space_id, None, "Willkommen.txt", content.as_bytes()).expect("upload");
 
+    eprintln!("step: connect");
     let connection = cloud::connect(&root, &login, "OfficeHub Test", api.clone()).expect("register and connect");
     let store = CloudStore { root: root.clone() };
     let mut engine = Engine::new(api.clone(), store, State::default(), "CI".into(), Words { conflict: "conflict".into() });
@@ -46,6 +47,7 @@ fn placeholders_download_on_open_and_uploads_work() {
         }
     }
 
+    eprintln!("step: placeholder check");
     // A placeholder: the right size, nothing downloaded yet
     let file = root.join(&space).join("Willkommen.txt");
     let meta = std::fs::metadata(&file).expect("placeholder exists");
@@ -54,16 +56,19 @@ fn placeholders_download_on_open_and_uploads_work() {
     assert_eq!(info.on_disk_data_size(), 0, "nothing downloaded before opening");
     assert!(info.is_in_sync());
 
+    eprintln!("step: hydrate");
     // Opening it downloads it (fetch_data)
     assert_eq!(std::fs::read_to_string(&file).expect("read hydrates"), content);
     let info = Placeholder::open(&file).unwrap().info().unwrap().unwrap();
     assert_eq!(info.on_disk_data_size(), content.len() as i64);
 
+    eprintln!("step: free up space");
     // "Free up space": the content goes again, the file stays
     cloud::free_up_space(&file).expect("free up space");
     assert_eq!(Placeholder::open(&file).unwrap().info().unwrap().unwrap().on_disk_data_size(), 0);
     assert_eq!(std::fs::read_to_string(&file).unwrap(), content);
 
+    eprintln!("step: upload");
     // A new local file is uploaded and becomes a placeholder in sync
     let new_file = root.join(&space).join("Neu.txt");
     std::fs::write(&new_file, "von Windows").unwrap();
@@ -74,6 +79,7 @@ fn placeholders_download_on_open_and_uploads_work() {
     let (_, data) = api.download_current(id).expect("on the server");
     assert_eq!(data, b"von Windows");
 
+    eprintln!("step: server change");
     // A change on the server replaces the local placeholder's content
     let welcome = engine.state.files.iter().find(|(_, e)| e.local_name == "Willkommen.txt").map(|(id, e)| (*id, e.version)).unwrap();
     api.save(welcome.0, welcome.1, b"neu vom Server").expect("save on server");
