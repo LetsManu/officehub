@@ -5,6 +5,7 @@
  */
 
 import { ref } from 'vue'
+import { place } from './address'
 import { api } from './api'
 import { chime, notifyDesktop } from './desktop'
 import { t } from './i18n'
@@ -89,7 +90,7 @@ async function announceMessages() {
   if (!conversations) return
   const fresh = conversations.filter((c) => c.unread && c.last && Date.parse(c.last.at) > Date.parse(seenChat))
   seenChat = new Date().toISOString()
-  const here = (id: number) => document.visibilityState === 'visible' && window.location.pathname.endsWith(`/chat/${id}`)
+  const here = (id: number) => document.visibilityState === 'visible' && place.value.split('?')[0].endsWith(`/chat/${id}`)
   for (const c of fresh.filter((c) => !here(c.id))) {
     const body = c.last!.call ? t('chat.callPreview') : c.last!.body
     notifyDesktop({ title: c.name, body: c.last!.author && c.kind === 'channel' ? `${c.last!.author}: ${body}` : body, link: `/chat/${c.id}`, tag: `c${c.id}` })

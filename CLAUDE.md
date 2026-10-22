@@ -52,6 +52,9 @@ badge, offline notice and "updated, reload" (version in the summary).
   - `src/locales/de.ts` is the source of truth for UI text; `en.ts` must have the same keys.
   - `src/components/` – shared building blocks (BaseModal, FormField, EmptyState, StatusBadge …).
   - `src/styles.css` – design tokens. Follow `docs/ui-guidelines.md`.
+  - The address bar stays plain like Teams (`src/lib/address.ts`: memory history, start path read once, browser
+    back/forward and reload still work). Never read `window.location.pathname` for the current page: use the router
+    or `place`.
   - `src/lib/changelog.ts` – plain-language "What's new" entries; add one per release.
   - No inline `style="…"` attributes: the Content-Security-Policy blocks them. Use classes.
   - Run `npm test` (translations + logic) and `npm run build` (includes type check).
