@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * One chat message, like in Discord: formatted text with @mentions, a shared file, a call, a poll or a voice
- * message; reactions below; and on hover: react, reply in a thread, pin, edit, delete.
+ * One chat message, like in Teams: formatted text with @mentions, a shared file, a call, a poll or a voice
+ * message; reactions below. React, reply in a thread, pin, edit and delete appear only for the message under the
+ * mouse (or reached with the keyboard); on a touch screen a tap on the message shows them for that message only.
  */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import UserAvatar from './UserAvatar.vue'
@@ -29,6 +30,33 @@ const MORE = ['✅', '🔥', '😮', '😢', '👏', '💯', '🤔', '🚀', '�
 const router = useRouter()
 const picker = ref(false)
 const m = computed(() => props.message)
+const root = ref<HTMLElement | null>(null)
+/** Touch screens: the one message whose actions are shown (shared by all messages). */
+const self = Symbol('message')
+const touched = computed(() => tapped.value === self)
+
+/** A tap on the message itself (not on a link, button or the actions) shows its actions; another tap hides them. */
+function tap(e: PointerEvent) {
+  if (e.pointerType === 'mouse') return
+  if ((e.target as HTMLElement).closest('a, button, input, audio, .msg-actions')) return
+  tapped.value = touched.value ? null : self
+}
+
+/** A tap or click anywhere else closes the emoji picker and (touch) the actions. */
+function outside(e: PointerEvent) {
+  if (root.value?.contains(e.target as Node)) return
+  picker.value = false
+  if (touched.value) tapped.value = null
+}
+
+watch(
+  () => picker.value || touched.value,
+  (open) => (open ? document.addEventListener('pointerdown', outside) : document.removeEventListener('pointerdown', outside)),
+)
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', outside)
+  if (touched.value) tapped.value = null
+})
 const html = computed(() => renderChat(m.value.body, props.members.map((x) => x.full_name)))
 
 function time(iso: string) {
@@ -37,6 +65,7 @@ function time(iso: string) {
 
 function pick(emoji: string) {
   picker.value = false
+  tapped.value = null
   emit('react', emoji)
 }
 
@@ -59,8 +88,12 @@ const duration = computed(() => {
 })
 </script>
 
+<script lang="ts">
+const tapped = ref<symbol | null>(null)
+</script>
+
 <template>
-  <article class="msg" :class="{ first, mine: m.mine, pinned: m.pinned }">
+  <article ref="root" class="msg" :class="{ first, mine: m.mine, pinned: m.pinned, touched }" @pointerup="tap">
     <div class="avatar-col">
       <UserAvatar v-if="first && m.author" :id="m.author.id" :name="m.author.full_name" :photo-version="m.author.photo_version" :size="34" />
     </div>
@@ -166,7 +199,8 @@ const duration = computed(() => {
 }
 
 .msg:hover,
-.msg:focus-within {
+.msg:has(:focus-visible),
+.msg.touched {
   background: var(--color-surface-muted);
 }
 
@@ -427,7 +461,8 @@ const duration = computed(() => {
 }
 
 .msg:hover .msg-actions,
-.msg:focus-within .msg-actions,
+.msg:has(:focus-visible) .msg-actions,
+.msg.touched .msg-actions,
 .msg-actions.open {
   display: flex;
 }
@@ -471,15 +506,18 @@ const duration = computed(() => {
 }
 
 @media (hover: none) {
-  .msg-actions {
-    position: static;
-    display: flex;
-    grid-column: 2;
-    justify-self: start;
-    margin-top: 2px;
-    border: 0;
-    box-shadow: none;
+  /* Touch: no hover, so only the tapped message shows its actions */
+  .msg:hover:not(.touched) {
     background: none;
+  }
+
+  .msg:hover:not(.touched) .msg-actions:not(.open) {
+    display: none;
+  }
+
+  .msg-actions .btn-icon {
+    min-width: 40px;
+    min-height: 40px;
   }
 }
 </style>
