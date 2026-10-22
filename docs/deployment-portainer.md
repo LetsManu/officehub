@@ -70,8 +70,10 @@ Changing `ADMIN_EMAIL` / `ADMIN_PASSWORD` later has no effect – use **Profile 
   finds it by itself. It is reached through the portal's own address (`/collabora/`), works with HTTP and HTTPS, and
   needs about 1 GB of RAM. Don't want it? Remove the `collabora` service from the stack.
 - **Video meetings and calls** run on the stack's own **Jitsi Meet** server (`jitsi-*` containers, about 1–2 GB of
-  RAM). The `turn` container is a relay of your own for people on other networks (home office, mobile data). Both
-  find the server's public address from `PORTAL_URL` (or `PUBLIC_IP`); no outside service is used. Open these ports
+  RAM). The `turn` container is a relay of your own for people on other networks (home office, mobile data). The
+  short-lived `hostip` container finds the server's address in the office network (from its routing table) and
+  stops; the public address comes from `PORTAL_URL` (or `PUBLIC_IP`, or the name people open the portal with). No
+  outside service is used. **Set `PORTAL_URL`** to the address people use (e.g. `https://office.example.com`). Open these ports
   to the server for people outside the office: **UDP 10000** (Jitsi), **UDP+TCP 3478** and **UDP 49160–49200**
   (relay). Without the `jitsi-*` containers meetings run built in (directly between the browsers, through the relay
   when needed). Browsers only allow camera and microphone on **HTTPS** pages (see step 3).

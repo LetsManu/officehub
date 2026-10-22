@@ -237,3 +237,25 @@ def test_public_address_is_shared_with_the_meeting_servers(monkeypatch, tmp_path
     monkeypatch.delenv("PUBLIC_IP")
     monkeypatch.delenv("JITSI_PUBLIC_IP", raising=False)
     assert _public_address("http://localhost:8080") is None
+
+
+def test_relay_is_reached_with_the_name_people_use(monkeypatch, tmp_path):
+    """Without PORTAL_URL the relay and the meeting servers still find the server: by the name the portal was opened
+    with."""
+    import dataclasses
+
+    from app.services import meetings
+
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path))
+    patched = dataclasses.replace(meetings.settings, turn_secret="s3cret", portal_url="http://localhost:8080",
+                                  ice_servers=(), public_address=None)
+    monkeypatch.setattr(meetings, "settings", patched)
+    monkeypatch.setattr(meetings, "_resolve", lambda host: "198.51.100.4" if host == "office.example.com" else None)
+    monkeypatch.setattr(meetings, "_noted", set())
+    token = meetings.request_host.set("office.example.com:443")
+    try:
+        assert meetings.ice_servers("u1")[0]["urls"][0] == "stun:office.example.com:3478"
+        meetings.note_host()
+    finally:
+        meetings.request_host.reset(token)
+    assert (tmp_path / "public_ip").read_text() == "198.51.100.4"

@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8.2',
+    date: '2026-10-22',
+    de: [
+      'Meetings über den Meeting-Server zeigen jetzt auch im selben Netzwerk Bild und Ton: Der Server findet seine Adresse im Büronetz und im Internet selbst.',
+    ],
+    en: [
+      'Meetings through the meeting server now show picture and sound on the same network too: the server finds its address in the office network and on the internet by itself.',
+    ],
+  },
+  {
     version: '3.8.1',
     date: '2026-10-22',
     de: [

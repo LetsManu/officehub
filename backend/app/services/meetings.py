@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import secrets
 import time
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -19,7 +20,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..config import settings
+from ..config import _resolve, settings, share_public_address
 from ..errors import ApiError, not_found
 from ..models import (
     Channel,
@@ -123,6 +124,26 @@ def rtc_key(db: Session) -> str:
 
 
 TURN_HOURS = 12
+# The name people opened the portal with (set per request in main.py); the relay is reached the same way
+request_host: ContextVar[str | None] = ContextVar("request_host", default=None)
+_noted: set[str] = set()
+
+
+def portal_host() -> str | None:
+    host = request_host.get()
+    if host:
+        return host.split(":")[0] if not host.startswith("[") else host
+    return urlparse(settings.portal_url).hostname
+
+
+def note_host() -> None:
+    """Without PUBLIC_IP or PORTAL_URL: learn the server's address from the name people open the portal with, for the
+    meeting servers' next start (they read /shared/public_ip)."""
+    host = portal_host()
+    if settings.public_address or not host or host in _noted:
+        return
+    _noted.add(host)
+    share_public_address(_resolve(host))
 
 
 def ice_servers(who: str = "") -> list[dict]:
@@ -134,7 +155,7 @@ def ice_servers(who: str = "") -> list[dict]:
         if settings.ice_username:
             server.update(username=settings.ice_username, credential=settings.ice_password or "")
         return [server]
-    host = urlparse(settings.portal_url).hostname
+    host = portal_host()
     if not settings.turn_secret or not host:
         return []
     username = f"{int(time.time()) + TURN_HOURS * 3600}:{who or 'officehub'}"
@@ -167,6 +188,7 @@ def connect_room(db: Session, room: str, main: str, name: str, who: str, host: b
     """Connection details for one room: the meeting itself or one of its breakout rooms. An end-to-end encrypted
     meeting also gets the ticket for its MLS group (services/mls.py), with the Jitsi server as well."""
     roles = {"who": who, "moderator": mod}
+    note_host()
     if e2ee:
         roles["e2ee"] = {"token": rtc_token(db, room, name, who, host, main=main, mod=mod, e2ee=True), "signal": "/api/rtc/mls",
                          "policy": keys.policy(db)}
