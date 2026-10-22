@@ -44,6 +44,7 @@ from ..services.meetings import (
     participants,
     when_text,
 )
+from ..services import keys
 from ..services.notifications import notify
 from ..services.recurrence import next_occurrence, skipped_days
 from .chat import direct_channel
@@ -474,6 +475,9 @@ def guest_info(token: str, db: DB) -> GuestInfo:
 @router.post("/api/guest/{token}/request", response_model=GuestStatus, status_code=201)
 def guest_request(token: str, body: GuestRequestIn, db: DB) -> GuestStatus:
     meeting = _guest_meeting(db, token)
+    if meeting.e2ee and keys.policy(db) == "strict":
+        # Guests have no confirmed key: under the "confirmed people only" rule they cannot join encrypted meetings
+        raise ApiError(403, "e2ee_guests_blocked", "This meeting is only for confirmed people.")
     recent = utcnow() - timedelta(minutes=10)
     waiting = db.scalars(select(MeetingGuest.id).where(MeetingGuest.meeting_id == meeting.id,
                                                        MeetingGuest.status == "waiting", MeetingGuest.created_at >= recent)).all()

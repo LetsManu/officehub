@@ -31,6 +31,7 @@ from ..models import (
 from .notifications import notify
 from .office import jwt_decode, jwt_encode
 from . import rtc
+from . import keys
 from .probe import reachable
 from .recurrence import occurrences, rrule, skipped_days
 from .settings import get_setting, set_setting
@@ -148,7 +149,8 @@ def connect_room(db: Session, room: str, main: str, name: str, who: str, host: b
     meeting also gets the ticket for its MLS group (services/mls.py), with the Jitsi server as well."""
     roles = {"who": who, "moderator": mod}
     if e2ee:
-        roles["e2ee"] = {"token": rtc_token(db, room, name, who, host, main=main, mod=mod, e2ee=True), "signal": "/api/rtc/mls"}
+        roles["e2ee"] = {"token": rtc_token(db, room, name, who, host, main=main, mod=mod, e2ee=True), "signal": "/api/rtc/mls",
+                         "policy": keys.policy(db)}
     # While the Jitsi server runs, every meeting and call goes through it. Only a meeting that already runs built in
     # (the server was started in the meantime) stays that way until it is empty, so nobody ends up in another room.
     if mode() == "jitsi" and not rtc.count(room):

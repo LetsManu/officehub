@@ -16,7 +16,7 @@ AUDIT_ACTIONS = (
     "asset_created", "asset_updated", "asset_assigned", "asset_returned",
     "training_created", "training_updated", "training_confirmed",
     "survey_created", "survey_closed", "idea_status", "offboarding_started",
-    "login_failed_locked", "backup_restored",
+    "login_failed_locked", "backup_restored", "keys_reset",
 )
 
 

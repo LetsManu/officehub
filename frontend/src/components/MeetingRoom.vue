@@ -10,6 +10,7 @@ import AppIcon from './AppIcon.vue'
 import BaseModal from './BaseModal.vue'
 import MeetingBreakouts from './MeetingBreakouts.vue'
 import MeetingWhiteboard from './MeetingWhiteboard.vue'
+import VerifyPerson from './VerifyPerson.vue'
 import VideoTile from './VideoTile.vue'
 import { ApiError, api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
@@ -526,6 +527,30 @@ async function copyGuestLink() {
   }
 }
 
+// ---------- end-to-end encryption: who is really who ----------
+
+const verifyTarget = ref<{ who: string; name: string } | null>(null)
+const keyChanged = computed(() => meeting.state.e2ee?.members.filter((m) => m.trust === 'changed').map((m) => m.name).join(', ') ?? '')
+const unconfirmed = computed(() => meeting.state.e2ee?.members.filter((m) => m.trust === 'unconfirmed').map((m) => m.name).join(', ') ?? '')
+const TRUST_ICONS: Record<string, string> = { self: 'user', verified: 'checkCircle', known: 'lock', new: 'lock', guest: 'user', unconfirmed: 'alert', changed: 'alert', forged: 'alert' }
+
+// Under the strict rule nobody lets in someone they cannot confirm: after a while, say so instead of waiting silently
+const keptOut = ref(false)
+let keptOutTimer = 0
+watch(
+  () => meeting.state.e2ee?.status,
+  (status) => {
+    window.clearTimeout(keptOutTimer)
+    keptOut.value = false
+    if (status === 'connecting' && meeting.state.e2ee?.strict) keptOutTimer = window.setTimeout(() => (keptOut.value = true), 15_000)
+  },
+)
+onBeforeUnmount(() => window.clearTimeout(keptOutTimer))
+
+function canVerify(m: { who: string; trust: string }): boolean {
+  return !props.guest && /^\d+$/.test(m.who) && ['known', 'new', 'changed', 'unconfirmed', 'verified'].includes(m.trust)
+}
+
 async function hangUp() {
   window.clearInterval(heartbeat)
   window.clearTimeout(breakoutTimer)
@@ -716,6 +741,19 @@ onBeforeUnmount(() => {
             <VideoTile v-for="tile in (boardOpen ? visible : others)" :key="tile.id" :tile="tile" :pinned="pinnedId === tile.id" :spotlight="!!tile.who && tile.who === meeting.state.spotlight" @pin="pin(tile)" />
           </div>
           <p v-if="audience > 0" class="audience muted-light small">{{ t('meeting.audienceCount', { n: audience }) }}</p>
+          <p v-if="meeting.state.e2ee?.problem" class="banner danger" role="alert">
+            <AppIcon name="alert" :size="18" />{{ t(`meeting.e2ee.problems.${meeting.state.e2ee.problem}`, { name: meeting.state.e2ee.problemName }) }}
+            <button type="button" class="btn btn-danger" @click="hangUp">{{ t('meeting.e2ee.leave') }}</button>
+          </p>
+          <p v-else-if="keyChanged" class="banner warn" role="alert">
+            <AppIcon name="alert" :size="18" />{{ t('meeting.e2ee.keyChanged', { names: keyChanged }) }}
+            <button type="button" class="btn btn-ghost light" @click="panel = 'security'">{{ t('meeting.e2ee.open') }}</button>
+          </p>
+          <p v-else-if="keptOut" class="banner warn" role="status"><AppIcon name="alert" :size="18" />{{ t('meeting.e2ee.keptOut') }}</p>
+          <p v-else-if="unconfirmed" class="banner warn" role="status">
+            <AppIcon name="alert" :size="18" />{{ t('meeting.e2ee.unconfirmedBanner', { names: unconfirmed }) }}
+            <button type="button" class="btn btn-ghost light" @click="panel = 'security'">{{ t('meeting.e2ee.open') }}</button>
+          </p>
           <p v-if="meeting.state.status === 'connecting'" class="banner" role="status">{{ meeting.state.moving ? t('meeting.breakouts.moving') : t('meeting.connecting') }}</p>
         </div>
 
@@ -787,12 +825,18 @@ onBeforeUnmount(() => {
               <p class="e2ee-code" aria-live="polite">{{ meeting.state.e2ee.code }}</p>
               <p class="muted-light small">{{ t('meeting.e2ee.codeHint') }}</p>
               <h3 class="small">{{ t('meeting.e2ee.members', { n: meeting.state.e2ee.members.length }) }}</h3>
+              <p v-if="meeting.state.e2ee.strict" class="muted-light small">{{ t('meeting.e2ee.strictHint') }}</p>
               <ul class="e2ee-members">
-                <li v-for="(m, i) in meeting.state.e2ee.members" :key="`${m.who}-${i}`"><AppIcon name="lock" :size="14" />{{ m.name }}</li>
+                <li v-for="(m, i) in meeting.state.e2ee.members" :key="`${m.who}-${i}`">
+                  <AppIcon :name="TRUST_ICONS[m.trust] ?? 'lock'" :size="14" />
+                  <span class="grow">{{ m.name }}</span>
+                  <span class="trust" :class="m.trust">{{ t(`meeting.e2ee.trust.${m.trust}`) }}</span>
+                  <button v-if="canVerify(m) && m.trust !== 'verified'" type="button" class="btn btn-ghost light small-btn" @click="verifyTarget = m">{{ t('meeting.e2ee.verify') }}</button>
+                </li>
               </ul>
             </template>
             <p v-else-if="meeting.state.e2ee.status === 'connecting'" class="muted-light small">{{ t('meeting.e2ee.connectingHint') }}</p>
-            <p v-else class="muted-light small">{{ t('meeting.e2ee.failedHint') }}</p>
+            <p v-else-if="!meeting.state.e2ee.problem" class="muted-light small">{{ t('meeting.e2ee.failedHint') }}</p>
           </template>
 
           <template v-else-if="panel === 'settings'">
@@ -865,6 +909,14 @@ onBeforeUnmount(() => {
 
       <BaseModal :open="recordConfirm" :title="t('meeting.recordTitle')" :description="t('meeting.recordText')" :confirm-label="t('meeting.recordStart')" @close="recordConfirm = false" @confirm="beginRecording" />
       <BaseModal :open="removing !== null" :title="t('meeting.removeTitle', { name: removing?.name ?? '' })" :description="t('meeting.removeText')" :confirm-label="t('meeting.remove')" tone="danger" @close="removing = null" @confirm="confirmRemove" />
+      <VerifyPerson
+        v-if="verifyTarget"
+        :open="!!verifyTarget"
+        :user-id="verifyTarget.who"
+        :name="verifyTarget.name"
+        @close="verifyTarget = null"
+        @changed="meeting.recheckTrust()"
+      />
     </template>
 
     <section v-else class="ended">
@@ -1445,6 +1497,44 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.e2ee-members .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.trust {
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: #3f3f46;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trust.verified,
+.trust.self {
+  background: #14532d;
+}
+
+.trust.changed,
+.trust.unconfirmed,
+.trust.forged {
+  background: #7f1d1d;
+}
+
+.small-btn {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+}
+
+.banner.danger {
+  background: #7f1d1d;
+}
+
+.banner.warn {
+  background: #78350f;
 }
 
 .rec-pill {

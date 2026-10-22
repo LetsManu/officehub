@@ -35,6 +35,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas import UtcDateTime
+from ..services import keys
 from ..services.meetings import due_reminders
 from ..services.presence import state_of
 from ..services.requests import deputy_for
@@ -79,6 +80,7 @@ class Summary(BaseModel):
     presence: dict = {}  # my own presence (state, text, manual)
     reminders: list[dict] = []  # meetings starting within 10 minutes
     version: str = ""  # the running version: when it changes, the open portal offers to reload
+    devices_pending: int = 0  # new devices waiting to be confirmed from one of the person's other devices
 
 
 class Reminder(BaseModel):
@@ -173,6 +175,7 @@ def summary(user: CurrentUser, db: DB, idle: bool = False,
     reminders = [Reminder(**r).model_dump(mode="json") for r in due_reminders(db, user)]
     return Summary(
         version=settings.app_version,
+        devices_pending=keys.pending_count(db, user.id),
         presence=state_of(db, user),
         reminders=reminders,
         unread=_unread(db, user),

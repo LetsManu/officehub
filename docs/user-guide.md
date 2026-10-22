@@ -378,6 +378,30 @@ OfficeHub nor the company's meeting server can read along.
 - It needs a current Chrome, Edge, Firefox or Safari. The **notes** on the meeting page are stored in OfficeHub as
   usual and are not end-to-end encrypted; a recording is made in your own browser.
 
+#### Is it really them? Security numbers and devices
+
+Each of your devices (browser) has its own key; OfficeHub only stores its public part. In an encrypted meeting every
+browser signs its meeting key with it, and everyone checks that signature – so nobody, not even OfficeHub, can join
+under someone else's name unnoticed. The list in the meeting shows for each person:
+
+- **Confirmed** – you compared their security number in person. **Known** – the same key as before. **First time** –
+  you have not seen this person in an encrypted meeting yet.
+- **Key changed** (red, with a warning at the top) – a different key than before: a lost device, or someone pretending
+  to be them. **Device not confirmed** – a device none of their other devices confirmed. **Guest, not confirmed** –
+  guests have no account. A key whose signature does not match is never let in, and the meeting stops if one turns up.
+
+To confirm someone, meet in person: they open **Profile → Encrypted meetings** and show the **security number** and
+QR code; you click **Check** next to them in the meeting (or **Check security number** in **People**), scan the code
+with the camera or compare the digits, and choose **The digits match**. This holds on all your devices.
+
+**A new device** (a new laptop, the phone) first waits: open **Profile → Encrypted meetings** on a device you already
+use – a notice at the top leads there – and **Confirm** it when it shows the same code as the new device. If you have
+no other device left, choose **No other device left? Start anew** on the new one; colleagues then see **Key changed**
+until you compare security numbers again.
+
+HR / Admin choose in **Administration → Security & e-mail** who may take part: **Warn** (default: people who are not confirmed
+are marked) or **Confirmed only** (no guests, no unconfirmed devices; a changed key keeps that person out).
+
 ### Leading a meeting
 
 The organizer of a planned meeting leads it (in space rooms and calls everyone with an account does). In **People**

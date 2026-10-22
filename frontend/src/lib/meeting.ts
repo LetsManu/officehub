@@ -6,7 +6,7 @@
  */
 
 import { reactive, ref, shallowRef } from 'vue'
-import type { E2eeGroup, E2eeInfo, E2eeKeys, MediaCrypto, Sender } from './e2ee'
+import type { E2eeGroup, E2eeInfo, E2eeKeys, GroupMember, MediaCrypto, Sender } from './e2ee'
 import { builtinSession, createRtcTracks } from './rtc'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lib-jitsi-meet has no type definitions here */
@@ -175,7 +175,15 @@ function newState() {
     moving: false, // switching to or from a breakout room
     notices: [] as Notice[],
     // end-to-end encryption (null: an ordinary meeting)
-    e2ee: null as null | { status: 'connecting' | 'secure' | 'failed'; code: string; epoch: number; members: Sender[] },
+    e2ee: null as null | {
+      status: 'connecting' | 'secure' | 'failed'
+      code: string
+      epoch: number
+      members: GroupMember[]
+      strict: boolean
+      problem: string
+      problemName: string
+    },
   })
 }
 
@@ -355,14 +363,36 @@ export function useMeeting() {
         for (const track of localTracks) track.dispose?.()
         throw Object.assign(new Error('e2ee_unsupported'), { code: 'e2ee_unsupported' })
       }
-      media = c.mode === 'builtin' ? new e2ee.MediaCrypto() : null
-      group = new e2ee.E2eeGroup(c.e2ee, (keys: E2eeKeys) => {
-        media?.setKeys(keys)
-        session?.setMediaKeys?.(keys)
-      }, onSealed)
+      // Who this browser is: its device key (people) or a key for this visit only (guests)
+      const who = c.who ?? ''
+      const device = /^\d+$/.test(who) ? await e2ee.myDevice(who) : await e2ee.guestDevice(who)
+      const refuse = (code: string) => {
+        state.status = 'failed'
+        state.error = code
+        for (const track of localTracks) track.dispose?.()
+        throw Object.assign(new Error(code), { code })
+      }
+      if (!device) refuse('e2ee_unsupported')
+      if (c.e2ee.policy === 'strict' && device!.pending && /^\d+$/.test(who)) refuse('e2ee_device_unconfirmed')
+      const book = await e2ee.Trustbook.load(who)
+      media = new e2ee.MediaCrypto()
+      group = new e2ee.E2eeGroup(
+        c.e2ee,
+        { device: device!, book },
+        (keys: E2eeKeys) => {
+          media?.setKeys(keys)
+          session?.setMediaKeys?.(keys)
+        },
+        onSealed,
+        () => {
+          // Someone's key is not theirs (or not confirmed under the strict rule): no more sound or picture here
+          media?.stop()
+          void session?.leave()
+        },
+      )
       state.e2ee = group.view
     }
-    session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp, media) : jitsiSession(state, onApp, !!c.e2ee)
+    session = c.mode === 'builtin' ? builtinSession(state, tileFinder(state), onApp, media) : jitsiSession(state, onApp, media)
     const tracks = mayTalk() ? localTracks : []
     if (!mayTalk()) for (const track of localTracks) track.dispose?.()
     await group?.start()
@@ -381,6 +411,8 @@ export function useMeeting() {
       return info
     },
     join: start,
+    /** After checking someone's security number in person: show them as confirmed */
+    recheckTrust: () => group?.recheck(),
     leave: async () => {
       group?.stop()
       media?.stop()
@@ -465,9 +497,11 @@ function isStroke(value: unknown): value is Stroke {
     && typeof s.size === 'number' && Array.isArray(s.points) && s.points.length <= 4000 && s.points.every((n) => typeof n === 'number')
 }
 
-/** `encrypted`: the meeting is end-to-end encrypted; the keys come from its MLS group (setMediaKeys) and the
- * Jitsi server's own frame encryption uses them (lib-jitsi-meet, externally managed key). */
-function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMessage) => void, encrypted = false) {
+/** `media`: the meeting is end-to-end encrypted. Our own SFrame (e2ee/media.ts) goes on every connection
+ * lib-jitsi-meet makes, with the keys from the meeting's MLS group; nothing is sent before the first key. */
+function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMessage) => void, media: MediaCrypto | null = null) {
+  const encrypted = !!media
+  let unguard: () => void = () => undefined
   const conference = shallowRef<Conference | null>(null)
   let keyed: () => void = () => undefined
   const firstKey = new Promise<void>((resolve) => (keyed = resolve))
@@ -505,6 +539,8 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
     state.status = 'connecting'
     state.error = ''
     lib = await loadLibrary(info.connection.library ?? JITSI_LIBRARY)
+    // Encrypted: SFrame on every connection lib-jitsi-meet makes from here on, before anything is sent
+    if (media) unguard = media.guardAll()
     const c = info.connection
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const options = {
@@ -530,7 +566,11 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
     const room = connection.initJitsiConference(c.room, {
       p2p: { enabled: false },
       openBridgeChannel: true,
-      ...(encrypted ? { e2ee: { externallyManagedKey: true }, enableEncodedTransformSupport: true } : {}),
+      // Encrypted: VP8 only. With VP9 or AV1 the server leaves out layers inside a frame, which breaks the
+      // encryption of whole frames (Jitsi's own frame encryption does the same).
+      ...(encrypted
+        ? { videoQuality: { codecPreferenceOrder: ['VP8'], mobileCodecPreferenceOrder: ['VP8'], screenshareCodec: 'VP8', mobileScreenshareCodec: 'VP8' } }
+        : {}),
     })
     conference.value = room
     const ce = events.conference
@@ -608,13 +648,6 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
       room.join()
     })
     if (encrypted) {
-      if (!room.isE2EESupported?.()) {
-        state.status = 'failed'
-        state.error = 'e2ee_unsupported'
-        await leave()
-        throw Object.assign(new Error('e2ee_unsupported'), { code: 'e2ee_unsupported' })
-      }
-      room.toggleE2EE(true)
       await firstKey
       for (const track of [localAudio, localVideo]) if (track) await room.addTrack(track)
     }
@@ -734,13 +767,15 @@ function jitsiSession(state: MeetingState, onApp: (from: string, message: AppMes
     connection?.disconnect()
     connection = null
     conference.value = null
+    unguard()
+    unguard = () => undefined
     state.tiles = []
     state.status = 'left'
   }
 
   async function setMediaKeys(keys: E2eeKeys) {
-    const encryptionKey = await crypto.subtle.importKey('raw', keys.shared as BufferSource, 'AES-GCM', false, ['encrypt', 'decrypt'])
-    conference.value?.setMediaEncryptionKey?.({ encryptionKey, index: keys.epoch % 16 })
+    // The keys themselves go to SFrame (e2ee/media.ts); here only: now we may send
+    void keys
     keyed()
   }
 

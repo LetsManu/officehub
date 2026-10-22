@@ -4,11 +4,17 @@
  * The browser makes its own keys; OfficeHub only passes on public key packages, commits, welcomes and ciphertext
  * (backend services/mls.py). Whoever has been in the group longest – the leader – adds newcomers and removes
  * people who left. After every change (a new epoch) all members derive the same secrets: one for audio and video
- * (SFrame, sframe.worker.ts, or the Jitsi server's frame encryption) and a security code that everyone can compare
+ * (SFrame, sframe.worker.ts, with either meeting server) and a security code that everyone can compare
  * aloud – when it is the same for all, nobody else is listening in.
+ *
+ * Who is who: every browser signs its MLS key with its device key (identity.ts), and every member checks that
+ * signature, the person's chain of devices and their root against what it checked or saw before. A key that does
+ * not pass is never added, and finding one in the group stops the meeting here. Under the "confirmed people only"
+ * rule (policy 'strict') guests, devices nobody confirmed and changed keys are kept out as well.
  */
 
 import { reactive } from 'vue'
+import { checkChain, leafStatement, sign, Trustbook, verify, type Chain, type Device, type DeviceRecord, type Trust } from './identity'
 import {
   acceptAll,
   createApplicationMessage,
@@ -17,7 +23,7 @@ import {
   decodeMlsMessage,
   emptyPskIndex,
   encodeMlsMessage,
-  generateKeyPackage,
+  generateKeyPackageWithKey,
   getCiphersuiteFromName,
   getCiphersuiteImpl,
   defaultCapabilities,
@@ -38,6 +44,14 @@ const SUITE = 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'
 export interface E2eeInfo {
   token: string
   signal: string
+  /** 'strict': only confirmed people (no guests, no unconfirmed devices, no changed keys) */
+  policy?: 'warn' | 'strict'
+}
+
+/** Who this browser is and what it knows about others (identity.ts). */
+export interface E2eeIdentity {
+  device: Device
+  book: Trustbook
 }
 
 interface RosterMember {
@@ -46,6 +60,7 @@ interface RosterMember {
   name: string
   in_group: boolean
   key_package: string
+  keys?: DeviceRecord[]
 }
 
 interface Roster {
@@ -60,6 +75,8 @@ interface Identity {
   m: string // member id at OfficeHub's delivery service
   w: string // the person (user id or guest-…)
   n: string // their name
+  k: string // their device's public key (identity.ts)
+  s: string // that device's signature over the person and this MLS key
 }
 
 export type E2eeStatus = 'connecting' | 'secure' | 'failed'
@@ -68,8 +85,6 @@ export interface E2eeKeys {
   epoch: number
   /** RFC 9605 5.2: sframe_epoch_secret = MLS-Exporter("SFrame 1.0 Secret", "", Nh) */
   sframe: Uint8Array
-  /** A key for the Jitsi server's own frame encryption (one for everyone, per epoch). */
-  shared: Uint8Array
   leaf: number
 }
 
@@ -78,8 +93,26 @@ export interface Sender {
   name: string
 }
 
+export interface GroupMember extends Sender {
+  trust: Trust
+}
+
+/** Never let in, whatever the rule */
+const FORGED: Trust[] = ['forged']
+/** Kept out under the "confirmed people only" rule */
+const STRICT: Trust[] = ['forged', 'guest', 'unconfirmed', 'changed']
+
 const toB64 = (b: Uint8Array) => btoa(String.fromCharCode(...b))
 const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+
+function readIdentity(credential: { credentialType: string; identity?: Uint8Array }): Identity | null {
+  if (credential.credentialType !== 'basic' || !credential.identity) return null
+  try {
+    return JSON.parse(new TextDecoder().decode(credential.identity)) as Identity
+  } catch {
+    return null
+  }
+}
 const text = new TextEncoder()
 
 /** The security code everyone compares: 20 digits from the epoch authenticator, in groups of five. */
@@ -90,18 +123,27 @@ export function securityCode(authenticator: Uint8Array): string {
   return digits.match(/.{5}/g)!.join(' ')
 }
 
-function identityOf(tree: ClientState['ratchetTree'], leaf: number): Identity | null {
+function leafOf(tree: ClientState['ratchetTree'], leaf: number): { identity: Identity | null; key: Uint8Array } | null {
   const node = tree[leaf * 2]
-  if (!node || node.nodeType !== 'leaf' || node.leaf.credential.credentialType !== 'basic') return null
-  try {
-    return JSON.parse(new TextDecoder().decode(node.leaf.credential.identity)) as Identity
-  } catch {
-    return null
-  }
+  if (!node || node.nodeType !== 'leaf') return null
+  return { identity: readIdentity(node.leaf.credential as { credentialType: string; identity?: Uint8Array }), key: node.leaf.signaturePublicKey }
+}
+
+function identityOf(tree: ClientState['ratchetTree'], leaf: number): Identity | null {
+  return leafOf(tree, leaf)?.identity ?? null
 }
 
 export class E2eeGroup {
-  readonly view = reactive({ status: 'connecting' as E2eeStatus, code: '', epoch: -1, members: [] as Sender[] })
+  readonly view = reactive({
+    status: 'connecting' as E2eeStatus,
+    code: '',
+    epoch: -1,
+    members: [] as GroupMember[],
+    strict: false,
+    /** Why it stopped: e2ee_forged (someone's key is not theirs) or e2ee_unconfirmed_member (strict rule) */
+    problem: '',
+    problemName: '',
+  })
   private impl!: CiphersuiteImpl
   private memberId = ''
   private after = 0
@@ -113,12 +155,56 @@ export class E2eeGroup {
   /** Rosters older than what our own last step produced are stale: they would undo it. */
   private seenVersion = 0
   private chain: Promise<void> = Promise.resolve()
+  /** Each person's device keys as last seen in a roster, and what they amount to */
+  private keysOf = new Map<string, DeviceRecord[]>()
+  private chains = new Map<string, { at: string; chain: Promise<Chain | null> }>()
 
   constructor(
     private info: E2eeInfo,
+    private identity: E2eeIdentity,
     private onKeys: (keys: E2eeKeys) => void,
     private onMessage: (payload: Record<string, unknown>, from: Sender) => void,
-  ) {}
+    private onFail: (problem: string, name: string) => void = () => undefined,
+  ) {
+    this.view.strict = info.policy === 'strict'
+  }
+
+  private chainOf(who: string): Promise<Chain | null> {
+    const devices = this.keysOf.get(who) ?? []
+    const at = JSON.stringify(devices)
+    const known = this.chains.get(who)
+    if (known && known.at === at) return known.chain
+    const chain = checkChain(who, devices)
+    this.chains.set(who, { at, chain })
+    return chain
+  }
+
+  /** How far a member's MLS key can be trusted to be theirs (see identity.ts). */
+  private async trustOf(id: Identity | null, leafKey: Uint8Array): Promise<Trust> {
+    if (!id?.k || !id.s || !id.w) return 'forged'
+    if (!(await verify(id.k, leafStatement(id.w, toB64(leafKey)), id.s))) return 'forged'
+    const me = this.identity.device
+    if (id.w === me.userId && id.k === me.publicKey) return 'self'
+    if (!/^\d+$/.test(id.w)) return 'guest'
+    const chain = await this.chainOf(id.w)
+    if (!chain) return 'unconfirmed'
+    if (id.w === me.userId) return chain.confirmed.has(id.k) ? 'self' : 'unconfirmed'
+    const judged = await this.identity.book.judge(id.w, chain.root)
+    if (judged === 'changed') return 'changed'
+    return chain.confirmed.has(id.k) ? judged : 'unconfirmed'
+  }
+
+  private refused(trust: Trust): boolean {
+    return (this.view.strict ? STRICT : FORGED).includes(trust)
+  }
+
+  private fail(problem: string, name: string) {
+    this.view.status = 'failed'
+    this.view.problem = problem
+    this.view.problemName = name
+    this.stop()
+    this.onFail(problem, name)
+  }
 
   private async call<T>(path: string, body?: Record<string, unknown>): Promise<T> {
     const response = await fetch(`${this.info.signal}/${path}`, {
@@ -223,6 +309,7 @@ export class E2eeGroup {
     if (roster.version < this.seenVersion) return
     this.seenVersion = roster.version
     this.roster = roster
+    for (const m of roster.members) if (m.keys) this.keysOf.set(m.who, m.keys)
     const me = roster.members.find((m) => m.id === this.memberId)
     if (!me) return
     if (!me.in_group && this.state) {
@@ -252,10 +339,27 @@ export class E2eeGroup {
     if (roster.leader === this.memberId) await this.lead()
   }
 
+  /** A fresh MLS key for this group, signed with this browser's device key. */
   private async keyPackage() {
     const me = this.roster?.members.find((m) => m.id === this.memberId)
-    const identity: Identity = { m: this.memberId, w: me?.who ?? '', n: me?.name ?? '' }
-    this.own = await generateKeyPackage({ credentialType: 'basic', identity: text.encode(JSON.stringify(identity)) }, defaultCapabilities(), defaultLifetime, [], this.impl)
+    const who = me?.who ?? ''
+    const pair = await this.impl.signature.keygen()
+    const device = this.identity.device
+    const identity: Identity = {
+      m: this.memberId,
+      w: who,
+      n: me?.name ?? '',
+      k: device.publicKey,
+      s: await sign(device.keys, leafStatement(who, toB64(pair.publicKey))),
+    }
+    this.own = await generateKeyPackageWithKey(
+      { credentialType: 'basic', identity: text.encode(JSON.stringify(identity)) },
+      defaultCapabilities(),
+      defaultLifetime,
+      [],
+      pair,
+      this.impl,
+    )
     return this.own
   }
 
@@ -272,15 +376,11 @@ export class E2eeGroup {
       const decoded = decodeMlsMessage(fromB64(m.key_package), 0)?.[0]
       if (!decoded || decoded.wireformat !== 'mls_key_package') continue
       // The key package must belong to the member the server says it does
-      const credential = decoded.keyPackage.leafNode.credential
-      if (credential.credentialType !== 'basic') continue
-      let identity: Identity | null = null
-      try {
-        identity = JSON.parse(new TextDecoder().decode(credential.identity)) as Identity
-      } catch {
-        continue
-      }
-      if (identity.m !== m.id || identity.w !== m.who) continue
+      const leafNode = decoded.keyPackage.leafNode
+      const identity = readIdentity(leafNode.credential as { credentialType: string; identity?: Uint8Array })
+      if (!identity || identity.m !== m.id || identity.w !== m.who) continue
+      // Only keys that are really theirs (and, under the strict rule, only confirmed people)
+      if (this.refused(await this.trustOf(identity, leafNode.signaturePublicKey))) continue
       proposals.push({ proposalType: 'add', add: { keyPackage: decoded.keyPackage } })
       added.push(m.id)
     }
@@ -317,19 +417,43 @@ export class E2eeGroup {
     const epoch = Number(state.groupContext.epoch)
     const secret = state.keySchedule.exporterSecret
     const sframe = await mlsExporter(secret, 'SFrame 1.0 Secret', new Uint8Array(), 32, this.impl)
-    const shared = await mlsExporter(secret, 'OfficeHub Jitsi media', new Uint8Array(), 16, this.impl)
     const leaf = state.privatePath.leafIndex
-    const members: Sender[] = []
-    for (let i = 0; i * 2 < state.ratchetTree.length; i++) {
-      const identity = identityOf(state.ratchetTree, i)
-      if (identity) members.push({ who: identity.w, name: identity.n })
-    }
+    const members = await this.members(state)
+    if (!members) return
     this.view.epoch = epoch
     this.view.code = securityCode(state.keySchedule.epochAuthenticator)
     this.view.members = members
     this.view.status = 'secure'
-    this.onKeys({ epoch, sframe, shared, leaf })
+    this.onKeys({ epoch, sframe, leaf })
     if (this.roster?.leader === this.memberId) await this.lead()
+  }
+
+  /** Everyone in the group and how far we trust them; null (and stopped) when someone must not be in it. */
+  private async members(state: ClientState): Promise<GroupMember[] | null> {
+    const members: GroupMember[] = []
+    for (let i = 0; i * 2 < state.ratchetTree.length; i++) {
+      const node = leafOf(state.ratchetTree, i)
+      if (!node) continue
+      const trust = await this.trustOf(node.identity, node.key)
+      const name = node.identity?.n ?? '?'
+      if (this.refused(trust)) {
+        // Someone in the group whose key is not theirs (or not confirmed, under the strict rule): stop here
+        this.fail(trust === 'forged' ? 'e2ee_forged' : 'e2ee_unconfirmed_member', name)
+        return null
+      }
+      members.push({ who: node.identity?.w ?? '', name, trust })
+    }
+    return members
+  }
+
+  /** After checking someone's security number: look at everyone again. */
+  async recheck(): Promise<void> {
+    this.identity.book = await Trustbook.load(this.identity.device.userId)
+    this.queue(async () => {
+      if (!this.state) return
+      const members = await this.members(this.state)
+      if (members) this.view.members = members
+    })
   }
 
   /** Something could not be read (a commit we missed): leave the group and be added again. */
