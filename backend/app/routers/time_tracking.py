@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..deps import DB, CurrentUser
 from ..errors import ApiError, forbidden, not_found
-from ..models import PENDING_STATUSES, Project, Request, TimeEntry, TimeMonth, User, utcnow
+from ..models import PENDING_STATUSES, Project, Request, TimeEntry, TimeMonth, User, utcnow, with_role
 from ..schemas import UserBrief, UtcDateTime
 from ..services.audit import audit
 from ..services.holidays import holidays_in
@@ -234,7 +234,7 @@ def _balance(db: Session, person: User, until: date) -> int:
 
 
 def team_ids(db: Session, user: User) -> set[int]:
-    if user.is_admin:
+    if user.is_hr:
         return set(db.scalars(select(User.id).where(User.is_active.is_(True))))
     managers = [user.id] + deputy_for(db, user)
     return set(db.scalars(select(User.id).where(User.manager_id.in_(managers), User.is_active.is_(True))))
@@ -269,9 +269,9 @@ def _check_overlap(db: Session, user: User, start: datetime, end: datetime, igno
 
 def _editable(db: Session, user: User, entry_id: int) -> TimeEntry:
     entry = db.get(TimeEntry, entry_id)
-    if entry is None or not (entry.user_id == user.id or user.is_admin):
+    if entry is None or not (entry.user_id == user.id or user.is_hr):
         raise not_found("Time entry")
-    if entry.user_id == user.id and not user.is_admin and entry.day < local_today() - timedelta(days=HAND_EDIT_DAYS):
+    if entry.user_id == user.id and not user.is_hr and entry.day < local_today() - timedelta(days=HAND_EDIT_DAYS):
         raise ApiError(409, "time_locked", "Times older than 31 days can only be changed by HR.")
     _locked_month(db, user, entry.user_id, entry.day)
     return entry
@@ -279,7 +279,7 @@ def _editable(db: Session, user: User, entry_id: int) -> TimeEntry:
 
 def _locked_month(db: Session, user: User, owner_id: int, day: date) -> None:
     """A handed-in or approved month can only be changed by HR."""
-    if user.is_admin:
+    if user.is_hr:
         return
     month = db.scalar(select(TimeMonth).where(TimeMonth.user_id == owner_id, TimeMonth.month == f"{day:%Y-%m}"))
     if month is not None and month.status in ("submitted", "approved"):
@@ -347,7 +347,7 @@ def add_entry(body: EntryIn, user: CurrentUser, db: DB) -> EntryOut:
     today = local_today()
     if body.day > today:
         raise _field_error("day", "day_future", "Times can only be entered for today or earlier.")
-    if body.day < today - timedelta(days=HAND_EDIT_DAYS) and not user.is_admin:
+    if body.day < today - timedelta(days=HAND_EDIT_DAYS) and not user.is_hr:
         raise _field_error("day", "time_locked", "Times older than 31 days can only be changed by HR.")
     if body.end <= body.start:
         raise _field_error("end", "end_before_start_time", "The end time must be after the start time.")
@@ -544,7 +544,7 @@ def submit_month(month: MonthStr, user: CurrentUser, db: DB) -> MonthOut:
         deputy = manager.active_deputy()
         approvers = [manager.id] + ([deputy.id] if deputy else [])
     else:
-        approvers = list(db.scalars(select(User.id).where(User.role == "admin", User.is_active.is_(True))))
+        approvers = list(db.scalars(select(User.id).where(with_role("hr"), User.is_active.is_(True))))
     notify_many(db, approvers, user, "time_month_submitted", {"name": user.full_name, "month": month},
                 link=f"/time?tab=month&month={month}&person={user.id}")
     db.commit()

@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Asset, OnboardingTask, User, utcnow
 from ..schemas import UserBrief, UtcDateTime
@@ -68,11 +68,11 @@ class ToggleIn(BaseModel):
 
 
 def _can_view(user: User, person: User) -> bool:
-    return user.is_admin or user.id == person.id or person.manager_id == user.id
+    return user.is_hr or user.id == person.id or person.manager_id == user.id
 
 
 def _can_toggle(user: User, task: OnboardingTask) -> bool:
-    return user.is_admin or (task.owner == "manager" and task.user.manager_id == user.id)
+    return user.is_hr or (task.owner == "manager" and task.user.manager_id == user.id)
 
 
 def _checklist(db, person: User, user: User, kind: str = "onboarding") -> ChecklistOut:
@@ -114,7 +114,7 @@ def overview(user: CurrentUser, db: DB, kind: Kind = "onboarding") -> list[Summa
         .where(OnboardingTask.kind == kind)
         .group_by(User.id)
     )
-    if not user.is_admin:
+    if not user.is_hr:
         query = query.where((User.manager_id == user.id) | (User.id == user.id))
     rows = db.execute(query).all()
     result = [Summary(person=p, kind=kind, last_day=p.last_day, total=total, done=done) for p, total, done in rows]
@@ -130,7 +130,7 @@ def checklist(user_id: int, user: CurrentUser, db: DB, kind: Kind = "onboarding"
 
 
 @router.post("/{user_id}/offboarding", response_model=ChecklistOut)
-def offboarding(user_id: int, body: OffboardingIn, user: Admin, db: DB) -> ChecklistOut:
+def offboarding(user_id: int, body: OffboardingIn, user: HR, db: DB) -> ChecklistOut:
     person = db.get(User, user_id)
     if person is None:
         raise not_found("Person")
@@ -143,7 +143,7 @@ def offboarding(user_id: int, body: OffboardingIn, user: Admin, db: DB) -> Check
 
 
 @router.post("/{user_id}/start", response_model=ChecklistOut)
-def start(user_id: int, user: Admin, db: DB) -> ChecklistOut:
+def start(user_id: int, user: HR, db: DB) -> ChecklistOut:
     person = db.get(User, user_id)
     if person is None:
         raise not_found("Person")
@@ -153,7 +153,7 @@ def start(user_id: int, user: Admin, db: DB) -> ChecklistOut:
 
 
 @router.post("/{user_id}/tasks", response_model=ChecklistOut, status_code=201)
-def add_task(user_id: int, body: TaskIn, user: Admin, db: DB) -> ChecklistOut:
+def add_task(user_id: int, body: TaskIn, user: HR, db: DB) -> ChecklistOut:
     person = db.get(User, user_id)
     if person is None:
         raise not_found("Person")

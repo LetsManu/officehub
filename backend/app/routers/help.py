@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import or_, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import not_found
 from ..models import HelpArticle
 from ..schemas import UtcDateTime
@@ -55,7 +55,7 @@ def list_articles(
     include_inactive: bool = False,
 ) -> list[HelpArticle]:
     query = select(HelpArticle)
-    if not (include_inactive and user.is_admin):
+    if not (include_inactive and user.is_hr):
         query = query.where(HelpArticle.active.is_(True))
     if section:
         query = query.where(HelpArticle.section == section)
@@ -66,7 +66,7 @@ def list_articles(
 
 
 @router.post("", response_model=ArticleOut, status_code=201)
-def create_article(body: ArticleIn, user: Admin, db: DB) -> HelpArticle:
+def create_article(body: ArticleIn, user: HR, db: DB) -> HelpArticle:
     article = HelpArticle(**body.model_dump())
     db.add(article)
     db.commit()
@@ -74,7 +74,7 @@ def create_article(body: ArticleIn, user: Admin, db: DB) -> HelpArticle:
 
 
 @router.put("/{article_id}", response_model=ArticleOut)
-def update_article(article_id: int, body: ArticleIn, user: Admin, db: DB) -> HelpArticle:
+def update_article(article_id: int, body: ArticleIn, user: HR, db: DB) -> HelpArticle:
     article = db.get(HelpArticle, article_id)
     if article is None:
         raise not_found("Help article")
@@ -85,7 +85,7 @@ def update_article(article_id: int, body: ArticleIn, user: Admin, db: DB) -> Hel
 
 
 @router.delete("/{article_id}", status_code=204)
-def delete_article(article_id: int, user: Admin, db: DB) -> None:
+def delete_article(article_id: int, user: HR, db: DB) -> None:
     article = db.get(HelpArticle, article_id)
     if article is None:
         raise not_found("Help article")

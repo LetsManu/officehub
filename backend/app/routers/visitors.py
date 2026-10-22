@@ -68,7 +68,7 @@ def _out(visitor: Visitor, user: User) -> VisitorOut:
         host_name=visitor.host.full_name,
         checked_in_at=visitor.checked_in_at,
         checked_out_at=visitor.checked_out_at,
-        can_cancel=visitor.status == "expected" and (own or user.is_admin),
+        can_cancel=visitor.status == "expected" and (own or user.is_hr),
         can_check_in=_is_reception(user) and visitor.status in ("expected", "checked_in"),
     )
 

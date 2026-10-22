@@ -8,7 +8,7 @@ import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { errorText, formatDate, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { DirectoryEntry, Review } from '@/lib/types'
@@ -76,7 +76,7 @@ onMounted(load)
 <template>
   <div class="page">
     <PageHeader :title="t('reviews.title')" :subtitle="t('reviews.subtitle')">
-      <template v-if="isAdmin" #actions>
+      <template v-if="isHr" #actions>
         <button type="button" class="btn btn-primary" @click="openCreate"><AppIcon name="plus" />{{ t('reviews.create') }}</button>
       </template>
     </PageHeader>
@@ -100,7 +100,7 @@ onMounted(load)
             </RouterLink>
           </li>
         </ul>
-        <EmptyState v-else icon="message" :message="t('reviews.empty')" :action-label="isAdmin ? t('reviews.create') : undefined" @action="openCreate" />
+        <EmptyState v-else icon="message" :message="t('reviews.empty')" :action-label="isHr ? t('reviews.create') : undefined" @action="openCreate" />
       </section>
     </LoadState>
 

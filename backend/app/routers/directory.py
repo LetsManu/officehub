@@ -34,7 +34,7 @@ def _escape_like(term: str) -> str:
 
 def to_entry(person: User, viewer: User) -> DirectoryEntry:
     # People decide which numbers others see; HR always sees them.
-    is_self_or_hr = viewer.id == person.id or viewer.is_admin
+    is_self_or_hr = viewer.id == person.id or viewer.is_hr
     return DirectoryEntry(
         id=person.id,
         first_name=person.first_name,

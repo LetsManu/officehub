@@ -1,14 +1,45 @@
 import { computed, ref } from 'vue'
 import { api } from './api'
-import { setLanguage } from './i18n'
+import { setLanguage, t } from './i18n'
 import { appSignedIn } from './native'
-import type { PublicConfig, User } from './types'
+import type { PublicConfig, Role, User } from './types'
 
 export const currentUser = ref<User | null>(null)
 export const publicConfig = ref<PublicConfig | null>(null)
 
-export const isApprover = computed(() => currentUser.value?.role === 'manager' || currentUser.value?.role === 'admin')
-export const isAdmin = computed(() => currentUser.value?.role === 'admin')
+/** All roles of a person, main one first (older servers only send the one role). */
+export function rolesOf(user: Pick<User, 'role' | 'roles'> | null | undefined): Role[] {
+  if (!user) return []
+  if (user.roles?.length) return user.roles
+  if (user.role === 'admin') return ['admin', 'hr']
+  return user.role === 'employee' ? [] : [user.role]
+}
+
+/** "Team lead, Service desk" – or "Employee" when there is nothing more. */
+export function roleNames(user: Pick<User, 'role' | 'roles'> | null | undefined): string {
+  const held = rolesOf(user)
+  return (held.length ? held : ['employee']).map((r) => t(`roles.${r}`)).join(', ')
+}
+
+/** Admins may do everything. */
+function has(...names: Role[]) {
+  const held = rolesOf(currentUser.value)
+  return held.includes('admin') || names.some((n) => held.includes(n))
+}
+
+export const isAdmin = computed(() => rolesOf(currentUser.value).includes('admin'))
+/** Decides requests and time sheets: their own team (team lead) or everyone. */
+export const isApprover = computed(() => has('teamlead', 'manager', 'hr'))
+/** Decides for everyone: company-wide reports and statistics. */
+export const isOverseer = computed(() => has('manager', 'hr'))
+export const isHr = computed(() => has('hr'))
+export const isServiceDesk = computed(() => has('servicedesk'))
+/** HR or service desk: passwords, two-factor, equipment. */
+export const isSupport = computed(() => has('hr', 'servicedesk'))
+/** Anyone who decides some requests (the service desk: IT access and equipment). */
+export const decidesRequests = computed(() => isApprover.value || isServiceDesk.value)
+/** More than the employee role: sees the administration page. */
+export const isStaff = computed(() => isApprover.value || isSupport.value)
 
 let loaded = false
 

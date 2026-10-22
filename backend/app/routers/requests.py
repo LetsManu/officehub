@@ -67,15 +67,15 @@ def list_requests(
 ) -> RequestList:
     query = select(Request)
     if scope == "all":
-        if user.is_approver:
+        # Everyone's for managers and HR, a team lead's own team, a deputy's team of the manager they stand in for,
+        # IT access and equipment requests for the service desk
+        decided = service.decided_requests(db, user)
+        if decided is None:
+            raise forbidden()
+        if user.approves_everyone:
             query = query.where((Request.status != "draft") | (Request.requester_id == user.id))
         else:
-            # Someone standing in for a manager sees that manager's team.
-            managers = service.deputy_for(db, user)
-            if not managers:
-                raise forbidden()
-            team = select(User.id).where(User.manager_id.in_(managers), User.id != user.id)
-            query = query.where(Request.status != "draft", Request.requester_id.in_(team))
+            query = query.where(Request.status != "draft", decided)
         if requester_id:
             query = query.where(Request.requester_id == requester_id)
     else:
@@ -198,7 +198,7 @@ def _decide(request_id: int, body: DecisionIn, user: User, db: Session, outcome:
     if req.requester_id == user.id:
         raise forbidden("You cannot decide on your own request.")
     if not service.permissions(user, req).can_decide:
-        if req.status not in PENDING_STATUSES and user.is_approver:
+        if req.status not in PENDING_STATUSES and service.decides(user, req):
             raise ApiError(409, "already_decided", "A decision has already been made for this request.")
         raise forbidden()
     if req.type == "appointment" and outcome == "approved":

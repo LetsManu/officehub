@@ -2,7 +2,7 @@
 
 import { computed } from 'vue'
 import { t } from './i18n'
-import { isAdmin, isApprover } from './session'
+import { decidesRequests, isAdmin, isApprover, isHr, isOverseer, isStaff, isSupport } from './session'
 import { summary } from './summary'
 
 export interface NavItem {
@@ -74,20 +74,18 @@ export const navGroups = computed<NavGroup[]>(() => {
     },
   ]
   const manage: NavItem[] = []
-  if (isApprover.value || summary.value.acting_deputy) {
+  if (decidesRequests.value || summary.value.acting_deputy) {
     manage.push({ to: '/approvals', label: t('nav.approvals'), icon: 'checkCircle', count: summary.value.approvals_pending })
   }
-  if (isApprover.value) {
-    manage.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
-    manage.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
-  }
-  if (isAdmin.value) {
+  if (isApprover.value || isHr.value) manage.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
+  if (isOverseer.value) manage.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
+  if (isHr.value) {
     manage.push({ to: '/manage/documents', label: t('nav.manageDocuments'), icon: 'folder' })
     manage.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), icon: 'edit' })
-    manage.push({ to: '/equipment', label: t('nav.equipment'), icon: 'box' })
-    manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
   }
-  if (isApprover.value) manage.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
+  if (isSupport.value) manage.push({ to: '/equipment', label: t('nav.equipment'), icon: 'box' })
+  if (isAdmin.value) manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
+  if (isStaff.value) manage.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
   if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage, collapsible: true })
   return groups
 })

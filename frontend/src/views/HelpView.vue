@@ -10,7 +10,7 @@ import SectionContact from '@/components/SectionContact.vue'
 import { api, query } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { renderMarkdown } from '@/lib/markdown'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import type { HelpArticle } from '@/lib/types'
 
@@ -53,7 +53,7 @@ async function load() {
   error.value = null
   try {
     articles.value = await api.get<HelpArticle[]>(
-      `/api/help${query({ q: search.value.trim(), section: section.value, include_inactive: isAdmin.value ? 'true' : '' })}`,
+      `/api/help${query({ q: search.value.trim(), section: section.value, include_inactive: isHr.value ? 'true' : '' })}`,
     )
   } catch (e) {
     error.value = errorText(e)
@@ -133,7 +133,7 @@ onMounted(load)
 <template>
   <div class="page help-page">
     <PageHeader :title="t('help.title')" :subtitle="t('help.subtitle')">
-      <template v-if="isAdmin" #actions>
+      <template v-if="isHr" #actions>
         <button type="button" class="btn btn-primary" @click="openEditor(null)"><AppIcon name="plus" />{{ t('help.new') }}</button>
       </template>
     </PageHeader>
@@ -174,7 +174,7 @@ onMounted(load)
                   <button type="button" class="btn btn-secondary" @click="feedback(article, true)">{{ t('app.yes') }}</button>
                   <button type="button" class="btn btn-secondary" @click="feedback(article, false)">{{ t('app.no') }}</button>
                 </div>
-                <div v-if="isAdmin" class="row admin-row">
+                <div v-if="isHr" class="row admin-row">
                   <span class="muted small">{{ t('help.counts', { yes: article.helpful_yes, no: article.helpful_no }) }}</span>
                   <button type="button" class="btn btn-ghost" @click="openEditor(article)">{{ t('app.edit') }}</button>
                   <button type="button" class="btn btn-ghost danger-text" @click="deleteTarget = article">{{ t('help.delete') }}</button>

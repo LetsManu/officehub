@@ -71,6 +71,9 @@ class SsoSettings(BaseModel):
     trust_email: bool = False
     admin_group: str = Field("", max_length=120)
     manager_group: str = Field("", max_length=120)
+    hr_group: str = Field("", max_length=120)
+    servicedesk_group: str = Field("", max_length=120)
+    teamlead_group: str = Field("", max_length=120)
 
 
 class SsoSettingsOut(SsoSettings):

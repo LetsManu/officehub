@@ -21,6 +21,9 @@ interface SsoSettings {
   trust_email: boolean
   admin_group: string
   manager_group: string
+  hr_group: string
+  servicedesk_group: string
+  teamlead_group: string
   has_secret?: boolean
 }
 
@@ -113,8 +116,17 @@ onMounted(() => load().catch((e) => showToast(errorText(e), 'error')))
       <FormField id="sso-admins" :label="t('sso.adminGroup')" :hint="t('sso.groupHint')">
         <template #default="{ attrs }"><input v-bind="attrs" v-model="form.admin_group" class="input" autocomplete="off" /></template>
       </FormField>
+      <FormField id="sso-hr" :label="t('sso.hrGroup')">
+        <template #default="{ attrs }"><input v-bind="attrs" v-model="form.hr_group" class="input" autocomplete="off" /></template>
+      </FormField>
       <FormField id="sso-managers" :label="t('sso.managerGroup')">
         <template #default="{ attrs }"><input v-bind="attrs" v-model="form.manager_group" class="input" autocomplete="off" /></template>
+      </FormField>
+      <FormField id="sso-servicedesk" :label="t('sso.servicedeskGroup')">
+        <template #default="{ attrs }"><input v-bind="attrs" v-model="form.servicedesk_group" class="input" autocomplete="off" /></template>
+      </FormField>
+      <FormField id="sso-teamleads" :label="t('sso.teamleadGroup')">
+        <template #default="{ attrs }"><input v-bind="attrs" v-model="form.teamlead_group" class="input" autocomplete="off" /></template>
       </FormField>
     </div>
     <div><button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? t('sso.checking') : t('app.save') }}</button></div>

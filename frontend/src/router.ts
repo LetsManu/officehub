@@ -1,7 +1,7 @@
 import { createRouter, type RouteRecordRaw } from 'vue-router'
 import { calmHistory, notePlace } from './lib/address'
 import { nextTick } from 'vue'
-import { currentUser, loadSession } from './lib/session'
+import { currentUser, isAdmin, isApprover, isHr, isOverseer, isStaff, isSupport, loadSession } from './lib/session'
 import { branding } from './lib/branding'
 import { t } from './lib/i18n'
 
@@ -10,6 +10,10 @@ declare module 'vue-router' {
     public?: boolean
     approver?: boolean
     admin?: boolean
+    hr?: boolean
+    support?: boolean
+    overseer?: boolean
+    staff?: boolean
     title?: string
     full?: boolean // edge to edge, e.g. the office editor
     wide?: boolean // no maximum width, e.g. boards and chat
@@ -35,7 +39,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/reviews/:id(\\d+)', component: () => import('./views/ReviewDetailView.vue'), props: true, meta: { title: 'nav.reviews' } },
   { path: '/onboarding', component: () => import('./views/OnboardingView.vue'), meta: { title: 'nav.onboarding' } },
   { path: '/onboarding/:id(\\d+)', component: () => import('./views/OnboardingDetailView.vue'), props: true, meta: { title: 'nav.onboarding' } },
-  { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { approver: true, title: 'nav.reports' } },
+  { path: '/reports', component: () => import('./views/ReportsView.vue'), meta: { overseer: true, title: 'nav.reports' } },
   { path: '/time', component: () => import('./views/TimeView.vue'), meta: { title: 'nav.time' } },
   { path: '/planning', component: () => import('./views/PlanningView.vue'), meta: { title: 'nav.planning', wide: true } },
   { path: '/spaces', component: () => import('./views/SpacesView.vue'), meta: { title: 'nav.spaces' } },
@@ -66,7 +70,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/surveys/:id(\\d+)', component: () => import('./views/SurveyView.vue'), props: true, meta: { title: 'nav.surveys' } },
   { path: '/ideas', component: () => import('./views/IdeasView.vue'), meta: { title: 'nav.ideas' } },
   { path: '/trainings', component: () => import('./views/TrainingsView.vue'), meta: { title: 'nav.trainings' } },
-  { path: '/equipment', component: () => import('./views/EquipmentView.vue'), meta: { admin: true, title: 'nav.equipment' } },
+  { path: '/equipment', component: () => import('./views/EquipmentView.vue'), meta: { support: true, title: 'nav.equipment' } },
   { path: '/admin/audit', component: () => import('./views/AuditView.vue'), meta: { admin: true, title: 'nav.audit' } },
   { path: '/calendar', component: () => import('./views/CalendarView.vue'), meta: { title: 'nav.calendar', wide: true } },
   { path: '/activity', component: () => import('./views/ActivityView.vue'), meta: { title: 'nav.activity' } },
@@ -77,9 +81,9 @@ const routes: RouteRecordRaw[] = [
   { path: '/whats-new', component: () => import('./views/WhatsNewView.vue'), meta: { title: 'whatsNew.title' } },
   // Also open for someone standing in for a manager; the API decides what they see.
   { path: '/approvals', component: () => import('./views/ApprovalsView.vue'), meta: { title: 'nav.approvals' } },
-  { path: '/manage/documents', component: () => import('./views/ManageDocumentsView.vue'), meta: { admin: true, title: 'nav.manageDocuments' } },
-  { path: '/manage/announcements', component: () => import('./views/ManageAnnouncementsView.vue'), meta: { admin: true, title: 'nav.manageAnnouncements' } },
-  { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { approver: true, title: 'nav.administration' } },
+  { path: '/manage/documents', component: () => import('./views/ManageDocumentsView.vue'), meta: { hr: true, title: 'nav.manageDocuments' } },
+  { path: '/manage/announcements', component: () => import('./views/ManageAnnouncementsView.vue'), meta: { hr: true, title: 'nav.manageAnnouncements' } },
+  { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { staff: true, title: 'nav.administration' } },
   { path: '/:pathMatch(.*)*', component: () => import('./views/NotFoundView.vue'), meta: { title: 'notFound.title' } },
 ]
 
@@ -93,8 +97,8 @@ router.beforeEach(async (to) => {
   const user = await loadSession()
   if (to.meta.public) return user && to.path === '/login' ? '/' : true
   if (!user) return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
-  if (to.meta.admin && user.role !== 'admin') return '/'
-  if (to.meta.approver && user.role === 'employee') return '/'
+  const allowed = { admin: isAdmin, hr: isHr, support: isSupport, overseer: isOverseer, staff: isStaff, approver: isApprover }
+  for (const [need, ok] of Object.entries(allowed)) if (to.meta[need as keyof typeof allowed] && !ok.value) return '/'
   return true
 })
 
