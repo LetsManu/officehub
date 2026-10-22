@@ -115,6 +115,29 @@ export interface AppEvent {
   status?: 'auto' | 'available' | 'busy' | 'dnd' | 'away' | 'offline'
   /** Windows: this computer has no OfficeHub folder yet – make an app password for it */
   syncSetup?: { device: string }
+  /** Windows: where the OfficeHub folder is and how it is doing (Files page) */
+  syncStatus?: SyncStatus
+}
+
+export interface SyncProblem {
+  kind: 'type' | 'outside' | 'readOnly' | 'tooLarge' | 'failed' | 'busy' | 'newSpace'
+  name: string
+  /** Seconds since 1970 */
+  at: number
+}
+
+export interface SyncStatus {
+  folder: string
+  setUp: boolean
+  running: boolean
+  paused: boolean
+  status: 'off' | 'starting' | 'syncing' | 'upToDate' | 'offline' | 'signIn' | 'paused'
+  problems: SyncProblem[]
+}
+
+/** Windows: ask for the folder's status, open it, sync now, pause / continue, or set it up. */
+export function appSync(action: 'status' | 'open' | 'now' | 'pause' | 'setup') {
+  if (appKind() === 'windows') send({ type: `sync-${action}` })
 }
 
 /** Windows: the app password for this computer's OfficeHub folder (Explorer, like OneDrive). */

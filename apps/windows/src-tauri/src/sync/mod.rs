@@ -70,6 +70,11 @@ impl Running {
         let _ = self.wake.send(());
     }
 
+    /// Compare the folder now (the portal's "Sync now").
+    pub fn now(&self) {
+        let _ = self.wake.send(());
+    }
+
     pub fn is_paused(&self) -> bool {
         self.paused.load(Ordering::SeqCst)
     }

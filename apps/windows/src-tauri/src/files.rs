@@ -23,6 +23,9 @@ struct SyncSettings {
 
 static RUNNING: OnceLock<Mutex<Option<sync::Running>>> = OnceLock::new();
 static STATUS: OnceLock<Mutex<Option<Status>>> = OnceLock::new();
+/// What did not reach the server lately, newest first (shown in the portal's Files page)
+static PROBLEMS: OnceLock<Mutex<Vec<Value>>> = OnceLock::new();
+const PROBLEMS_KEPT: usize = 20;
 
 fn running() -> &'static Mutex<Option<sync::Running>> {
     RUNNING.get_or_init(|| Mutex::new(None))
@@ -190,6 +193,35 @@ pub fn is_paused(app: &AppHandle) -> bool {
     load(app).is_some_and(|s| s.paused)
 }
 
+/// Compare the folder now (the portal's "Sync now").
+pub fn sync_now() {
+    if let Some(run) = running().lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        run.now();
+    }
+}
+
+/// Where the files are, how the sync is doing and what did not work – for the portal's Files page.
+pub fn status_json(app: &AppHandle, server: Option<&str>) -> Value {
+    let status = match STATUS.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner()).clone() {
+        Some(Status::Syncing) => "syncing",
+        Some(Status::UpToDate) => "upToDate",
+        Some(Status::Offline) => "offline",
+        Some(Status::SignInNeeded) => "signIn",
+        Some(Status::Paused) => "paused",
+        None => "starting",
+    };
+    let set_up = server.is_some_and(|s| is_set_up(app, s));
+    let problems = PROBLEMS.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap_or_else(|e| e.into_inner()).clone();
+    serde_json::json!({
+        "folder": folder().to_string_lossy(),
+        "setUp": set_up,
+        "running": running().lock().unwrap_or_else(|e| e.into_inner()).is_some(),
+        "paused": is_paused(app),
+        "status": if set_up { status } else { "off" },
+        "problems": problems,
+    })
+}
+
 pub fn open_folder() {
     let _ = tauri_plugin_opener::open_path(folder().to_string_lossy().to_string(), None::<&str>);
 }
@@ -230,6 +262,7 @@ fn show_status(app: &AppHandle, status: Status) {
         Status::Paused => "syncPaused",
     };
     crate::set_tray_status(app, &label(key));
+    crate::push_sync_status(app);
     if status == Status::SignInNeeded {
         // The app password was removed in the portal: the portal makes a new one at the next sign-in
         stop();
@@ -241,6 +274,23 @@ fn show_status(app: &AppHandle, status: Status) {
 }
 
 fn tell(app: &AppHandle, event: Event) {
+    let problem = match &event {
+        Event::NotSupported { name } => Some(("type", name)),
+        Event::OutsideSpace { name } => Some(("outside", name)),
+        Event::ReadOnly { name } => Some(("readOnly", name)),
+        Event::TooLarge { name } => Some(("tooLarge", name)),
+        Event::UploadFailed { name } => Some(("failed", name)),
+        Event::Busy { name } => Some(("busy", name)),
+        Event::NewSpaceFolder { name } => Some(("newSpace", name)),
+        _ => None,
+    };
+    if let Some((kind, name)) = problem {
+        let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let mut list = PROBLEMS.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap_or_else(|e| e.into_inner());
+        list.retain(|p| p.get("name").and_then(Value::as_str) != Some(name.as_str()));
+        list.insert(0, serde_json::json!({ "kind": kind, "name": name, "at": at }));
+        list.truncate(PROBLEMS_KEPT);
+    }
     let (title, body) = match event {
         Event::Conflict { name, copy } => {
             (label("syncConflictTitle"), label("syncConflictBody").replace("{name}", &name).replace("{copy}", &copy))
@@ -251,8 +301,13 @@ fn tell(app: &AppHandle, event: Event) {
             (label("syncDeletesTitle"), label("syncDeletesBody").replace("{count}", &count.to_string()))
         }
         Event::NewSpaceFolder { name } => (label("syncNewSpaceTitle"), label("syncNewSpaceBody").replace("{name}", &name)),
+        Event::OutsideSpace { name } => (label("syncOutsideTitle"), label("syncOutsideBody").replace("{name}", &name)),
+        Event::ReadOnly { name } => (label("syncReadOnlyTitle"), label("syncReadOnlyBody").replace("{name}", &name)),
+        Event::TooLarge { name } => (label("syncTooLargeTitle"), label("syncTooLargeBody").replace("{name}", &name)),
+        Event::UploadFailed { name } => (label("syncFailedTitle"), label("syncFailedBody").replace("{name}", &name)),
     };
-    crate::notify(app, &title, &body, None);
+    crate::notify(app, &title, &body, Some("/files".into()));
+    crate::push_sync_status(app);
 }
 
 #[cfg(test)]
