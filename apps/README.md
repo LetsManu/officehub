@@ -23,7 +23,11 @@ while used (backend `routers/auth.py`, `deps.py`).
 - **Windows** (on Windows, with Rust and Node): `cd windows && npm ci && npx tauri build` →
   `src-tauri/target/release/bundle/nsis/*-setup.exe`. `cargo test` in `src-tauri` runs the unit tests; on Linux the
   same code runs with WebKitGTK for trying things out.
-  Code signing (cloud): Azure Trusted Signing with the secrets `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
+  Code signing on your own computer (e.g. Certum SimplySign, whose sign-in needs the code from the phone): after a
+  release, sign in to SimplySign Desktop and run `windows\sign-release.ps1` (or `-Tag v3.8.0`). It downloads
+  `OfficeHub-Setup.exe` from the release, signs it with signtool and the certificate SimplySign provides, checks the
+  signature and puts it back on the release (needs the Windows SDK and `gh auth login`).
+  Code signing in the workflow instead (cloud): Azure Trusted Signing with the secrets `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
   `AZURE_TENANT_ID` and the variables `WINDOWS_SIGNING_ENDPOINT`, `WINDOWS_SIGNING_ACCOUNT`, `WINDOWS_SIGNING_PROFILE`;
   any other provider with the secret `WINDOWS_SIGN_COMMAND` (signs `%1`, credentials in `WINDOWS_SIGN_SECRET_1…3`).
   The workflow checks the signature of the installer.

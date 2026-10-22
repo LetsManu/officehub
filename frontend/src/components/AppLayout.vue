@@ -17,7 +17,7 @@ import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
-import { appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
+import { appPlace, appSignedIn, appTexts, inApp, onAppEvent } from '@/lib/native'
 import { refreshSummary, startSummary, stopSummary, summary } from '@/lib/summary'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -154,6 +154,7 @@ const stopAppEvents = onAppEvent((e) => {
   if (e.navigate?.startsWith('/')) router.push(e.navigate)
 })
 watch(language, () => appTexts())
+watch(() => route.path, (path) => appPlace(path), { immediate: true })
 
 onMounted(() => {
   appSignedIn(true)
