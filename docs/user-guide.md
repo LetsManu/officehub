@@ -109,8 +109,11 @@ Under **Profile → Notifications on the computer** (or on the **Activity** page
 for new messages, mentions, calls and meeting reminders. They also appear while OfficeHub is only open in the
 background. With **Do not disturb** there are no sounds and no pop-ups.
 
-The arrow next to the company name makes the menu slim, like the bar in Teams: only the everyday tools with small
-labels, everything else under **More**. OfficeHub remembers your choice.
+The bar on the left works like the one in Teams: Start, Activity, Chat, Spaces, Calendar, Meetings and Files are
+always there. Under **Apps** you find everything else; the pin next to an app puts it in the bar (Tasks, Requests and
+Time are pinned at first). A click on a tool takes you back to where you last were in it – the chat or space you had
+open. Click it again to go to its start. Your status, profile and sign-out are behind your picture at the top right,
+the theme and "What's new" behind **…**. On the phone the main tools are at the bottom; **More** opens the whole menu.
 
 ## The home page
 

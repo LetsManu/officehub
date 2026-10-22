@@ -383,7 +383,7 @@ onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('wiki.leaveConfirm')) :
 
 .tree {
   position: sticky;
-  top: calc(var(--header-height, 64px) + var(--space-4));
+  top: calc(var(--header-height, 52px) + var(--space-4));
   padding-bottom: var(--space-2);
 }
 

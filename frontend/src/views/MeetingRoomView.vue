@@ -69,7 +69,7 @@ onMounted(async () => {
 <style scoped>
 .room-page {
   display: grid;
-  height: calc(100dvh - var(--header-height, 64px));
+  height: calc(100dvh - var(--header-height, 52px) - var(--bottom-bar, 0px));
   min-height: 420px;
 }
 

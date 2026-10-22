@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
 .incoming {
   position: fixed;
   z-index: 1200;
-  top: calc(var(--header-height, 64px) + var(--space-3));
+  top: calc(var(--header-height, 52px) + var(--space-3));
   right: var(--space-4);
   display: grid;
   width: min(360px, calc(100vw - 2 * var(--space-4)));
