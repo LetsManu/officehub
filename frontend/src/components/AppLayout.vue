@@ -5,7 +5,6 @@ import AppIcon from './AppIcon.vue'
 import CommandPalette from './CommandPalette.vue'
 import IncomingCall from './IncomingCall.vue'
 import MeetingReminders from './MeetingReminders.vue'
-import NotificationBell from './NotificationBell.vue'
 import StatusMenu from './StatusMenu.vue'
 import UserAvatar from './UserAvatar.vue'
 import { branding, logoUrl } from '@/lib/branding'
@@ -16,6 +15,7 @@ import { currentUser, publicConfig, roleNames, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
+import { RAIL_PATHS, appGroups, isPinned, notePlace, pinnedItems, railItems, railTarget, sectionOf, togglePin } from '@/lib/rail'
 import { myDevice, type Device } from '@/lib/e2ee/identity'
 import { appCounts, appKind, appPlace, appScrolled, appSignedIn, appSyncCredentials, appTexts, inApp, onAppEvent } from '@/lib/native'
 import { changeMyPresence, myPresence } from '@/lib/presence'
@@ -41,18 +41,19 @@ function install() {
 }
 
 /** The most specific menu entry that matches the current page (so /admin/audit does not also mark /admin). */
-const activePath = computed(() => {
-  const matches = [...allPages.value.map((p) => p.to), '/profile'].filter((to) =>
-    to === '/' ? route.path === '/' : route.path === to || route.path.startsWith(`${to}/`),
-  )
-  return matches.sort((a, b) => b.length - a.length)[0] ?? null
-})
+const pagePaths = computed(() => [...allPages.value.map((p) => p.to), '/profile'])
+const activePath = computed(() => sectionOf(route.path, pagePaths.value))
 
 function isActive(to: string): boolean {
   return activePath.value === to
 }
 
-// ---------- menu: full with groups, or a slim icon bar like Teams (remembered per browser) ----------
+/** Rail click: back to where you were in that tool, like Teams. */
+function target(to: string): string {
+  return railTarget(to, activePath.value)
+}
+
+// ---------- groups in the phone menu can be folded (remembered per browser) ----------
 
 function remembered<T>(key: string, fallback: T): T {
   try {
@@ -71,21 +72,7 @@ function remember(key: string, value: unknown) {
   }
 }
 
-const compact = ref(remembered('officehub-nav-compact', false))
 const folded = ref<string[]>(remembered('officehub-nav-folded', []))
-const moreOpen = ref(false)
-const moreButton = ref<HTMLButtonElement | null>(null)
-const morePanel = ref<HTMLElement | null>(null)
-const dailyItems = computed(() => navGroups.value[0]?.items ?? [])
-const otherGroups = computed(() => navGroups.value.slice(1))
-const moreActive = computed(() => otherGroups.value.some((g) => g.items.some((i) => isActive(i.to))))
-const moreCount = computed(() => otherGroups.value.reduce((sum, g) => sum + g.items.reduce((n, i) => n + (i.count ?? 0), 0), 0))
-
-function toggleCompact() {
-  compact.value = !compact.value
-  moreOpen.value = false
-  remember('officehub-nav-compact', compact.value)
-}
 
 function isFolded(group: NavGroup) {
   // A folded group still opens when you are on one of its pages
@@ -97,10 +84,47 @@ function toggleGroup(key: string) {
   remember('officehub-nav-folded', folded.value)
 }
 
+// ---------- "Apps" flyout with everything else (pin to the bar), and the "…" settings menu ----------
+
+const appsOpen = ref(false)
+const appsButton = ref<HTMLButtonElement | null>(null)
+const appsPanel = ref<HTMLElement | null>(null)
+const pinnedPaths = computed(() => pinnedItems.value.map((i) => i.to))
+const appsActive = computed(() => {
+  const here = activePath.value
+  return !!here && !RAIL_PATHS.includes(here) && !pinnedPaths.value.includes(here) && here !== '/help' && here !== '/profile'
+})
+const appsCount = computed(() =>
+  appGroups.value.reduce((sum, g) => sum + g.items.reduce((n, i) => n + (pinnedPaths.value.includes(i.to) ? 0 : i.count ?? 0), 0), 0),
+)
+const settingsOpen = ref(false)
+const settingsButton = ref<HTMLButtonElement | null>(null)
+const settingsPanel = ref<HTMLElement | null>(null)
+
+watch(appsOpen, async (open) => {
+  if (!open) return
+  settingsOpen.value = false
+  await nextTick()
+  appsPanel.value?.querySelector<HTMLElement>('a, button')?.focus({ preventScroll: true })
+})
+
+watch(settingsOpen, async (open) => {
+  if (!open) return
+  appsOpen.value = false
+  await nextTick()
+  settingsPanel.value?.querySelector<HTMLElement>('a, button')?.focus()
+})
+
 function onDocumentClick(event: MouseEvent) {
   const target = event.target as Node
-  if (moreOpen.value && !morePanel.value?.contains(target) && !moreButton.value?.contains(target)) moreOpen.value = false
+  if (appsOpen.value && !appsPanel.value?.contains(target) && !appsButton.value?.contains(target)) appsOpen.value = false
+  if (settingsOpen.value && !settingsPanel.value?.contains(target) && !settingsButton.value?.contains(target)) settingsOpen.value = false
 }
+
+// Phones in the browser get Teams' tab bar at the bottom (the Android app has its own)
+const showTabs = appKind() !== 'android'
+const tabItems = computed(() => railItems.value.filter((i) => ['/', '/activity', '/chat', '/calendar'].includes(i.to)))
+const tabsMoreActive = computed(() => !!activePath.value && !tabItems.value.some((i) => i.to === activePath.value))
 
 function toggleTheme() {
   applyTheme(theme.value === 'dark' ? 'light' : 'dark')
@@ -130,9 +154,14 @@ function onGlobalKeydown(event: KeyboardEvent) {
     menuOpen.value = false
     return
   }
-  if (event.key === 'Escape' && moreOpen.value) {
-    moreOpen.value = false
-    moreButton.value?.focus()
+  if (event.key === 'Escape' && appsOpen.value) {
+    appsOpen.value = false
+    appsButton.value?.focus()
+    return
+  }
+  if (event.key === 'Escape' && settingsOpen.value) {
+    settingsOpen.value = false
+    settingsButton.value?.focus()
     return
   }
   if (searchOpen.value || document.querySelector('[aria-modal="true"]')) return
@@ -240,7 +269,10 @@ watch(
   () => route.fullPath,
   () => {
     refreshSummary()
-    moreOpen.value = false
+    appsOpen.value = false
+    settingsOpen.value = false
+    // A full-screen page (a meeting) is not a place to come back to with a click
+    if (!route.meta.full) notePlace(sectionOf(route.path, pagePaths.value), route.fullPath)
     if (menuOpen.value) {
       // Focus moves to the new page content instead (see router.afterEach).
       closedByNavigation = true
@@ -252,89 +284,176 @@ watch(
 
 <template>
   <a href="#main" class="skip-link">{{ t('app.skipToContent') }}</a>
-  <div class="shell" :class="{ compact: compact && !menuOpen }">
-    <div v-if="menuOpen" class="drawer-backdrop" @click="menuOpen = false" />
+  <div class="shell" :class="{ 'with-tabs': showTabs }">
+    <header class="topbar">
+      <button
+        ref="menuButton"
+        type="button"
+        class="btn btn-ghost btn-icon menu-btn"
+        :aria-label="t('app.openMenu')"
+        aria-controls="sidebar"
+        :aria-expanded="menuOpen"
+        @click="menuOpen = true"
+      >
+        <AppIcon name="menu" :size="24" />
+      </button>
+      <RouterLink to="/" class="brand">
+        <img v-if="branding.logo_version" :src="logoUrl()" alt="" class="logo-img" />
+        <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="16" /></span>
+        <span class="brand-text">{{ branding.company_name || 'OfficeHub' }}</span>
+      </RouterLink>
 
+      <button type="button" class="search-trigger" aria-haspopup="dialog" :aria-label="t('search.trigger')" @click="searchOpen = true">
+        <AppIcon name="search" :size="18" />
+        <span class="search-label">{{ t('search.trigger') }}</span>
+        <span class="shortcut" aria-hidden="true"><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd><kbd>K</kbd></span>
+      </button>
+
+      <div class="header-actions">
+        <div class="settings">
+          <button
+            ref="settingsButton"
+            type="button"
+            class="btn btn-ghost btn-icon header-btn"
+            :aria-label="t('nav.settings')"
+            :title="t('nav.settings')"
+            aria-haspopup="menu"
+            :aria-expanded="settingsOpen"
+            aria-controls="settings-menu"
+            @click="settingsOpen = !settingsOpen"
+          >
+            <AppIcon name="dots" />
+          </button>
+          <div v-if="settingsOpen" id="settings-menu" ref="settingsPanel" class="menu-panel" role="menu" :aria-label="t('nav.settings')">
+            <button type="button" class="menu-item" role="menuitem" @click="toggleTheme(); settingsOpen = false">
+              <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="18" />
+              {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
+            </button>
+            <RouterLink to="/profile" class="menu-item" role="menuitem">
+              <AppIcon name="settings" :size="18" />{{ t('nav.profile') }}
+            </RouterLink>
+            <button v-if="showInstall" type="button" class="menu-item" role="menuitem" @click="settingsOpen = false; install()">
+              <AppIcon name="download" :size="18" />{{ t('app.install') }}
+            </button>
+            <RouterLink v-if="publicConfig?.version" to="/whats-new" class="menu-item" role="menuitem">
+              <AppIcon name="star" :size="18" />{{ t('nav.whatsNew', { version: publicConfig.version }) }}
+            </RouterLink>
+            <hr class="menu-sep" />
+            <button type="button" class="menu-item" role="menuitem" @click="logout">
+              <AppIcon name="logout" :size="18" />{{ t('app.signOut') }}
+            </button>
+          </div>
+        </div>
+        <StatusMenu />
+      </div>
+    </header>
+
+    <!-- The app bar like Teams: everyday tools, pinned apps, "Apps" with everything else -->
+    <nav class="rail" :aria-label="t('nav.main')">
+      <ul class="rail-list">
+        <li v-for="item in railItems" :key="item.to">
+          <RouterLink :to="target(item.to)" :title="item.label" class="rail-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+            <span class="rail-icon">
+              <AppIcon :name="item.icon" :size="22" />
+              <span v-if="item.count" class="rail-badge">{{ item.count > 99 ? '99+' : item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+            </span>
+            <span class="rail-label">{{ item.short ?? item.label }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+      <ul v-if="pinnedItems.length" class="rail-list pinned" :aria-label="t('nav.pinned')">
+        <li v-for="item in pinnedItems" :key="item.to">
+          <RouterLink :to="target(item.to)" :title="item.label" class="rail-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+            <span class="rail-icon">
+              <AppIcon :name="item.icon" :size="22" />
+              <span v-if="item.count" class="rail-badge">{{ item.count > 99 ? '99+' : item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+            </span>
+            <span class="rail-label">{{ item.short ?? item.label }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+      <ul class="rail-list">
+        <li class="apps">
+          <button ref="appsButton" type="button" class="rail-link" :class="{ active: appsActive || appsOpen }" aria-haspopup="true" :aria-expanded="appsOpen" aria-controls="nav-apps" @click="appsOpen = !appsOpen">
+            <span class="rail-icon">
+              <AppIcon name="apps" :size="22" />
+              <span v-if="appsCount" class="rail-badge">{{ appsCount > 99 ? '99+' : appsCount }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+            </span>
+            <span class="rail-label">{{ t('nav.apps') }}</span>
+          </button>
+          <div v-if="appsOpen" id="nav-apps" ref="appsPanel" class="apps-panel">
+            <p class="apps-title">{{ t('nav.apps') }}</p>
+            <p class="apps-hint">{{ t('nav.pinHint') }}</p>
+            <template v-for="group in appGroups" :key="group.key">
+              <p v-if="group.label" class="nav-heading">{{ group.label }}</p>
+              <ul class="nav-list">
+                <li v-for="item in group.items" :key="item.to" class="app-row">
+                  <RouterLink :to="target(item.to)" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+                    <AppIcon :name="item.icon" />
+                    <span class="grow">{{ item.label }}</span>
+                    <span v-if="item.count" class="count-badge">{{ item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+                  </RouterLink>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-icon pin-btn"
+                    :class="{ on: isPinned(item.to) }"
+                    :aria-pressed="isPinned(item.to)"
+                    :aria-label="t(isPinned(item.to) ? 'nav.unpin' : 'nav.pin', { name: item.label })"
+                    :title="t(isPinned(item.to) ? 'nav.unpin' : 'nav.pin', { name: item.label })"
+                    @click="togglePin(item.to)"
+                  >
+                    <AppIcon name="pin" :size="16" />
+                  </button>
+                </li>
+              </ul>
+            </template>
+            <template v-if="quickLinks.length">
+              <p class="nav-heading">{{ t('nav.moreTools') }}</p>
+              <ul class="nav-list">
+                <li v-for="link in quickLinks" :key="link.id">
+                  <a :href="link.url" target="_blank" rel="noopener noreferrer" class="nav-link" :title="link.description || undefined">
+                    <AppIcon :name="link.icon" />
+                    <span class="grow">{{ link.title }}</span>
+                    <AppIcon name="external" :size="16" :label="t('nav.opensNewTab')" />
+                  </a>
+                </li>
+              </ul>
+            </template>
+          </div>
+        </li>
+      </ul>
+      <ul class="rail-list rail-end">
+        <li>
+          <RouterLink to="/help" class="rail-link" :class="{ active: isActive('/help') }" :aria-current="isActive('/help') ? 'page' : undefined">
+            <span class="rail-icon"><AppIcon name="lifebuoy" :size="22" /></span>
+            <span class="rail-label">{{ t('nav.helpShort') }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Phones: the whole menu slides in (from "More" or the menu button) -->
+    <div v-if="menuOpen" class="drawer-backdrop" @click="menuOpen = false" />
     <aside
       id="sidebar"
       ref="drawer"
       class="sidebar"
       :class="{ open: menuOpen }"
+      :aria-hidden="menuOpen ? undefined : 'true'"
       @keydown="menuOpen && onDrawerKeydown($event)"
     >
       <div class="sidebar-top">
         <RouterLink to="/" class="brand">
           <img v-if="branding.logo_version" :src="logoUrl()" alt="" class="logo-img" />
-          <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>
+          <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="16" /></span>
           <span class="brand-text">{{ branding.company_name || 'OfficeHub' }}</span>
         </RouterLink>
-        <button v-if="menuOpen" type="button" class="btn btn-ghost btn-icon" :aria-label="t('app.closeMenu')" @click="menuOpen = false">
+        <button type="button" class="btn btn-ghost btn-icon" :aria-label="t('app.closeMenu')" @click="menuOpen = false">
           <AppIcon name="close" />
-        </button>
-        <button
-          v-else
-          type="button"
-          class="btn btn-ghost btn-icon collapse-btn desktop-only"
-          :aria-label="compact ? t('nav.expand') : t('nav.collapse')"
-          :title="compact ? t('nav.expand') : t('nav.collapse')"
-          :aria-pressed="compact"
-          @click="toggleCompact"
-        >
-          <AppIcon :name="compact ? 'chevronRight' : 'chevronLeft'" :size="18" />
         </button>
       </div>
 
-      <!-- Slim icon bar: the everyday tools, everything else under "More" -->
-      <nav v-if="compact && !menuOpen" class="rail" :aria-label="t('nav.main')">
-        <ul class="rail-list">
-          <li v-for="item in dailyItems" :key="item.to">
-            <RouterLink :to="item.to" class="rail-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
-              <span class="rail-icon">
-                <AppIcon :name="item.icon" />
-                <span v-if="item.count" class="rail-badge">{{ item.count > 99 ? '99+' : item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
-              </span>
-              <span class="rail-label">{{ item.label }}</span>
-            </RouterLink>
-          </li>
-          <li>
-            <button ref="moreButton" type="button" class="rail-link" :class="{ active: moreActive || moreOpen }" aria-haspopup="true" :aria-expanded="moreOpen" aria-controls="nav-more" @click="moreOpen = !moreOpen">
-              <span class="rail-icon">
-                <AppIcon name="dots" />
-                <span v-if="moreCount" class="rail-badge">{{ moreCount > 99 ? '99+' : moreCount }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
-              </span>
-              <span class="rail-label">{{ t('nav.more') }}</span>
-            </button>
-          </li>
-        </ul>
-        <div v-if="moreOpen" id="nav-more" ref="morePanel" class="more-panel">
-          <template v-for="group in otherGroups" :key="group.key">
-            <p class="nav-heading">{{ group.label }}</p>
-            <ul class="nav-list">
-              <li v-for="item in group.items" :key="item.to">
-                <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
-                  <AppIcon :name="item.icon" />
-                  <span class="grow">{{ item.label }}</span>
-                  <span v-if="item.count" class="count-badge">{{ item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
-                </RouterLink>
-              </li>
-            </ul>
-          </template>
-          <template v-if="quickLinks.length">
-            <p class="nav-heading">{{ t('nav.moreTools') }}</p>
-            <ul class="nav-list">
-              <li v-for="link in quickLinks" :key="link.id">
-                <a :href="link.url" target="_blank" rel="noopener noreferrer" class="nav-link">
-                  <AppIcon :name="link.icon" />
-                  <span class="grow">{{ link.title }}</span>
-                  <AppIcon name="external" :size="16" :label="t('nav.opensNewTab')" />
-                </a>
-              </li>
-            </ul>
-          </template>
-        </div>
-      </nav>
-
-      <nav v-else class="nav" :aria-label="t('nav.main')">
+      <nav class="nav" :aria-label="t('nav.main')">
         <template v-for="group in navGroups" :key="group.key">
           <p v-if="group.label && !group.collapsible" :id="`nav-${group.key}`" class="nav-heading">{{ group.label }}</p>
           <p v-else-if="group.label" :id="`nav-${group.key}`" class="nav-heading">
@@ -344,7 +463,7 @@ watch(
           </p>
           <ul v-show="!isFolded(group)" :id="`navlist-${group.key}`" class="nav-list" :aria-labelledby="group.label ? `nav-${group.key}` : undefined">
             <li v-for="item in group.items" :key="item.to">
-              <RouterLink :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+              <RouterLink :to="target(item.to)" class="nav-link" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
                 <AppIcon :name="item.icon" />
                 <span class="grow">{{ item.label }}</span>
                 <span v-if="item.count" class="count-badge">
@@ -384,17 +503,17 @@ watch(
           </span>
         </RouterLink>
         <div class="bottom-actions">
-          <button type="button" class="btn btn-ghost nav-action mobile-only" @click="toggleTheme">
+          <button type="button" class="btn btn-ghost nav-action" @click="toggleTheme">
             <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
             {{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}
           </button>
-          <button v-if="showInstall" type="button" class="btn btn-ghost nav-action" :title="t('app.install')" @click="install">
+          <button v-if="showInstall" type="button" class="btn btn-ghost nav-action" @click="install">
             <AppIcon name="download" />
-            <span class="action-label">{{ t('app.install') }}</span>
+            {{ t('app.install') }}
           </button>
-          <button type="button" class="btn btn-ghost nav-action" :title="t('app.signOut')" @click="logout">
+          <button type="button" class="btn btn-ghost nav-action" @click="logout">
             <AppIcon name="logout" />
-            <span class="action-label">{{ t('app.signOut') }}</span>
+            {{ t('app.signOut') }}
           </button>
           <RouterLink v-if="publicConfig?.version" to="/whats-new" class="version">
             {{ t('nav.whatsNew', { version: publicConfig.version }) }}
@@ -403,64 +522,38 @@ watch(
       </div>
     </aside>
 
-    <div class="main-col">
-      <header class="topbar">
-        <button
-          ref="menuButton"
-          type="button"
-          class="btn btn-ghost btn-icon menu-btn"
-          :aria-label="t('app.openMenu')"
-          aria-controls="sidebar"
-          :aria-expanded="menuOpen"
-          @click="menuOpen = true"
-        >
-          <AppIcon name="menu" :size="24" />
-        </button>
-        <RouterLink to="/" class="brand mobile-brand">
-          <img v-if="branding.logo_version" :src="logoUrl()" alt="" class="logo-img" />
-          <span v-else class="logo" aria-hidden="true"><AppIcon name="home" :size="18" /></span>
-          <span class="brand-text">{{ branding.company_name || 'OfficeHub' }}</span>
-        </RouterLink>
+    <main id="main" class="content" :class="{ full: route.meta.full, wide: route.meta.wide }" tabindex="-1">
+      <div v-if="!online" class="notice notice-warning app-banner" role="status">
+        <AppIcon name="alert" />
+        <span>{{ t('pwa.offline') }}</span>
+      </div>
+      <div v-else-if="updateReady" class="notice notice-info app-banner" role="status">
+        <AppIcon name="download" />
+        <span class="grow">{{ t('pwa.updated') }}</span>
+        <button type="button" class="btn btn-primary" @click="reload">{{ t('pwa.reload') }}</button>
+      </div>
+      <div v-else-if="deviceWaiting" class="notice notice-info app-banner" role="status">
+        <AppIcon name="shield" />
+        <span class="grow">{{ t('keys.waitingBanner') }}</span>
+        <RouterLink to="/profile#keys" class="btn btn-primary">{{ t('keys.waitingOpen') }}</RouterLink>
+      </div>
+      <slot />
+    </main>
 
-        <button type="button" class="search-trigger" aria-haspopup="dialog" :aria-label="t('search.trigger')" @click="searchOpen = true">
-          <AppIcon name="search" :size="20" />
-          <span class="search-label">{{ t('search.trigger') }}</span>
-          <span class="shortcut" aria-hidden="true"><kbd>{{ isMac ? '⌘' : 'Ctrl' }}</kbd><kbd>K</kbd></span>
-        </button>
-
-        <div class="header-actions">
-          <button
-            type="button"
-            class="btn btn-ghost btn-icon header-btn desktop-only"
-            :aria-label="theme === 'dark' ? t('app.lightMode') : t('app.darkMode')"
-            :title="theme === 'dark' ? t('app.lightMode') : t('app.darkMode')"
-            @click="toggleTheme"
-          >
-            <AppIcon :name="theme === 'dark' ? 'sun' : 'moon'" />
-          </button>
-          <NotificationBell />
-          <StatusMenu />
-        </div>
-      </header>
-
-      <main id="main" class="content" :class="{ full: route.meta.full, wide: route.meta.wide }" tabindex="-1">
-        <div v-if="!online" class="notice notice-warning app-banner" role="status">
-          <AppIcon name="alert" />
-          <span>{{ t('pwa.offline') }}</span>
-        </div>
-        <div v-else-if="updateReady" class="notice notice-info app-banner" role="status">
-          <AppIcon name="download" />
-          <span class="grow">{{ t('pwa.updated') }}</span>
-          <button type="button" class="btn btn-primary" @click="reload">{{ t('pwa.reload') }}</button>
-        </div>
-        <div v-else-if="deviceWaiting" class="notice notice-info app-banner" role="status">
-          <AppIcon name="shield" />
-          <span class="grow">{{ t('keys.waitingBanner') }}</span>
-          <RouterLink to="/profile#keys" class="btn btn-primary">{{ t('keys.waitingOpen') }}</RouterLink>
-        </div>
-        <slot />
-      </main>
-    </div>
+    <!-- Phones in the browser: Teams' tab bar -->
+    <nav v-if="showTabs && !route.meta.full" class="tabbar" :aria-label="t('nav.tabs')">
+      <RouterLink v-for="item in tabItems" :key="item.to" :to="target(item.to)" class="tab" :class="{ active: isActive(item.to) }" :aria-current="isActive(item.to) ? 'page' : undefined">
+        <span class="rail-icon">
+          <AppIcon :name="item.icon" :size="22" />
+          <span v-if="item.count" class="rail-badge">{{ item.count > 99 ? '99+' : item.count }}<span class="visually-hidden"> {{ t('nav.countOpen') }}</span></span>
+        </span>
+        <span class="rail-label">{{ item.short ?? item.label }}</span>
+      </RouterLink>
+      <button type="button" class="tab" :class="{ active: tabsMoreActive }" aria-controls="sidebar" :aria-expanded="menuOpen" @click="menuOpen = true">
+        <span class="rail-icon"><AppIcon name="dots" :size="22" /></span>
+        <span class="rail-label">{{ t('nav.more') }}</span>
+      </button>
+    </nav>
 
     <CommandPalette :open="searchOpen" @close="searchOpen = false" />
     <IncomingCall v-if="publicConfig?.meetings_enabled" />
@@ -485,7 +578,11 @@ watch(
   top: var(--space-4);
 }
 
+/* Like Teams: a bar across the top, the app bar on the left, the page in the rest */
 .shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  grid-template-rows: var(--header-height) 1fr;
   min-height: 100vh;
 }
 
@@ -497,62 +594,322 @@ watch(
   color: var(--color-text);
   font-family: var(--font-heading);
   font-weight: 600;
-  font-size: var(--text-lg);
+  font-size: var(--text-base, 1rem);
   letter-spacing: -0.01em;
   text-decoration: none;
 }
 
 .logo-img {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: 7px;
 }
 
 .brand-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 170px;
+  max-width: 200px;
 }
 
 .logo {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: var(--color-highlight);
   color: #fff;
-  box-shadow: 0 2px 6px rgb(29 78 216 / 0.3);
 }
 
-/* ---------- Sidebar ---------- */
+/* ---------- Top bar ---------- */
 
-.sidebar {
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 560px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-height);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.menu-btn {
+  display: none;
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-fast) ease, background-color var(--t-fast) ease;
+}
+
+.search-trigger:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.search-label {
+  flex: 1;
+}
+
+.shortcut {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.header-btn {
+  color: var(--color-text-muted);
+}
+
+.header-btn:hover {
+  color: var(--color-text);
+}
+
+.settings {
+  position: relative;
+}
+
+.menu-panel {
+  position: absolute;
+  z-index: var(--z-dropdown, 50);
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: 260px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--color-surface-muted);
+}
+
+.menu-sep {
+  width: 100%;
+  margin: var(--space-1) 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---------- App bar (rail) ---------- */
+
+.rail {
   position: fixed;
-  inset: 0 auto 0 0;
+  top: var(--header-height);
+  bottom: 0;
+  left: 0;
   z-index: var(--z-drawer);
   display: flex;
   flex-direction: column;
-  width: var(--sidebar-width);
-  padding: var(--space-3) var(--space-3) var(--space-4);
+  gap: 2px;
+  width: var(--rail-width);
+  padding: var(--space-2) 4px;
   border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
-  overflow-y: auto;
+  background: var(--color-surface-muted);
 }
 
-.sidebar-top {
+.rail-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-list.pinned {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.rail-end {
+  margin-top: auto;
+}
+
+.apps {
+  position: relative;
+}
+
+.rail-link,
+.tab {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 2px 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--t-fast) ease, color var(--t-fast) ease;
+}
+
+.rail-link:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.rail-link.active,
+.tab.active {
+  color: var(--color-primary-text);
+  font-weight: 700;
+}
+
+.rail-link.active {
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Active marker: a short bar on the left edge, like Teams */
+.rail-link.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-primary);
+}
+
+.rail-icon {
+  position: relative;
+  display: grid;
+}
+
+.rail-badge {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--color-badge);
+  color: var(--color-on-badge);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.rail-label {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.apps-panel {
+  position: fixed;
+  z-index: calc(var(--z-drawer) + 1);
+  top: calc(var(--header-height) + var(--space-2));
+  left: calc(var(--rail-width) + var(--space-2));
+  width: 300px;
+  max-height: calc(100vh - var(--header-height) - var(--space-4));
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-overlay);
+}
+
+.apps-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 600;
+}
+
+.apps-hint {
+  margin: 2px 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.app-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: calc(var(--header-height) - var(--space-3));
-  padding: 0 var(--space-2) var(--space-3);
+  gap: 2px;
 }
 
-.nav {
+.app-row .nav-link {
   flex: 1;
+  min-width: 0;
 }
+
+.pin-btn {
+  flex: none;
+  color: var(--color-text-subtle);
+  opacity: 0.55;
+}
+
+.app-row:hover .pin-btn,
+.pin-btn:focus-visible,
+.pin-btn.on {
+  opacity: 1;
+}
+
+.pin-btn.on {
+  color: var(--color-primary-text);
+}
+
+/* ---------- Lists (Apps flyout and phone menu) ---------- */
 
 .nav-list {
   list-style: none;
@@ -563,7 +920,7 @@ watch(
 }
 
 .nav-heading {
-  margin: var(--space-5) var(--space-3) var(--space-2);
+  margin: var(--space-4) var(--space-3) var(--space-2);
   font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
@@ -579,7 +936,7 @@ watch(
   justify-content: flex-start;
   gap: var(--space-3);
   width: 100%;
-  min-height: var(--touch);
+  min-height: 40px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
@@ -601,16 +958,43 @@ watch(
   font-weight: 600;
 }
 
-/* Active marker: a short bar on the left edge */
-.nav-link.active::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--color-primary);
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.fold:hover {
+  color: var(--color-text);
+}
+
+/* ---------- Phone menu (drawer) ---------- */
+
+.sidebar {
+  display: none;
+}
+
+.drawer-backdrop {
+  display: none;
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-2) var(--space-3);
+}
+
+.nav {
+  flex: 1;
 }
 
 .sidebar-bottom {
@@ -637,18 +1021,6 @@ watch(
 
 .who.active {
   background: var(--color-primary-soft);
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-size: var(--text-sm);
-  font-weight: 700;
 }
 
 .who-text {
@@ -686,84 +1058,16 @@ watch(
   color: var(--color-text-subtle);
 }
 
-/* ---------- Header ---------- */
-
-.main-col {
-  margin-left: var(--sidebar-width);
-  min-width: 0;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: var(--header-height);
-  padding: 0 var(--space-6);
-  border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-bg) 85%, transparent);
-  backdrop-filter: blur(10px);
-}
-
-.menu-btn,
-.mobile-brand,
-.mobile-only {
+.tabbar {
   display: none;
 }
 
-.search-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: 1;
-  max-width: 520px;
-  min-height: var(--touch);
-  padding: 0 var(--space-2) 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-subtle);
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--t-fast) ease;
-}
-
-.search-trigger:hover {
-  border-color: var(--color-border-strong);
-}
-
-.search-label {
-  flex: 1;
-}
-
-.shortcut {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-left: auto;
-}
-
-.header-btn {
-  color: var(--color-text-muted);
-}
-
-.header-btn:hover {
-  color: var(--color-text);
-}
-
+/* ---------- Page ---------- */
 
 .content {
   view-transition-name: page;
+  grid-column: 2;
+  min-width: 0;
   padding: var(--space-6) var(--space-6) var(--space-7);
   max-width: 1180px;
 }
@@ -790,200 +1094,38 @@ watch(
   padding: 0;
 }
 
-.drawer-backdrop {
-  display: none;
-}
-
-/* ---------- Foldable groups ---------- */
-
-.fold {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-
-.fold:hover {
-  color: var(--color-text);
-}
-
-.collapse-btn {
-  flex: none;
-  color: var(--color-text-subtle);
-}
-
-/* ---------- Slim icon bar (like Teams) ---------- */
-
-.shell.compact {
-  --sidebar-width: 84px;
-}
-
-.compact .sidebar {
-  align-items: center;
-  padding: var(--space-3) var(--space-2) var(--space-4);
-  overflow: visible;
-}
-
-.compact .sidebar-top {
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: 0 0 var(--space-3);
-}
-
-.compact .brand-text,
-.compact .who-text,
-.compact .action-label,
-.compact .version {
-  display: none;
-}
-
-.compact .who,
-.compact .nav-action {
-  justify-content: center;
-  padding: var(--space-2);
-}
-
-.rail {
-  position: relative;
-  flex: 1;
-  width: 100%;
-}
-
-.rail-list {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.rail-link {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  width: 100%;
-  padding: var(--space-2) 2px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.rail-link:hover {
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-
-.rail-link.active {
-  background: var(--color-primary-soft);
-  color: var(--color-primary-text);
-  font-weight: 600;
-}
-
-.rail-link.active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--color-primary);
-}
-
-.rail-icon {
-  position: relative;
-  display: grid;
-}
-
-.rail-badge {
-  position: absolute;
-  top: -6px;
-  right: -12px;
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 99px;
-  background: var(--color-badge);
-  color: var(--color-on-badge);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 18px;
-}
-
-.rail-label {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-panel {
-  position: absolute;
-  z-index: calc(var(--z-drawer) + 1);
-  top: 0;
-  left: calc(100% + var(--space-3));
-  width: 260px;
-  max-height: calc(100vh - var(--header-height) - var(--space-4));
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg, 14px);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-overlay);
-}
-
-.more-panel .nav-heading:first-child {
-  margin-top: var(--space-2);
-}
-
 @media (max-width: 899px) {
-  .main-col {
-    margin-left: 0;
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    display: none;
+  }
+
+  .content {
+    grid-column: 1;
   }
 
   .topbar {
+    display: flex;
     gap: var(--space-2);
     padding: 0 var(--space-2);
-    background: var(--color-surface);
-    backdrop-filter: none;
   }
 
-  .menu-btn,
-  .mobile-brand {
+  .menu-btn {
     display: inline-flex;
-  }
-
-  .mobile-only {
-    display: flex;
-  }
-
-  .desktop-only {
-    display: none;
   }
 
   .search-trigger {
     flex: 0 0 var(--touch);
     justify-content: center;
     width: var(--touch);
+    min-height: var(--touch);
     padding: 0;
     margin-left: auto;
     border-color: transparent;
     background: transparent;
-    box-shadow: none;
     color: var(--color-text-muted);
   }
 
@@ -992,12 +1134,16 @@ watch(
     display: none;
   }
 
-  .header-actions {
-    margin-left: 0;
-  }
-
   .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
     width: min(86vw, 320px);
+    padding: var(--space-3) var(--space-3) var(--space-4);
+    overflow-y: auto;
+    background: var(--color-surface);
     transform: translateX(-100%);
     visibility: hidden;
     transition: transform var(--t-med) var(--ease), visibility var(--t-med);
@@ -1019,6 +1165,37 @@ watch(
 
   .content {
     padding: var(--space-5) var(--space-4) var(--space-7);
+  }
+
+  /* Teams on the phone: the main tools at the bottom, "More" opens the whole menu */
+  .with-tabs {
+    --bottom-bar: 60px;
+  }
+
+  .with-tabs .content {
+    padding-bottom: calc(var(--space-7) + var(--bottom-bar));
+  }
+
+  .with-tabs .content.full {
+    padding-bottom: 0;
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: var(--z-sticky);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(var(--bottom-bar) + env(safe-area-inset-bottom, 0px));
+    padding: 4px 4px env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .tab {
+    align-content: center;
+    min-height: var(--touch);
+    font-size: 0.72rem;
   }
 }
 </style>

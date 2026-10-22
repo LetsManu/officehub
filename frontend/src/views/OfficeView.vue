@@ -277,7 +277,7 @@ onBeforeUnmount(() => {
   grid-template-rows: auto 1fr;
   /* A long file name never makes the page wider than the screen (phones). */
   grid-template-columns: minmax(0, 1fr);
-  height: calc(100dvh - var(--header-height, 64px));
+  height: calc(100dvh - var(--header-height, 52px) - var(--bottom-bar, 0px));
 }
 
 .bar {

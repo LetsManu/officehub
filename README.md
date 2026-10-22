@@ -70,8 +70,9 @@ _Screenshots show the fictional demo data. Replace them with your own after cust
   home office, equipment, expenses with receipt, IT access, appointments and general requests; comments and history
 - Documents with full-text search, plus a private **For you** tab for payslips and certificates from HR
 - Announcements with must-read confirmation and small polls
-- Menu ordered like Teams/Outlook (everyday tools on top, foldable groups) that turns into a slim icon bar, an
-  **Activity** feed and a **Files** page with recent files from all spaces
+- Layout like Teams: a bar across the top with search and your status, the **app bar** on the left (Start,
+  Activity, Chat, Spaces, Calendar, Meetings, Files, pinned apps, **Apps** with everything else; a click goes back to
+  where you were in that tool), a tab bar at the bottom on phones, an **Activity** feed and a **Files** page with recent files from all spaces
 - **Presence** like Teams (available, busy, in a meeting, do not disturb, away, out of office – automatic from
   calendar, meetings, vacation and activity, or chosen with a status message), **desktop notifications** with sound,
   **meeting reminders**, **recurring meetings** and a **scheduling assistant** (free/busy, "next free time")

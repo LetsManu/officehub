@@ -123,7 +123,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
 
 <style scoped>
 .chat-page {
-  height: calc(100dvh - var(--header-height, 64px) - var(--space-6) - var(--space-7));
+  height: calc(100dvh - var(--header-height, 52px) - var(--space-6) - var(--space-7) - var(--bottom-bar, 0px));
   min-height: 480px;
 }
 
@@ -290,7 +290,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
 
 @media (max-width: 900px) {
   .chat-page {
-    height: calc(100dvh - var(--header-height, 64px) - var(--space-5) - var(--space-7));
+    height: calc(100dvh - var(--header-height, 52px) - var(--space-5) - var(--space-7) - var(--bottom-bar, 0px));
   }
 
   .layout {

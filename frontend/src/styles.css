@@ -65,8 +65,9 @@
   --radius-lg: 14px;
   --radius-full: 999px;
   --touch: 44px;
-  --sidebar-width: 264px;
-  --header-height: 64px;
+  --rail-width: 72px;
+  --header-height: 52px;
+  --bottom-bar: 0px;
 
   --t-fast: 120ms;
   --t-med: 180ms;

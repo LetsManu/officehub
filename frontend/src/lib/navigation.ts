@@ -10,6 +10,8 @@ export interface NavItem {
   label: string
   icon: string
   count?: number
+  /** Shorter name for the narrow app bar. */
+  short?: string
 }
 
 export interface NavGroup {
@@ -43,11 +45,11 @@ export const navGroups = computed<NavGroup[]>(() => {
       key: 'me',
       label: t('nav.groupMyDay'),
       items: [
-        { to: '/time', label: t('nav.time'), icon: 'clock', count: summary.value.time_months_pending },
-        { to: '/requests', label: t('nav.requests'), icon: 'inbox' },
+        { to: '/time', label: t('nav.time'), short: t('nav.short.time'), icon: 'clock', count: summary.value.time_months_pending },
+        { to: '/requests', label: t('nav.requests'), short: t('nav.short.requests'), icon: 'inbox' },
         { to: '/planning', label: t('nav.planning'), icon: 'planning' },
         { to: '/trainings', label: t('nav.trainings'), icon: 'graduation', count: summary.value.trainings_due },
-        { to: '/reviews', label: t('nav.reviews'), icon: 'message', count: summary.value.reviews_todo },
+        { to: '/reviews', label: t('nav.reviews'), short: t('nav.short.reviews'), icon: 'message', count: summary.value.reviews_todo },
       ],
     },
     {
@@ -68,7 +70,7 @@ export const navGroups = computed<NavGroup[]>(() => {
       label: t('nav.groupOffice'),
       collapsible: true,
       items: [
-        { to: '/rooms', label: t('nav.rooms'), icon: 'door' },
+        { to: '/rooms', label: t('nav.rooms'), short: t('nav.short.rooms'), icon: 'door' },
         { to: '/visitors', label: t('nav.visitors'), icon: 'badge', count: summary.value.visitors_today },
       ],
     },
@@ -80,12 +82,12 @@ export const navGroups = computed<NavGroup[]>(() => {
   if (isApprover.value || isHr.value) manage.push({ to: '/onboarding', label: t('nav.onboarding'), icon: 'clipboard' })
   if (isOverseer.value) manage.push({ to: '/reports', label: t('nav.reports'), icon: 'chart' })
   if (isHr.value) {
-    manage.push({ to: '/manage/documents', label: t('nav.manageDocuments'), icon: 'folder' })
-    manage.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), icon: 'edit' })
+    manage.push({ to: '/manage/documents', label: t('nav.manageDocuments'), short: t('nav.documents'), icon: 'folder' })
+    manage.push({ to: '/manage/announcements', label: t('nav.manageAnnouncements'), short: t('nav.announcements'), icon: 'edit' })
   }
   if (isSupport.value) manage.push({ to: '/equipment', label: t('nav.equipment'), icon: 'box' })
   if (isAdmin.value) manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
-  if (isStaff.value) manage.push({ to: '/admin', label: t('nav.administration'), icon: 'settings' })
+  if (isStaff.value) manage.push({ to: '/admin', label: t('nav.administration'), short: t('nav.short.administration'), icon: 'settings' })
   if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage, collapsible: true })
   return groups
 })
