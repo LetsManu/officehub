@@ -264,15 +264,22 @@ you want your own.
 
 ## User roles
 
-| | Employee | Manager | HR / Admin |
-| --- | :-: | :-: | :-: |
-| Dashboard, own requests, documents, announcements, profile | ✓ | ✓ | ✓ |
-| See all requests, approve / reject, comment on any request | | ✓ | ✓ |
-| Statistics and CSV export | | ✓ | ✓ |
-| Manage announcements and documents | | | ✓ |
-| Reports, visitor reception, onboarding tasks of own team | | ✓ | ✓ |
-| Add people, set managers, change roles, reset passwords | | | ✓ |
-| Start employee reviews, manage rooms, links and portal settings | | | ✓ |
+Everyone is an employee; a person can hold several more roles at once (Administration → People → Change roles).
+
+| | Employee | Team lead | Manager | HR | Service desk | Admin |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| Dashboard, own requests, documents, announcements, profile | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Decide requests and time sheets of their own team, plan their team | | ✓ | ✓ | ✓ | | ✓ |
+| Decide everyone's requests, statistics, reports and CSV export | | | ✓ | ✓ | | ✓ |
+| Decide IT access and equipment requests, equipment register | | | | ✓ | ✓ | ✓ |
+| Reset passwords and two-factor sign-in (not of administrators) | | | | ✓ | ✓ | ✓ |
+| People, roles (except administrator), personal documents, onboarding / offboarding | | | | ✓ | | ✓ |
+| News, documents, reviews, trainings, surveys, ideas, help, links, public holidays | | | | ✓ | | ✓ |
+| Company login, security, backups, branding, office, rooms, portal settings, audit log | | | | | | ✓ |
+
+- Only an administrator gives or takes away the administrator role or changes an administrator's account.
+- With company login, roles can follow groups of your login server (one group per role, optional).
+- Accounts with the former "HR / Admin" role are administrators and HR after the update.
 
 - Nobody can approve or reject their own request.
 - Drafts are private: only the person who wrote them can see them.

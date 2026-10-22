@@ -1,4 +1,4 @@
-export type Role = 'employee' | 'manager' | 'admin'
+export type Role = 'employee' | 'teamlead' | 'manager' | 'hr' | 'servicedesk' | 'admin'
 export type Language = 'de' | 'en'
 
 export type RequestType = 'vacation' | 'home_office' | 'equipment' | 'expense' | 'it_access' | 'appointment' | 'general'
@@ -15,6 +15,7 @@ export interface User {
   office_location: string
   language: Language
   role: Role
+  roles?: Role[]
   is_active: boolean
   phone: string
   mobile: string

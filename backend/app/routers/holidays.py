@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, StringConstraints
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, not_found
 from ..holidays import DE_STATES
 from ..models import CompanyHoliday
@@ -60,12 +60,12 @@ def _config(db) -> HolidayConfig:
 
 
 @router.get("/config", response_model=HolidayConfig)
-def get_config(user: Admin, db: DB) -> HolidayConfig:
+def get_config(user: HR, db: DB) -> HolidayConfig:
     return _config(db)
 
 
 @router.put("/config", response_model=HolidayConfig)
-def update_config(body: HolidayConfigIn, user: Admin, db: DB) -> HolidayConfig:
+def update_config(body: HolidayConfigIn, user: HR, db: DB) -> HolidayConfig:
     region = body.region.upper() if body.country == "DE" else ""
     if region and region not in DE_STATES:
         raise ApiError(422, "region_invalid", "Please choose a federal state.")
@@ -76,7 +76,7 @@ def update_config(body: HolidayConfigIn, user: Admin, db: DB) -> HolidayConfig:
 
 
 @router.post("/company", response_model=HolidayConfig, status_code=201)
-def add_company_holiday(body: CompanyHolidayIn, user: Admin, db: DB) -> HolidayConfig:
+def add_company_holiday(body: CompanyHolidayIn, user: HR, db: DB) -> HolidayConfig:
     if db.query(CompanyHoliday).filter(CompanyHoliday.day == body.day).first():
         raise ApiError(409, "holiday_exists", "There is already a holiday on this day.")
     db.add(CompanyHoliday(day=body.day, name=body.name))
@@ -86,7 +86,7 @@ def add_company_holiday(body: CompanyHolidayIn, user: Admin, db: DB) -> HolidayC
 
 
 @router.delete("/company/{holiday_id}", response_model=HolidayConfig)
-def delete_company_holiday(holiday_id: int, user: Admin, db: DB) -> HolidayConfig:
+def delete_company_holiday(holiday_id: int, user: HR, db: DB) -> HolidayConfig:
     row = db.get(CompanyHoliday, holiday_id)
     if row is None:
         raise not_found("Holiday")

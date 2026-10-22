@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from ..deps import DB, Approver
+from ..deps import DB, Overseer
 from ..errors import ApiError
 from ..models import PENDING_STATUSES, Request, User, utcnow
 from .admin import _csv_cell
@@ -118,7 +118,7 @@ def _equipment(db, date_from: date | None, date_to: date | None) -> Report:
 @router.get("/{name}")
 def report(
     name: ReportName,
-    user: Approver,
+    user: Overseer,
     db: DB,
     month: str | None = Query(None, max_length=7),
     date_from: date | None = None,

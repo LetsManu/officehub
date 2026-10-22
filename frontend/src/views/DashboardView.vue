@@ -9,7 +9,7 @@ import StatTile from '@/components/StatTile.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api } from '@/lib/api'
 import { portalSettings } from '@/lib/portal'
-import { currentUser, isApprover, publicConfig } from '@/lib/session'
+import { currentUser, decidesRequests, publicConfig } from '@/lib/session'
 import { errorText, formatDate, formatDateLong, formatPeriod, locale, t } from '@/lib/i18n'
 import { NOTIFICATION_ICONS, notificationText, timeAgo } from '@/lib/notifications'
 import { refreshSummary, summary } from '@/lib/summary'
@@ -118,7 +118,7 @@ function excerpt(markdown: string, length = 180): string {
 const attention = computed<AttentionItem[]>(() => {
   const items: AttentionItem[] = []
   const pending = summary.value.approvals_pending
-  if (isApprover.value && pending > 0) {
+  if (decidesRequests.value && pending > 0) {
     items.push({
       key: 'approvals', icon: 'checkCircle', tone: 'warning', to: '/approvals', action: t('dashboard.reviewNow'),
       text: pending === 1 ? t('dashboard.pendingApprovalsOne') : t('dashboard.pendingApprovals', { count: pending }),
@@ -287,7 +287,7 @@ function hideInstallHint() {
     <section aria-labelledby="stats-title">
       <h2 id="stats-title" class="visually-hidden">{{ t('dashboard.atAGlance') }}</h2>
       <div class="stats">
-        <StatTile v-if="isApprover" to="/approvals" icon="checkCircle" :tone="summary.approvals_pending ? 'warning' : 'neutral'" :value="summary.approvals_pending" :label="t('dashboard.statApprovals')" />
+        <StatTile v-if="decidesRequests" to="/approvals" icon="checkCircle" :tone="summary.approvals_pending ? 'warning' : 'neutral'" :value="summary.approvals_pending" :label="t('dashboard.statApprovals')" />
         <StatTile
           v-if="timeStatus"
           to="/time"

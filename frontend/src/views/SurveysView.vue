@@ -8,7 +8,7 @@ import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
 import { errorText, formatDate, t } from '@/lib/i18n'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { refreshSummary } from '@/lib/summary'
 import { showToast } from '@/lib/toast'
 import type { Survey, SurveyQuestion } from '@/lib/types'
@@ -92,7 +92,7 @@ onMounted(load)
 <template>
   <div class="page">
     <PageHeader :title="t('surveys.title')" :subtitle="t('surveys.subtitle')">
-      <template v-if="isAdmin" #actions>
+      <template v-if="isHr" #actions>
         <button type="button" class="btn btn-primary" @click="openBuilder"><AppIcon name="plus" />{{ t('surveys.new') }}</button>
       </template>
     </PageHeader>
@@ -108,14 +108,14 @@ onMounted(load)
             <p class="muted small">
               {{ t('surveys.questions', { count: s.questions.length }) }}
               <template v-if="s.closes_on"> · {{ t('surveys.until', { date: formatDate(s.closes_on) }) }}</template>
-              <template v-if="isAdmin"> · {{ t('surveys.responses', { count: s.responses }) }}</template>
+              <template v-if="isHr"> · {{ t('surveys.responses', { count: s.responses }) }}</template>
             </p>
           </div>
           <div class="row">
             <span v-if="s.answered" class="done-chip"><AppIcon name="check" :size="16" />{{ t('surveys.answered') }}</span>
             <RouterLink v-else :to="`/surveys/${s.id}`" class="btn btn-primary">{{ t('surveys.take') }}</RouterLink>
             <RouterLink v-if="s.can_see_results" :to="`/surveys/${s.id}?results=1`" class="btn btn-ghost">{{ t('surveys.results') }}</RouterLink>
-            <button v-if="isAdmin" type="button" class="btn btn-ghost" @click="setStatus(s, 'closed')">{{ t('surveys.close') }}</button>
+            <button v-if="isHr" type="button" class="btn btn-ghost" @click="setStatus(s, 'closed')">{{ t('surveys.close') }}</button>
           </div>
         </article>
       </section>
@@ -126,9 +126,9 @@ onMounted(load)
           <li v-for="s in others" :key="s.id" class="row-item">
             <span class="grow">
               <strong>{{ s.title }}</strong>
-              <span class="muted small"> · {{ t(`surveys.status.${s.status}`) }}<template v-if="isAdmin"> · {{ t('surveys.responses', { count: s.responses }) }}</template></span>
+              <span class="muted small"> · {{ t(`surveys.status.${s.status}`) }}<template v-if="isHr"> · {{ t('surveys.responses', { count: s.responses }) }}</template></span>
             </span>
-            <button v-if="isAdmin && s.status === 'draft'" type="button" class="btn btn-secondary" @click="setStatus(s, 'open')">{{ t('surveys.start') }}</button>
+            <button v-if="isHr && s.status === 'draft'" type="button" class="btn btn-secondary" @click="setStatus(s, 'open')">{{ t('surveys.start') }}</button>
             <RouterLink v-if="s.can_see_results" :to="`/surveys/${s.id}?results=1`" class="btn btn-ghost">{{ t('surveys.results') }}</RouterLink>
           </li>
         </ul>

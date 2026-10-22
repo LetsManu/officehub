@@ -48,7 +48,7 @@ DEMO_USERS = [
     ("sara.novak@example.com", "Sara", "Novak", "Finance", ("Buchhalterin", "Accountant"), "employee"),
     ("tom.huber@example.com", "Tom", "Huber", "Operations", ("Teamleiter Office", "Office Team Lead"), "manager"),
     ("julia.weber@example.com", "Julia", "Weber", "HR", ("Personalleiterin", "HR Manager"), "admin"),
-    ("max.gruber@example.com", "Max", "Gruber", "IT", ("IT-Administrator", "IT Administrator"), "employee"),
+    ("max.gruber@example.com", "Max", "Gruber", "IT", ("IT-Administrator", "IT Administrator"), "servicedesk"),
 ]
 
 # Fictional numbers from the 555-01xx range reserved for examples

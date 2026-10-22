@@ -94,6 +94,17 @@ def test_existing_person_is_linked_and_groups_set_the_role(julia, idp):
     assert browser.get("/api/auth/me").json()["role"] == "employee"
 
 
+def test_groups_set_several_roles_and_leave_the_others(julia, idp):
+    _configure(julia, hr_group="hr", teamlead_group="leads")
+    browser, _ = _sign_in(idp, email="anna.mayer@example.com", email_verified=True, groups=["hr", "leads"])
+    assert browser.get("/api/auth/me").json()["roles"] == ["hr", "teamlead"]
+    # a role without a group (service desk) stays as set in OfficeHub
+    anna_id = browser.get("/api/auth/me").json()["id"]
+    julia.patch(f"/api/admin/users/{anna_id}", json={"roles": ["hr", "teamlead", "servicedesk"]})
+    browser, _ = _sign_in(idp, email="anna.mayer@example.com", email_verified=True, groups=["leads"])
+    assert browser.get("/api/auth/me").json()["roles"] == ["servicedesk", "teamlead"]
+
+
 def test_refusals_end_on_the_sign_in_page(julia, idp):
     _configure(julia, create_users=False)
     _, done = _sign_in(idp, email="anna.mayer@example.com")  # address not confirmed by the server

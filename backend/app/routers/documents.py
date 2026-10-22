@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, Form, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import or_, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, not_found
 from ..files import DOCUMENT_TYPES, MIME_TYPES, delete_quietly, extract_text, resolve, save_upload
 from ..models import Document, User, utcnow
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 def _get(db, document_id: int, user: User) -> Document:
     doc = db.get(Document, document_id)
-    if doc is None or (doc.archived and not user.is_admin):
+    if doc is None or (doc.archived and not user.is_hr):
         raise not_found("Document")
     return doc
 
@@ -60,7 +60,7 @@ def list_documents(
     if sort not in ("title", "updated"):
         raise ApiError(422, "invalid_sort", "Sort by 'title' or 'updated'.")
     query = select(Document)
-    if not (include_archived and user.is_admin):
+    if not (include_archived and user.is_hr):
         query = query.where(Document.archived.is_(False))
     if category:
         query = query.where(Document.category == category)
@@ -87,7 +87,7 @@ def list_documents(
 
 @router.post("", response_model=DocumentOut, status_code=201)
 async def upload_document(
-    user: Admin,
+    user: HR,
     db: DB,
     file: UploadFile = File(...),
     title: str = Form(...),
@@ -119,7 +119,7 @@ def get_document(document_id: int, user: CurrentUser, db: DB) -> Document:
 
 
 @router.patch("/{document_id}", response_model=DocumentOut)
-def update_document(document_id: int, body: DocumentUpdate, user: Admin, db: DB) -> Document:
+def update_document(document_id: int, body: DocumentUpdate, user: HR, db: DB) -> Document:
     doc = _get(db, document_id, user)
     changes = body.model_dump(exclude_unset=True, exclude_none=True)
     for field, value in changes.items():
@@ -130,7 +130,7 @@ def update_document(document_id: int, body: DocumentUpdate, user: Admin, db: DB)
 
 
 @router.post("/{document_id}/file", response_model=DocumentOut)
-async def replace_file(document_id: int, user: Admin, db: DB, file: UploadFile = File(...)) -> Document:
+async def replace_file(document_id: int, user: HR, db: DB, file: UploadFile = File(...)) -> Document:
     doc = _get(db, document_id, user)
     stored = await save_upload(file, DOCUMENT_TYPES, "documents")
     old_path = doc.file_path

@@ -38,7 +38,7 @@ from ..schemas import UtcDateTime
 from ..services import keys
 from ..services.meetings import due_reminders
 from ..services.presence import state_of
-from ..services.requests import deputy_for
+from ..services.requests import decided_requests, deputy_for
 from .announcements import open_must_read
 from .directory import DirectoryEntry, to_entry
 from .chat import unread_total
@@ -152,11 +152,9 @@ def summary(user: CurrentUser, db: DB, idle: bool = False,
 
     approvals = 0
     deputy_managers = deputy_for(db, user)
-    if user.is_approver:
-        approvals = count(select(Request.id).where(Request.status.in_(PENDING_STATUSES), Request.requester_id != user.id))
-    elif deputy_managers:
-        team = select(User.id).where(User.manager_id.in_(deputy_managers), User.id != user.id)
-        approvals = count(select(Request.id).where(Request.status.in_(PENDING_STATUSES), Request.requester_id.in_(team)))
+    decided = decided_requests(db, user)
+    if decided is not None:
+        approvals = count(select(Request.id).where(Request.status.in_(PENDING_STATUSES), decided))
     reviews = count(
         select(Review.id).where(
             Review.status == "preparation",
@@ -272,8 +270,9 @@ def search(user: CurrentUser, db: DB, q: str = Query(..., min_length=2, max_leng
     ).all()
 
     requests_query = select(Request).where(like(Request.title))
-    if user.is_approver:
-        requests_query = requests_query.where((Request.status != "draft") | (Request.requester_id == user.id))
+    decided = decided_requests(db, user)
+    if decided is not None:
+        requests_query = requests_query.where(((Request.status != "draft") & decided) | (Request.requester_id == user.id))
     else:
         requests_query = requests_query.where(Request.requester_id == user.id)
     requests = db.scalars(requests_query.order_by(Request.updated_at.desc()).limit(SEARCH_LIMIT)).all()

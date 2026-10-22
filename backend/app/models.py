@@ -13,8 +13,15 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-ROLES = ("employee", "manager", "admin")
-APPROVER_ROLES = ("manager", "admin")
+ROLES = ("employee", "teamlead", "manager", "hr", "servicedesk", "admin")
+# One person can hold several roles (users.roles); users.role keeps the main one for lists and sorting.
+# employee: everyone. teamlead: decides for their own team (people whose manager they are). manager: decides requests
+# of everyone. hr: people, HR documents, onboarding, reviews, trainings, news and other HR areas, decides requests.
+# servicedesk: IT help: IT access and equipment requests, the equipment register, password and two-factor resets.
+# admin: everything, plus the system (sign-in, security, backups, branding, office, rooms, audit log).
+ROLE_RANK = ("admin", "hr", "manager", "servicedesk", "teamlead", "employee")
+APPROVER_ROLES = ("teamlead", "manager", "hr", "admin")
+IT_REQUEST_TYPES = ("it_access", "equipment")
 
 REQUEST_TYPES = ("vacation", "home_office", "equipment", "expense", "it_access", "appointment", "general")
 REQUEST_STATUSES = ("draft", "submitted", "in_review", "approved", "rejected", "cancelled")
@@ -34,6 +41,7 @@ class User(Base):
     office_location: Mapped[str] = mapped_column(String(80), default="")
     language: Mapped[str] = mapped_column(String(2), default="de")
     role: Mapped[str] = mapped_column(String(20), default="employee")
+    roles_text: Mapped[str] = mapped_column("roles", String(80), default="", server_default=text("''"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -98,12 +106,60 @@ class User(Base):
         return deputy if self.deputy_until >= (today or date.today()) else None
 
     @property
+    def roles(self) -> list[str]:
+        held = {r for r in (self.roles_text or "").split(",") if r in ROLES and r != "employee"}
+        if not held and self.role not in ("", "employee"):
+            # Before roles could be combined: HR / Administration was one role and keeps both sides
+            held = {"admin", "hr"} if self.role == "admin" else {self.role}
+        return [r for r in ROLE_RANK if r in held]
+
+    def set_roles(self, roles: "list[str] | set[str] | tuple[str, ...]") -> None:
+        held = [r for r in ROLE_RANK if r in set(roles) and r != "employee"]
+        self.roles_text = ",".join(held)
+        self.role = held[0] if held else "employee"
+
+    def has_role(self, *names: str) -> bool:
+        """Admins may do everything."""
+        held = self.roles
+        return "admin" in held or any(n in held for n in names)
+
+    @property
     def is_approver(self) -> bool:
-        return self.role in APPROVER_ROLES
+        """Decides requests and time sheets: for their own team (teamlead) or for everyone."""
+        return self.has_role(*APPROVER_ROLES)
+
+    @property
+    def approves_everyone(self) -> bool:
+        return self.has_role("manager", "hr")
+
+    @property
+    def is_teamlead_only(self) -> bool:
+        return self.is_approver and not self.approves_everyone
+
+    @property
+    def is_hr(self) -> bool:
+        return self.has_role("hr")
+
+    @property
+    def is_servicedesk(self) -> bool:
+        return self.has_role("servicedesk")
+
+    @property
+    def is_support(self) -> bool:
+        """HR or service desk: passwords, two-factor, equipment."""
+        return self.has_role("hr", "servicedesk")
 
     @property
     def is_admin(self) -> bool:
-        return self.role == "admin"
+        return "admin" in self.roles
+
+
+def with_role(*names: str):
+    """SQL condition: people holding one of the roles (admins included)."""
+    from sqlalchemy import or_
+
+    wanted = set(names) | {"admin"}
+    return or_(User.role.in_(wanted), *[User.roles_text.like(f"%{n}%") for n in sorted(wanted)])
 
 
 class AuthSession(Base):

@@ -14,7 +14,8 @@ def required_2fa_roles(db: Session) -> list[str]:
 
 
 def two_factor_required(db: Session, user: User) -> bool:
-    return user.role in required_2fa_roles(db)
+    required = required_2fa_roles(db)
+    return any(r in required for r in (user.roles or ["employee"]))
 
 
 def use_recovery_code(user: User, code: str) -> bool:

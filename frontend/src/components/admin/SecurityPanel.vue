@@ -9,7 +9,7 @@ import { publicConfig } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import type { PortalSettings, Role } from '@/lib/types'
 
-const ROLES: Role[] = ['admin', 'manager', 'employee']
+const ROLES: Role[] = ['admin', 'hr', 'manager', 'servicedesk', 'teamlead', 'employee']
 const required = ref<Role[]>([...(portalSettings.value.require_2fa_roles ?? [])] as Role[])
 const saving = ref(false)
 const testing = ref(false)

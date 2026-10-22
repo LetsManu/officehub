@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, not_found
 from ..files import MIME_TYPES, RECEIPT_TYPES, resolve, save_upload
 from ..models import Training, TrainingRecord, User
@@ -148,12 +148,12 @@ async def complete(
 
 
 @router.get("", response_model=list[TrainingOut])
-def list_trainings(user: Admin, db: DB) -> list[TrainingOut]:
+def list_trainings(user: HR, db: DB) -> list[TrainingOut]:
     return [_out(t) for t in db.scalars(select(Training).order_by(Training.active.desc(), Training.title))]
 
 
 @router.post("", response_model=TrainingOut, status_code=201)
-def create_training(body: TrainingIn, user: Admin, db: DB) -> TrainingOut:
+def create_training(body: TrainingIn, user: HR, db: DB) -> TrainingOut:
     t = Training(**body.model_dump())
     db.add(t)
     audit(db, user, "training_created", body.title)
@@ -162,7 +162,7 @@ def create_training(body: TrainingIn, user: Admin, db: DB) -> TrainingOut:
 
 
 @router.put("/{training_id}", response_model=TrainingOut)
-def update_training(training_id: int, body: TrainingIn, user: Admin, db: DB) -> TrainingOut:
+def update_training(training_id: int, body: TrainingIn, user: HR, db: DB) -> TrainingOut:
     t = _get(db, training_id)
     for field, value in body.model_dump().items():
         setattr(t, field, value)
@@ -172,7 +172,7 @@ def update_training(training_id: int, body: TrainingIn, user: Admin, db: DB) -> 
 
 
 @router.get("/{training_id}/people", response_model=list[PersonStatus])
-def people(training_id: int, user: Admin, db: DB) -> list[PersonStatus]:
+def people(training_id: int, user: HR, db: DB) -> list[PersonStatus]:
     t = _get(db, training_id)
     persons = db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.last_name, User.first_name))
     return [_status(db, t, p) for p in persons if _applies(t, p)]
@@ -180,7 +180,7 @@ def people(training_id: int, user: Admin, db: DB) -> list[PersonStatus]:
 
 @router.post("/{training_id}/people/{person_id}", response_model=PersonStatus)
 async def record_for(
-    training_id: int, person_id: int, user: Admin, db: DB, completed_on: date = Form(...), file: UploadFile | None = File(None)
+    training_id: int, person_id: int, user: HR, db: DB, completed_on: date = Form(...), file: UploadFile | None = File(None)
 ) -> PersonStatus:
     t = _get(db, training_id)
     person = db.get(User, person_id)
@@ -193,7 +193,7 @@ async def record_for(
 
 
 @router.post("/{training_id}/remind")
-def remind(training_id: int, user: Admin, db: DB) -> dict:
+def remind(training_id: int, user: HR, db: DB) -> dict:
     t = _get(db, training_id)
     due = [s.person.id for s in people(training_id, user, db) if s.status in ("overdue", "due_soon", "open", "expiring")]
     notifications.notify_many(db, due, user, "training_due", {"title": t.title}, "/trainings")
@@ -202,7 +202,7 @@ def remind(training_id: int, user: Admin, db: DB) -> dict:
 
 
 @router.get("/{training_id}/export.csv")
-def export(training_id: int, user: Admin, db: DB) -> Response:
+def export(training_id: int, user: HR, db: DB) -> Response:
     t = _get(db, training_id)
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
@@ -218,7 +218,7 @@ def export(training_id: int, user: Admin, db: DB) -> Response:
 @router.get("/records/{record_id}/certificate")
 def certificate(record_id: int, user: CurrentUser, db: DB) -> FileResponse:
     record = db.get(TrainingRecord, record_id)
-    if record is None or not record.certificate_path or not (record.user_id == user.id or user.is_admin):
+    if record is None or not record.certificate_path or not (record.user_id == user.id or user.is_hr):
         raise not_found("Certificate")
     file_type = record.certificate_path.rsplit(".", 1)[-1]
     return FileResponse(

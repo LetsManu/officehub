@@ -5,7 +5,7 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import APPROVER_ROLES, Notification, Request, User
+from ..models import IT_REQUEST_TYPES, Notification, Request, User, with_role
 from .mailer import EMAIL_KINDS, queue_mail
 
 NOTIFICATION_KINDS = (
@@ -44,12 +44,18 @@ def notify_many(db: Session, user_ids, actor: User | None, kind: str, params: di
 
 
 def request_approvers(db: Session, req: Request) -> list[int]:
-    """The requester's own manager (and their deputy while they are away), else everyone with the admin role."""
+    """The requester's own manager or team lead (and their deputy while they are away), else HR; IT requests also
+    reach the service desk."""
     manager = req.requester.manager
-    if manager is not None and manager.is_active and manager.role in APPROVER_ROLES and manager.id != req.requester_id:
+    if manager is not None and manager.is_active and manager.is_approver and manager.id != req.requester_id:
         deputy = manager.active_deputy()
-        return [manager.id] + ([deputy.id] if deputy and deputy.id != req.requester_id else [])
-    return list(db.scalars(select(User.id).where(User.role == "admin", User.is_active.is_(True), User.id != req.requester_id)))
+        people = [manager.id] + ([deputy.id] if deputy and deputy.id != req.requester_id else [])
+    else:
+        people = list(db.scalars(select(User.id).where(with_role("hr"), User.is_active.is_(True), User.id != req.requester_id)))
+    if req.type in IT_REQUEST_TYPES:
+        desk = db.scalars(select(User).where(with_role("servicedesk"), User.is_active.is_(True), User.id != req.requester_id))
+        people += [u.id for u in desk if "servicedesk" in u.roles and u.id not in people]
+    return people
 
 
 def request_params(req: Request, actor: User) -> dict:

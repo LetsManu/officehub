@@ -6,7 +6,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { errorText, formatDate, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { ChecklistSummary, DirectoryEntry } from '@/lib/types'
@@ -26,7 +26,7 @@ async function load() {
   error.value = null
   try {
     items.value = await api.get<ChecklistSummary[]>(`/api/onboarding?kind=${kind.value}`)
-    if (isAdmin.value && !people.value.length) people.value = await api.get<DirectoryEntry[]>('/api/directory')
+    if (isHr.value && !people.value.length) people.value = await api.get<DirectoryEntry[]>('/api/directory')
   } catch (e) {
     error.value = errorText(e)
   } finally {
@@ -92,7 +92,7 @@ onMounted(load)
         <EmptyState v-else icon="clipboard" :message="kind === 'offboarding' ? t('onboarding.offEmpty') : t('onboarding.empty')" />
       </section>
 
-      <details v-if="isAdmin" class="disclosure">
+      <details v-if="isHr" class="disclosure">
         <summary>{{ kind === 'offboarding' ? t('onboarding.offStart') : t('onboarding.start') }}</summary>
         <form class="disclosure-body row" @submit.prevent="start">
           <label for="start-person" class="visually-hidden">{{ t('onboarding.person') }}</label>

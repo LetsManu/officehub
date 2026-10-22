@@ -532,7 +532,17 @@ Under **Change password** you can set a new password (at least 8 characters).
 
 ## For managers and HR
 
-People with the *Manager* or *HR / Admin* role see an extra **Management** section in the menu.
+People with more than the employee role see an extra **Management** section in the menu, with what their roles allow:
+
+- **Team lead**: requests and time sheets of their own team (the people they are set as manager for).
+- **Manager**: everyone's requests, statistics and reports.
+- **HR**: people and roles, personal documents, onboarding and offboarding, news, documents, reviews, trainings,
+  surveys and public holidays; also everyone's requests.
+- **Service desk**: IT access and equipment requests, the equipment register, resetting passwords and two-step sign-in.
+- **Administrator**: everything, plus company login, security, backups, branding, office editing, rooms and the audit log.
+
+A person can have several roles. HR changes them under **Administration → People → Change roles**; only an
+administrator can make someone an administrator.
 
 ### Approvals
 
@@ -546,10 +556,10 @@ People with the *Manager* or *HR / Admin* role see an extra **Management** secti
 
 - **Overview**: open requests, decisions this month, average handling time and approved vacation days this year.
 - **Export approved requests**: choose a type and dates if you like, then click **Download CSV**. The file opens in Excel or LibreOffice.
-- **People** (HR / Admin): add a person with a starting password, change roles or deactivate accounts.
-- **Company login** (HR / Admin): let people sign in with their company account (Authentik, Keycloak …). The panel
+- **People** (HR): add a person with a starting password, change roles or deactivate accounts.
+- **Company login** (Administrator): let people sign in with their company account (Authentik, Keycloak …). The panel
   shows the address to register there; paste server address, client ID and secret. See the deployment guide.
-- **Backups** (HR / Admin): OfficeHub backs up the database and all files every night. See whether the last backup
+- **Backups** (Administrator): OfficeHub backs up the database and all files every night. See whether the last backup
   worked, back up now, download a backup or go back to an earlier state (the current state is backed up first; people
   who signed in since then sign in again).
 
@@ -558,7 +568,7 @@ People with the *Manager* or *HR / Admin* role see an extra **Management** secti
 **Reports** offers ready-made lists: absences in a month, expenses by category, requests waiting too long and
 equipment handed out. Each list can be downloaded as a CSV file.
 
-### Portal settings (HR / Admin)
+### Portal settings (Administrator)
 
 Under **Administration**:
 

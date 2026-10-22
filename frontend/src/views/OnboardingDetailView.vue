@@ -6,7 +6,7 @@ import FormField from '@/components/FormField.vue'
 import LoadState from '@/components/LoadState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { currentUser, isAdmin, isApprover } from '@/lib/session'
+import { currentUser, isApprover, isHr } from '@/lib/session'
 import { errorText, formatDate, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { Checklist, OnboardingTask } from '@/lib/types'
@@ -121,7 +121,7 @@ onMounted(load)
           </ul>
         </section>
 
-        <details v-if="isAdmin" class="disclosure">
+        <details v-if="isHr" class="disclosure">
           <summary>{{ t('onboarding.addTask') }}</summary>
           <form class="disclosure-body stack" novalidate @submit.prevent="addTask">
             <div class="grid-2">

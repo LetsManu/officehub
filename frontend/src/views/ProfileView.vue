@@ -11,7 +11,7 @@ import MyEquipment from '@/components/MyEquipment.vue'
 import TwoFactorSettings from '@/components/TwoFactorSettings.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
-import { currentUser, isApprover, publicConfig, setUser } from '@/lib/session'
+import { currentUser, isApprover, publicConfig, roleNames, setUser } from '@/lib/session'
 import { errorText, formatDate, locale, t } from '@/lib/i18n'
 import { applyTheme, theme } from '@/lib/theme'
 import { showToast } from '@/lib/toast'
@@ -208,7 +208,7 @@ async function changePassword() {
 
       <dl class="facts readonly">
         <div><dt>{{ t('profile.email') }}</dt><dd>{{ currentUser?.email }}</dd></div>
-        <div><dt>{{ t('profile.role') }}</dt><dd>{{ currentUser ? t(`roles.${currentUser.role}`) : '' }}</dd></div>
+        <div><dt>{{ t('profile.role') }}</dt><dd>{{ roleNames(currentUser) }}</dd></div>
         <div v-if="currentUser?.start_date"><dt>{{ t('profile.startDate') }}</dt><dd>{{ formatDate(currentUser.start_date) }}</dd></div>
         <div><dt>{{ t('profile.vacationDays') }}</dt><dd>{{ t('profile.vacationDaysValue', { count: currentUser?.vacation_days ?? 0 }) }}</dd></div>
       </dl>

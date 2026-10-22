@@ -34,7 +34,7 @@ Email = Annotated[
 Language = Literal["de", "en"]
 # Local wall-clock time without time zone, as sent by <input type="datetime-local">
 LocalTime = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")]
-Role = Literal["employee", "manager", "admin"]
+Role = Literal["employee", "teamlead", "manager", "hr", "servicedesk", "admin"]
 
 RequestType = Literal["vacation", "home_office", "equipment", "expense", "it_access", "appointment", "general"]
 RequestStatus = Literal["draft", "submitted", "in_review", "approved", "rejected", "cancelled"]
@@ -73,6 +73,7 @@ class UserOut(ORM):
     office_location: str
     language: str
     role: str
+    roles: list[str] = []
     is_active: bool
     phone: str = ""
     mobile: str = ""
@@ -141,6 +142,7 @@ class UserCreate(BaseModel):
     office_location: Optional80 = ""
     language: Language = "de"
     role: Role = "employee"
+    roles: list[Role] | None = None  # several roles; replaces role when given
     password: Annotated[str, StringConstraints(min_length=8, max_length=200)]
     phone: Phone = ""
     manager_id: int | None = None
@@ -152,6 +154,7 @@ class UserCreate(BaseModel):
 
 class UserAdminUpdate(BaseModel):
     role: Role | None = None
+    roles: list[Role] | None = None
     is_active: bool | None = None
     department: Optional80 | None = None
     job_title: Optional80 | None = None
