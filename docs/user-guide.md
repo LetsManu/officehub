@@ -39,8 +39,11 @@ until it is installed (*Don't show again* hides it). The installed app
 - **Windows:** OfficeHub opens in its own window with the Windows 11 look and starts with Windows. Closing the
   window keeps it running in the notification area (bottom right): messages and notices come as Windows
   notifications, the taskbar icon shows the number of new items, and a call rings with a small window
-  (**Accept** / **Decline**). Right-click the icon for **Start with Windows** on/off, **Connect to another
-  OfficeHub** or **Quit**. The first time, Windows may warn about an unknown publisher: **More info → Run anyway**.
+  (**Accept** / **Decline**). Right-click the icon in the notification area to set your **Status** (available, busy,
+  do not disturb …), switch **Start with Windows** on/off, **Connect to another OfficeHub** or **Quit**. Right-click
+  OfficeHub in the taskbar to jump straight to **Chat**, **Calendar**, **Meetings** or **Activity**. While the window
+  is in the background, the taskbar icon flashes for new messages. The first time, Windows may warn about an unknown
+  publisher: **More info → Run anyway**.
 - **The OfficeHub folder (Windows, like OneDrive):** after the first sign-in in the app, Explorer shows **OfficeHub**
   in its left pane, with one folder per space. Files take no space until you open them – then they download (a cloud
   icon means "online only", a green tick "on this PC"). Right-click → **Always keep on this device** keeps a file or
@@ -54,7 +57,9 @@ until it is installed (*Don't show again* hides it). The installed app
   phone is locked – calls ring full screen like a phone call. For that the app stays connected to your OfficeHub
   (shown as a small permanent notification "OfficeHub is connected"; no outside push service). Allow notifications
   and "no battery restrictions" when asked. Camera and microphone for meetings, uploading and downloading files work
-  as in the browser.
+  as in the browser. Like Teams, the bar at the bottom leads to **Activity**, **Chat**, **Spaces** and **Calendar**
+  (with the number of new items); **More** opens the full menu. Pull down at the top of a page to reload it. To send
+  a photo, file or link from another app to OfficeHub, choose **Share → OfficeHub** there.
 OfficeHub then opens in its own window like a normal program.
 
 ---

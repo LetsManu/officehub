@@ -4,12 +4,13 @@
  * keeps it until the person decides where it goes: files into a space, text into a chat.
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import FormField from '@/components/FormField.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/lib/api'
+import { appKind } from '@/lib/native'
 import { errorText, formatFileSize, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { Conversation, Space } from '@/lib/types'
@@ -24,6 +25,7 @@ interface SharedMeta {
 }
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(true)
 const files = ref<File[]>([])
 const text = ref('')
@@ -35,6 +37,20 @@ const busy = ref(false)
 const error = ref('')
 
 const empty = computed(() => !files.value.length && !text.value)
+
+/** The Android app keeps what was shared with it until this page asks (only its WebView answers /__app/). */
+async function fromApp() {
+  if (route.query.from !== 'app' || appKind() !== 'android' || !('caches' in window)) return
+  const meta = await fetch('/__app/share/meta', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+  if (!meta) return
+  const cache = await caches.open(CACHE)
+  for (const key of await cache.keys()) await cache.delete(key)
+  for (const [i] of (meta as SharedMeta).files.entries()) {
+    const file = await fetch(`/__app/share/file/${i}`, { cache: 'no-store' }).catch(() => null)
+    if (file?.ok) await cache.put(`/share/file/${i}`, new Response(await file.blob(), { headers: { 'Content-Type': file.headers.get('Content-Type') || 'application/octet-stream' } }))
+  }
+  await cache.put('/share/meta', new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }))
+}
 
 async function load() {
   if (!('caches' in window)) return
@@ -59,6 +75,7 @@ async function clear() {
 
 onMounted(async () => {
   try {
+    await fromApp()
     await load()
     const [s, c] = await Promise.all([api.get<Space[]>('/api/spaces'), api.get<Conversation[]>('/api/chat')])
     spaces.value = s.filter((x) => x.my_role && !x.archived)

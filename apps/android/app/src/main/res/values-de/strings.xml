@@ -11,4 +11,9 @@
     <string name="call_incoming">ruft dich an …</string>
     <string name="call_accept">Annehmen</string>
     <string name="call_decline">Ablehnen</string>
+    <string name="nav_activity">Aktivität</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_spaces">Bereiche</string>
+    <string name="nav_calendar">Kalender</string>
+    <string name="nav_more">Mehr</string>
 </resources>

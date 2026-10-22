@@ -4,8 +4,10 @@
  * the app icon, a ringing call while the window is hidden, and (Android) the wording for notifications the app
  * shows in the background. In a normal browser none of this exists and everything stays as before.
  *
- * The apps answer by sending an "officehub-app" event to the page: { navigate: '/chat/3' } or
- * { call: 12, action: 'accept' | 'decline' }.
+ * The apps answer by sending an "officehub-app" event to the page: { navigate: '/chat/3' },
+ * { call: 12, action: 'accept' | 'decline' }, { menu: true } (Android's "More" tab) or { status: 'busy' } (Windows tray).
+ * What another Android app shared waits in the app: /share?from=app reads it from /__app/share/* (only the app's
+ * WebView answers these addresses).
  */
 
 import { language, t } from './i18n'
@@ -75,7 +77,22 @@ export function appTexts() {
     reminderNow: t('reminder.now'),
     reminderIn: t('reminder.inMinutes', { n: '{n}' }),
     channelName: t('app.name'),
+    navActivity: t('nav.activity'),
+    navChat: t('nav.chat'),
+    navSpaces: t('nav.spaces'),
+    navCalendar: t('nav.calendar'),
+    navMore: t('nav.more'),
   })
+}
+
+/** Android's bottom bar shows the numbers on Activity and Chat, like Teams. */
+export function appCounts(activity: number, chat: number) {
+  if (appKind() === 'android') send({ type: 'counts', activity, chat })
+}
+
+/** Android's pull to refresh only starts when the page is scrolled to the very top. */
+export function appScrolled(atTop: boolean) {
+  if (appKind() === 'android') send({ type: 'scroll', atTop })
 }
 
 /** Signed in (or out): the Android app starts or stops its background connection. */
@@ -92,6 +109,10 @@ export interface AppEvent {
   navigate?: string
   call?: number
   action?: 'accept' | 'decline'
+  /** Android's "More" tab: open the menu */
+  menu?: boolean
+  /** Windows tray menu: set my status */
+  status?: 'auto' | 'available' | 'busy' | 'dnd' | 'away' | 'offline'
   /** Windows: this computer has no OfficeHub folder yet – make an app password for it */
   syncSetup?: { device: string }
 }

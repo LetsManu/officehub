@@ -13,11 +13,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-10-22',
     de: [
       'OfficeHub-Apps für Windows und Android – wie Teams: eigenes Fenster, Mitteilungen und Anrufe auch bei geschlossenem Fenster bzw. gesperrtem Handy, Zahl am Symbol, Start mit Windows. Download unter „Als App installieren“. In der App bleibst du bis zu 90 Tage angemeldet.',
+      'Die Apps fühlen sich noch mehr wie Teams an: Android mit Leiste unten (Aktivität, Chat, Bereiche, Kalender), Herunterziehen zum Neuladen und „Teilen → OfficeHub“; Windows mit Status im Symbol unten rechts, Sprungliste in der Taskleiste und blinkendem Symbol bei neuen Nachrichten. Seitenwechsel sind jetzt sanft animiert.',
       'Der OfficeHub-Ordner in Windows wie bei OneDrive: Nach der Anmeldung in der Windows-App erscheint „OfficeHub“ im Explorer, mit einem Ordner pro Bereich. Dateien laden erst beim Öffnen, „Immer auf diesem Gerät behalten“ macht sie offline verfügbar, und alles, was du dort speicherst, landet im Bereich.',
       'Neue Rollen: Teamleitung (entscheidet für das eigene Team), Personal (HR), Service Desk (IT-Zugänge, Geräte, Passwörter) und Administration getrennt von HR. Eine Person kann mehrere Rollen haben.',
     ],
     en: [
       'OfficeHub apps for Windows and Android – like Teams: their own window, notifications and calls even with the window closed or the phone locked, a number on the icon, starts with Windows. Download under "Install as app". In the app you stay signed in for up to 90 days.',
+      'The apps feel even more like Teams: Android with a bar at the bottom (Activity, Chat, Spaces, Calendar), pull down to reload and "Share → OfficeHub"; Windows with your status in the tray icon, a jump list in the taskbar and a flashing icon for new messages. Page changes are now gently animated.',
       'The OfficeHub folder in Windows, like OneDrive: after signing in to the Windows app, "OfficeHub" appears in Explorer with one folder per space. Files download only when opened, "Always keep on this device" keeps them offline, and whatever you save there lands in the space.',
       'New roles: team lead (decides for their own team), HR, service desk (IT access, equipment, passwords) and administrator separate from HR. A person can have several roles.',
     ],
