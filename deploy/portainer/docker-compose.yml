@@ -106,6 +106,16 @@ services:
     image: ghcr.io/letsmanu/officehub-craft:${OFFICEHUB_VERSION:-latest}
     restart: unless-stopped
 
+  # ---- Finds the server's address in the office network for the meeting servers below (runs once, then stops) ----
+  # Only looks at the server's own routing table; nothing is sent anywhere.
+  hostip:
+    image: busybox:1.37.0
+    restart: "no"
+    network_mode: host
+    command: ["/bin/sh", "-c", "ip route get 192.0.2.1 | sed -n 's/.* src \\([0-9.]*\\).*/\\1/p' > /shared/host_ip; cat /shared/host_ip"]
+    volumes:
+      - shared:/shared
+
   # ---- Relay for meetings and calls across networks (people at home, on mobile data) ----
   # Audio and video go directly between the browsers when they can; otherwise this relay of your own forwards them
   # (no outside service). Its password is made on the first start and its public address comes from PORTAL_URL.
@@ -116,11 +126,13 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      hostip:
+        condition: service_completed_successfully
     entrypoint:
       - /bin/sh
       - -c
       - >-
-        IP="$${PUBLIC_IP:-$$(cat /shared/public_ip 2>/dev/null)}";
+        IP="$${PUBLIC_IP:-$$(cat /shared/public_ip 2>/dev/null)}"; IP="$${IP:-$$(cat /shared/host_ip 2>/dev/null)}";
         exec turnserver -n --listening-port=3478 --min-port=49160 --max-port=49200
         --use-auth-secret --static-auth-secret="$$(cat /shared/turn_secret)" --realm=officehub
         --fingerprint --no-cli --no-tls --no-dtls --no-software-attribute --no-multicast-peers
@@ -194,7 +206,7 @@ services:
         export JWT_APP_SECRET="$${JWT_APP_SECRET:-$$(cat /shared/jitsi_app_secret)}"
         JICOFO_AUTH_PASSWORD="$${JICOFO_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
         JVB_AUTH_PASSWORD="$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
-        JVB_ADVERTISE_IPS="$${JVB_ADVERTISE_IPS:-$$(cat /shared/public_ip 2>/dev/null)}"
+        JVB_ADVERTISE_IPS="$$(echo "$${JVB_ADVERTISE_IPS:-$$(cat /shared/public_ip 2>/dev/null)},$$(cat /shared/host_ip 2>/dev/null)" | tr ',' '\n' | grep . | sort -u | paste -sd, -)"
         TURN_CREDENTIALS="$$(cat /shared/turn_secret 2>/dev/null)" TURN_HOST="$$H";
         exec /init
     volumes:
@@ -218,7 +230,11 @@ services:
     environment: *jitsi
     ports:
       - "10000:10000/udp"
-    depends_on: [jitsi-prosody]
+    depends_on:
+      jitsi-prosody:
+        condition: service_started
+      hostip:
+        condition: service_completed_successfully
     entrypoint: *jitsi-secrets
     volumes:
       - shared:/shared:ro

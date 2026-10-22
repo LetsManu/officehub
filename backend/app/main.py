@@ -16,6 +16,7 @@ from .db import Base, SessionLocal, add_missing_columns, engine
 from .errors import ApiError
 from .services import sso as sso_service
 from .services import backup
+from .services import meetings as meetings_service
 from .routers import (
     admin,
     apps,
@@ -89,6 +90,8 @@ async def csrf_and_headers(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path.startswith("/api/"):
         if request.headers.get(CSRF_HEADER) != CSRF_VALUE:
             return JSONResponse({"detail": "Missing request header.", "code": "csrf"}, status_code=403)
+    # The name people use for the portal (meetings: the relay is reached the same way)
+    meetings_service.request_host.set(request.headers.get("host"))
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "same-origin")

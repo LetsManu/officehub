@@ -26,25 +26,38 @@ def _app_download_url() -> str:
     return f"{base}/latest/download/"
 
 
+def _resolve(host: str | None) -> str | None:
+    """An IPv4 address for a name, without any outside service (the server's own DNS)."""
+    if not host or host == "localhost":
+        return None
+    try:
+        address = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
+    except (OSError, IndexError):
+        return None
+    return None if address.startswith("127.") else address
+
+
+def share_public_address(address: str | None) -> None:
+    """Hands the address to the meeting servers of the stack (the videobridge and the relay read it on start)."""
+    if not address:
+        return
+    path = Path(os.getenv("SHARED_DIR", "/shared")) / "public_ip"
+    try:
+        if path.parent.is_dir() and (not path.exists() or path.read_text().strip() != address):
+            path.write_text(address)
+    except OSError:
+        pass
+
+
 def _public_address(portal_url: str) -> str | None:
     """The server's address as people reach it: PUBLIC_IP, else what the portal's name resolves to (no outside
     service). Written to /shared/public_ip for the meeting servers of the stack (the videobridge and the relay for
-    people outside the office), so nobody has to look it up and copy it."""
-    address = os.getenv("PUBLIC_IP") or os.getenv("JITSI_PUBLIC_IP")
-    host = urlparse(portal_url).hostname
-    if not address and host and host != "localhost":
-        try:
-            address = socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
-        except (OSError, IndexError):
-            address = None
+    people outside the office), so nobody has to look it up and copy it. Without PORTAL_URL the address people
+    open the portal with is learned later (services/meetings.note_host)."""
+    address = os.getenv("PUBLIC_IP") or os.getenv("JITSI_PUBLIC_IP") or _resolve(urlparse(portal_url).hostname)
     if not address or address.startswith("127."):
         return None
-    folder = Path(os.getenv("SHARED_DIR", "/shared"))
-    try:
-        if folder.is_dir():
-            (folder / "public_ip").write_text(address)
-    except OSError:
-        pass
+    share_public_address(address)
     return address
 
 
