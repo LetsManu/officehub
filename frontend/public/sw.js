@@ -4,6 +4,9 @@ const CACHE = 'officehub-shell-v2'
 const SHELL = ['/', '/index.html', '/offline.html', '/offline.css', '/favicon.svg', '/icon-192.png', '/theme-init.js']
 // Files and text shared from other apps wait here until the person chooses where they go (see /share).
 const SHARE = 'officehub-share'
+// WordCraft's and DeckCraft's large program files (names carry a hash): kept until a new version replaces them.
+const CRAFT = 'officehub-craft'
+const CRAFT_FILE = /^\/(wordcraft|deckcraft)\/[^/]+\.(wasm|js)$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()))
@@ -13,7 +16,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== SHARE).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE && key !== SHARE && key !== CRAFT).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   )
 })
@@ -37,6 +40,30 @@ async function receiveShare(request) {
   return Response.redirect('/share', 303)
 }
 
+/** A craft program file from the cache, or from the network (then kept in the background, and older versions of
+ * it dropped, while the page already starts with it). */
+async function craftFile(event, url) {
+  const cache = await caches.open(CRAFT)
+  const hit = await cache.match(event.request, { ignoreVary: true })
+  if (hit) return hit
+  const response = await fetch(event.request)
+  if (response.ok) {
+    const copy = response.clone()
+    event.waitUntil(
+      (async () => {
+        const [, app] = url.pathname.split('/')
+        const ext = url.pathname.slice(url.pathname.lastIndexOf('.'))
+        for (const key of await cache.keys()) {
+          const path = new URL(key.url).pathname
+          if (path !== url.pathname && path.startsWith(`/${app}/`) && path.endsWith(ext)) await cache.delete(key)
+        }
+        await cache.put(event.request, copy)
+      })(),
+    )
+  }
+  return response
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
   const url = new URL(request.url)
@@ -46,6 +73,10 @@ self.addEventListener('fetch', (event) => {
     return
   }
   if (request.method !== 'GET' || url.pathname.startsWith('/api/')) return
+  if (CRAFT_FILE.test(url.pathname)) {
+    event.respondWith(craftFile(event, url))
+    return
+  }
 
   // Built files have content hashes in their names, so the cached copy is always right.
   if (url.pathname.startsWith('/assets/')) {

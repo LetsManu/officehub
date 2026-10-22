@@ -62,6 +62,30 @@ export function loadCraftConfig(): Promise<CraftConfig> {
   return craftConfig
 }
 
+const warmed = new Set<string>()
+
+/**
+ * Fetch WordCraft's / DeckCraft's large program files in the background while someone looks at files, so opening a
+ * document is quick. Once per version: the service worker keeps them. Skipped when the connection is slow or the
+ * person asked to save data.
+ */
+export function warmCraft(apps: ('wordcraft' | 'deckcraft')[]): void {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  if (connection?.saveData || /2g/.test(connection?.effectiveType ?? '') || !navigator.serviceWorker?.controller) return
+  for (const app of apps) {
+    if (warmed.has(app)) continue
+    warmed.add(app)
+    window.setTimeout(async () => {
+      try {
+        const list = (await (await fetch(`/${app}/assets.json`)).json()) as { files?: string[] }
+        for (const file of list.files ?? []) await fetch(`/${app}/${file}`)
+      } catch {
+        /* the program then loads when the document opens */
+      }
+    }, 3000)
+  }
+}
+
 /** The browser program for a file, if it runs: "wordcraft" or "deckcraft". */
 export function craftApp(config: CraftConfig, type: string): 'wordcraft' | 'deckcraft' | null {
   return config.apps.find((app) => config.types[app]?.includes(type)) ?? null

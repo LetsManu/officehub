@@ -11,7 +11,7 @@ import { errorText, formatDateTime, t } from '@/lib/i18n'
 import { renderMarkdown } from '@/lib/markdown'
 import { useSpace } from '@/lib/spaceContext'
 import { currentUser } from '@/lib/session'
-import { canPreview, craftApp, driveAddresses, fileIcon, fileSize, fileTone, isOffice, loadCraftConfig, loadOfficeConfig, type CraftConfig } from '@/lib/spaces'
+import { canPreview, craftApp, driveAddresses, fileIcon, fileSize, fileTone, isOffice, loadCraftConfig, loadOfficeConfig, warmCraft, type CraftConfig } from '@/lib/spaces'
 import { showToast } from '@/lib/toast'
 import type { FileListing, Folder, OfficeConfig, SpaceFile, SpaceFileDetail } from '@/lib/types'
 
@@ -300,7 +300,10 @@ async function restoreVersion(number: number) {
 }
 
 onMounted(async () => {
-  loadCraftConfig().then((c) => (craft.value = c))
+  loadCraftConfig().then((c) => {
+    craft.value = c
+    warmCraft(c.apps)
+  })
   office.value = await loadOfficeConfig()
   await load()
   const file = Number(route.query.file)
