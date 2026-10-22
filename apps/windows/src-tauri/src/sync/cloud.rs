@@ -71,6 +71,26 @@ fn other<E: std::fmt::Debug>(e: E) -> io::Error {
     io::Error::other(format!("{e:?}"))
 }
 
+/// A placeholder opened with a normal Windows handle (with write access; folders need backup semantics).
+/// The Cloud Files calls that change a placeholder (convert, update, hydrate) do not take the protected handles of
+/// `CfOpenFileWithOplock` ("The handle is invalid").
+pub fn open(path: &Path) -> io::Result<Placeholder> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).write(true);
+    if path.is_dir() {
+        options.custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
+    }
+    Ok(Placeholder::from(options.open(path)?))
+}
+
+/// "Free up space": the content goes, the placeholder stays.
+pub fn free_up_space(path: &Path) -> io::Result<()> {
+    open(path)?.update(UpdateOptions::default().dehydrate(), None).map_err(other)?;
+    Ok(())
+}
+
 pub struct CloudStore {
     pub root: PathBuf,
 }
@@ -91,7 +111,7 @@ impl CloudStore {
     }
 
     fn convert(&self, path: &Path, data: Vec<u8>, dir: bool) -> io::Result<()> {
-        let mut placeholder = Placeholder::open(path).map_err(other)?;
+        let mut placeholder = open(path)?;
         let is_placeholder = placeholder.info().ok().flatten().is_some();
         if is_placeholder {
             placeholder
@@ -132,12 +152,13 @@ impl Store for CloudStore {
         let path = self.abs(rel);
         self.set_read_only(rel, false);
         let data = blob(item.id, item.version);
-        let updated = Placeholder::options().write_access().exclusive().open(&path).and_then(|mut p| {
+        let updated = open(&path).and_then(|mut p| {
             let pinned = p.info().ok().flatten().is_some_and(|i| i.pin_state() == PinState::Pinned);
             p.update(
                 UpdateOptions::default().metadata(metadata(item)).blob(&data).dehydrate().mark_in_sync(),
                 None,
-            )?;
+            )
+            .map_err(other)?;
             if pinned {
                 // "Always keep on this device": fetch the new version right away
                 let _ = p.hydrate(..);
@@ -236,14 +257,14 @@ fn follow_pin(path: &Path, depth: usize) {
         }
         return;
     }
-    let Ok(mut placeholder) = Placeholder::open(path) else { return };
+    let Ok(mut placeholder) = open(path) else { return };
     let Ok(Some(info)) = placeholder.info() else { return };
     match info.pin_state() {
         PinState::Pinned => {
             let path = path.to_path_buf();
             // In the background: a large file must not hold up Explorer
             std::thread::spawn(move || {
-                if let Ok(mut p) = Placeholder::open(&path) {
+                if let Ok(mut p) = open(&path) {
                     let _ = p.hydrate(..);
                 }
             });

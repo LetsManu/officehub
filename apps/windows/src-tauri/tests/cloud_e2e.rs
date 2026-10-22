@@ -6,7 +6,7 @@
 //!   OFFICEHUB_SYNC_SERVER, OFFICEHUB_SYNC_LOGIN, OFFICEHUB_SYNC_PASSWORD, OFFICEHUB_SYNC_SPACE, OFFICEHUB_SYNC_SPACE_ID
 #![cfg(windows)]
 
-use cloud_filter::placeholder::{Placeholder, UpdateOptions};
+use cloud_filter::placeholder::Placeholder;
 use officehub_app::sync::api::Api;
 use officehub_app::sync::cloud::{self, CloudStore};
 use officehub_app::sync::engine::{Engine, Words};
@@ -60,7 +60,7 @@ fn placeholders_download_on_open_and_uploads_work() {
     assert_eq!(info.on_disk_data_size(), content.len() as i64);
 
     // "Free up space": the content goes again, the file stays
-    Placeholder::options().write_access().open(&file).unwrap().update(UpdateOptions::default().dehydrate(), None).unwrap();
+    cloud::free_up_space(&file).expect("free up space");
     assert_eq!(Placeholder::open(&file).unwrap().info().unwrap().unwrap().on_disk_data_size(), 0);
     assert_eq!(std::fs::read_to_string(&file).unwrap(), content);
 
