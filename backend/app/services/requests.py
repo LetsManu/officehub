@@ -5,11 +5,11 @@ from collections.abc import Collection
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..errors import ApiError
-from ..models import PENDING_STATUSES, Request, RequestEvent, User
+from ..models import IT_REQUEST_TYPES, PENDING_STATUSES, Request, RequestEvent, User
 from ..schemas import (
     APPOINTMENT_TOPICS,
     EQUIPMENT_CATEGORIES,
@@ -150,16 +150,39 @@ def deputy_for(db: Session, user: User) -> list[int]:
     )
 
 
+def decides(user: User, req: Request) -> bool:
+    """Managers, HR and admins decide every request; a team lead those of their own team; the service desk IT access
+    and equipment requests; a deputy those of the manager they stand in for."""
+    if user.approves_everyone or is_acting_deputy(user, req):
+        return True
+    if user.is_approver and req.requester.manager_id == user.id:
+        return True
+    return req.type in IT_REQUEST_TYPES and user.is_servicedesk
+
+
+def decided_requests(db: Session, user: User):
+    """SQL condition for other people's requests the user decides (see decides()); None when there are none."""
+    if user.approves_everyone:
+        return Request.requester_id != user.id
+    managers = deputy_for(db, user) + ([user.id] if user.is_approver else [])
+    shown = []
+    if managers:
+        shown.append(Request.requester_id.in_(select(User.id).where(User.manager_id.in_(managers))))
+    if user.is_servicedesk:
+        shown.append(Request.type.in_(IT_REQUEST_TYPES))
+    return (Request.requester_id != user.id) & or_(*shown) if shown else None
+
+
 def can_view(user: User, req: Request) -> bool:
     if req.requester_id == user.id:
         return True
-    # Approvers (and a manager's deputy) see everything except other people's unsent drafts.
-    return (user.is_approver or is_acting_deputy(user, req)) and req.status != "draft"
+    # Those who decide it see it, except other people's unsent drafts.
+    return decides(user, req) and req.status != "draft"
 
 
 def permissions(user: User, req: Request) -> RequestPermissions:
     is_owner = req.requester_id == user.id
-    approver = (user.is_approver or is_acting_deputy(user, req)) and not is_owner and req.status != "draft"
+    approver = decides(user, req) and not is_owner and req.status != "draft"
     pending = req.status in PENDING_STATUSES
     return RequestPermissions(
         can_edit=is_owner and req.status == "draft",

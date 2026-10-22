@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Announcement, AnnouncementRead, PollVote, User
 from ..schemas import AnnouncementIn, AnnouncementOut, AnnouncementUpdate, PollOut, UtcDateTime
@@ -63,7 +63,7 @@ def _poll(db: Session, item: Announcement, user: User) -> PollOut | None:
         ).all()
     )
     mine = db.scalar(select(PollVote.option).where(PollVote.announcement_id == item.id, PollVote.user_id == user.id))
-    show = mine is not None or user.is_admin
+    show = mine is not None or user.is_hr
     return PollOut(
         question=item.poll_question,
         options=options,
@@ -88,7 +88,7 @@ def _get_visible(db: Session, announcement_id: int, user: User) -> Announcement:
     visible = item is not None and not item.archived and item.publish_date <= today and (
         item.expiry_date is None or item.expiry_date >= today
     )
-    if item is None or not (visible or user.is_admin):
+    if item is None or not (visible or user.is_hr):
         raise not_found("Announcement")
     return item
 
@@ -119,7 +119,7 @@ def list_announcements(
 ) -> list[AnnouncementOut]:
     query = select(Announcement)
     if include == "all":
-        if not user.is_admin:
+        if not user.is_hr:
             raise forbidden()
     else:
         query = query.where(*_visible(date.today()))
@@ -130,7 +130,7 @@ def list_announcements(
 
 
 @router.post("", response_model=AnnouncementOut, status_code=201)
-def create_announcement(body: AnnouncementIn, user: Admin, db: DB) -> AnnouncementOut:
+def create_announcement(body: AnnouncementIn, user: HR, db: DB) -> AnnouncementOut:
     values = body.model_dump()
     values["poll_options"] = json.dumps(values["poll_options"]) if values["poll_options"] else None
     item = Announcement(**values, author_id=user.id)
@@ -145,7 +145,7 @@ def create_announcement(body: AnnouncementIn, user: Admin, db: DB) -> Announceme
 
 
 @router.patch("/{announcement_id}", response_model=AnnouncementOut)
-def update_announcement(announcement_id: int, body: AnnouncementUpdate, user: Admin, db: DB) -> AnnouncementOut:
+def update_announcement(announcement_id: int, body: AnnouncementUpdate, user: HR, db: DB) -> AnnouncementOut:
     item = db.get(Announcement, announcement_id)
     if item is None:
         raise not_found("Announcement")
@@ -205,7 +205,7 @@ def _confirmations(db: Session, item: Announcement) -> Confirmations:
 
 
 @router.get("/{announcement_id}/confirmations", response_model=Confirmations)
-def confirmations(announcement_id: int, user: Admin, db: DB) -> Confirmations:
+def confirmations(announcement_id: int, user: HR, db: DB) -> Confirmations:
     item = db.get(Announcement, announcement_id)
     if item is None or not item.must_read:
         raise not_found("Announcement")
@@ -213,7 +213,7 @@ def confirmations(announcement_id: int, user: Admin, db: DB) -> Confirmations:
 
 
 @router.post("/{announcement_id}/remind")
-def remind(announcement_id: int, user: Admin, db: DB) -> dict:
+def remind(announcement_id: int, user: HR, db: DB) -> dict:
     """Sends a reminder to everyone who has not confirmed yet."""
     item = _get_visible(db, announcement_id, user)
     if not item.must_read:

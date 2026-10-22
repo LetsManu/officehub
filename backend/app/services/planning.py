@@ -12,7 +12,7 @@ from .requests import deputy_for
 
 def plannable_ids(db: Session, user: User) -> set[int]:
     """People the user may plan: HR/admins everyone, managers their team (and themselves), others nobody."""
-    if user.is_admin:
+    if user.is_hr:
         return set(db.scalars(select(User.id).where(User.is_active.is_(True))))
     if not user.is_approver and not deputy_for(db, user):
         return set()

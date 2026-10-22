@@ -12,7 +12,7 @@ import { branding, logoUrl } from '@/lib/branding'
 import { listenForNotificationClicks } from '@/lib/desktop'
 import { canInstall, installApp } from '@/lib/install'
 import { isStandalone, online, reload, updateReady } from '@/lib/pwa'
-import { currentUser, publicConfig, signOut } from '@/lib/session'
+import { currentUser, publicConfig, roleNames, signOut } from '@/lib/session'
 import { quickLinks, resetPortal } from '@/lib/portal'
 import { language, t } from '@/lib/i18n'
 import { allPages, navGroups, type NavGroup } from '@/lib/navigation'
@@ -333,7 +333,7 @@ watch(
           <UserAvatar :id="currentUser.id" :name="currentUser.full_name" :photo-version="currentUser.photo_version" status />
           <span class="who-text">
             <span class="who-name">{{ currentUser.full_name }}</span>
-            <span class="who-role">{{ t(`roles.${currentUser.role}`) }}</span>
+            <span class="who-role">{{ roleNames(currentUser) }}</span>
           </span>
         </RouterLink>
         <div class="bottom-actions">

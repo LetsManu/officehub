@@ -9,7 +9,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api, query } from '@/lib/api'
 import { errorText, formatDate, t } from '@/lib/i18n'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { showToast } from '@/lib/toast'
 import type { Idea, IdeaStatus } from '@/lib/types'
 
@@ -160,8 +160,8 @@ onMounted(load)
               <p class="small"><strong>{{ t('ideas.response') }}</strong></p>
               <p class="prewrap">{{ idea.response }}</p>
             </div>
-            <div v-if="isAdmin || idea.can_delete" class="row actions">
-              <button v-if="isAdmin" type="button" class="btn btn-secondary" @click="openAnswer(idea)">{{ t('ideas.answer') }}</button>
+            <div v-if="isHr || idea.can_delete" class="row actions">
+              <button v-if="isHr" type="button" class="btn btn-secondary" @click="openAnswer(idea)">{{ t('ideas.answer') }}</button>
               <button v-if="idea.can_delete" type="button" class="btn btn-ghost danger-text" @click="deleteTarget = idea">{{ t('ideas.delete') }}</button>
             </div>
           </div>

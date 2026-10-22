@@ -7,9 +7,9 @@ import FormField from './FormField.vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'
 import { portalSettings } from '@/lib/portal'
-import { currentUser, setUser } from '@/lib/session'
+import { currentUser, rolesOf, setUser } from '@/lib/session'
 import { showToast } from '@/lib/toast'
-import type { User } from '@/lib/types'
+import type { Role, User } from '@/lib/types'
 
 interface Setup {
   secret: string
@@ -26,7 +26,10 @@ const disableOpen = ref(false)
 const password = ref('')
 const passwordError = ref('')
 
-const required = computed(() => (portalSettings.value.require_2fa_roles ?? []).includes(currentUser.value?.role ?? 'employee'))
+const required = computed(() => {
+  const held: Role[] = rolesOf(currentUser.value)
+  return (held.length ? held : (['employee'] as Role[])).some((r) => (portalSettings.value.require_2fa_roles ?? []).includes(r))
+})
 const qrSrc = computed(() => setup.value?.qr_image ?? '')
 const secretGroups = computed(() => setup.value?.secret.match(/.{1,4}/g)?.join(' ') ?? '')
 

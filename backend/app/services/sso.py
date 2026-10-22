@@ -31,7 +31,9 @@ from .settings import get_setting
 DEFAULTS = {
     "enabled": False, "issuer": "", "client_id": "", "client_secret": "", "label": "",
     "create_users": True, "trust_email": False, "admin_group": "", "manager_group": "",
+    "hr_group": "", "servicedesk_group": "", "teamlead_group": "",
 }
+GROUP_ROLES = ("admin", "hr", "manager", "servicedesk", "teamlead")
 STATE_SECONDS = 600
 TIMEOUT = 8
 # state -> (nonce, PKCE verifier, redirect URI, expires); one backend process, and only for a few minutes
@@ -165,7 +167,9 @@ def finish(db: Session, state: str, code: str) -> User:
 
 
 def _other_admins(db: Session, user: User) -> int:
-    return db.scalar(select(func.count()).select_from(User).where(User.role == "admin", User.is_active, User.id != user.id)) or 0
+    others = db.scalars(select(User).where(User.role.in_(("admin", "hr", "manager", "servicedesk", "teamlead")) | User.roles_text.like("%admin%"),
+                                           User.is_active, User.id != user.id))
+    return sum(1 for u in others if u.is_admin)
 
 
 def _person(db: Session, o: dict, claims: dict) -> User:
@@ -195,13 +199,13 @@ def _person(db: Session, o: dict, claims: dict) -> User:
     if not user.is_active:
         raise SsoError("inactive")
     groups = claims.get("groups")
-    if isinstance(groups, list) and (o["admin_group"] or o["manager_group"]):
+    mapped = {role: o.get(f"{role}_group", "") for role in GROUP_ROLES if o.get(f"{role}_group")}
+    if isinstance(groups, list) and mapped:
+        # Each role with a group set follows the company directory; roles without a group stay as set in OfficeHub
         names = {str(g) for g in groups}
-        if o["admin_group"] and o["admin_group"] in names:
-            user.role = "admin"
-        elif o["manager_group"] and o["manager_group"] in names:
-            user.role = "manager"
-        elif user.role == "manager" or (user.role == "admin" and _other_admins(db, user)):
-            user.role = "employee"  # never the last admin, so nobody is locked out
+        roles = {r for r in user.roles if r not in mapped} | {r for r, g in mapped.items() if g in names}
+        if user.is_admin and "admin" not in roles and not _other_admins(db, user):
+            roles.add("admin")  # never the last admin, so nobody is locked out
+        user.set_roles(roles)
     db.flush()
     return user

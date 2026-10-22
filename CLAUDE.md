@@ -19,6 +19,9 @@ badge, offline notice and "updated, reload" (version in the summary).
   - `app/routers/` – one module per API area; permission checks live here.
   - `app/services/requests.py` – request validation per type, permissions, serialization.
   - `app/services/people.py` – reporting lines and default onboarding checklist.
+  - Roles (`models.py`: `ROLES`, `User.roles`, several per person): employee, teamlead (own team), manager (everyone's
+    requests), hr, servicedesk (IT requests, equipment, password resets), admin (everything). Gate endpoints with
+    `deps.py` (`Approver`, `Overseer`, `HR`, `Support`, `Staff`, `Admin`), never by comparing `user.role`.
   - `app/db.py` – `add_missing_columns()` upgrades existing databases; new columns need a default
     (`server_default`) or must be nullable.
   - `app/seed.py` – first admin and fictional demo data (`DEMO_MODE=true`).

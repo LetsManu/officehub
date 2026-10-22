@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, not_found
 from ..files import MIME_TYPES, delete_quietly, resolve, save_upload
 from ..models import PersonalDocument, User, utcnow
@@ -47,7 +47,7 @@ def _out(doc: PersonalDocument, person: User) -> PersonalDocumentOut:
 def _load(db, document_id: int, user: User) -> PersonalDocument:
     doc = db.get(PersonalDocument, document_id)
     # Only the person and HR can see it; everyone else gets "not found".
-    if doc is None or not (doc.user_id == user.id or user.is_admin):
+    if doc is None or not (doc.user_id == user.id or user.is_hr):
         raise not_found("Document")
     return doc
 
@@ -55,7 +55,7 @@ def _load(db, document_id: int, user: User) -> PersonalDocument:
 @router.get("", response_model=list[PersonalDocumentOut])
 def list_documents(user: CurrentUser, db: DB, person_id: int | None = None) -> list[PersonalDocumentOut]:
     """Your own documents; HR may pass person_id to see someone else's."""
-    target_id = person_id if (person_id and user.is_admin) else user.id
+    target_id = person_id if (person_id and user.is_hr) else user.id
     person = db.get(User, target_id)
     if person is None:
         raise not_found("Person")
@@ -67,7 +67,7 @@ def list_documents(user: CurrentUser, db: DB, person_id: int | None = None) -> l
 
 @router.post("", response_model=PersonalDocumentOut, status_code=201)
 async def upload(
-    user: Admin, db: DB, file: UploadFile = File(...), person_id: int = Form(...), title: str = Form(...)
+    user: HR, db: DB, file: UploadFile = File(...), person_id: int = Form(...), title: str = Form(...)
 ) -> PersonalDocumentOut:
     person = db.get(User, person_id)
     if person is None or not person.is_active:
@@ -109,7 +109,7 @@ def download(document_id: int, user: CurrentUser, db: DB) -> FileResponse:
 
 
 @router.delete("/{document_id}", status_code=204)
-def delete_document(document_id: int, user: Admin, db: DB) -> None:
+def delete_document(document_id: int, user: HR, db: DB) -> None:
     doc = _load(db, document_id, user)
     path = doc.file_path
     audit(db, user, "personal_document_deleted", f"{doc.title} ({doc.user_id})")

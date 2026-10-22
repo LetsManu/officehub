@@ -18,7 +18,7 @@ import BackupsPanel from '@/components/admin/BackupsPanel.vue'
 import SecurityPanel from '@/components/admin/SecurityPanel.vue'
 import { api, query } from '@/lib/api'
 import { REQUEST_TYPES } from '@/lib/requestTypes'
-import { currentUser, isAdmin } from '@/lib/session'
+import { currentUser, isAdmin, isHr, isOverseer, isSupport, roleNames, rolesOf } from '@/lib/session'
 import { errorText, t } from '@/lib/i18n'
 import { showToast } from '@/lib/toast'
 import type { Role, Stats, User } from '@/lib/types'
@@ -31,7 +31,26 @@ const error = ref<string | null>(null)
 const exportFilters = reactive({ type: '', date_from: '', date_to: '' })
 const exportUrl = computed(() => `/api/admin/requests/export.csv${query(exportFilters)}`)
 
-const ROLES: Role[] = ['employee', 'manager', 'admin']
+// Every role besides "employee" (which everyone is); only an administrator gives the administrator role
+const ROLES: Role[] = ['teamlead', 'manager', 'hr', 'servicedesk', 'admin']
+const grantable = computed(() => ROLES.filter((r) => r !== 'admin' || isAdmin.value))
+/** HR changes people, only an administrator changes an administrator. */
+const canEdit = (person: User) => isHr.value && (isAdmin.value || !rolesOf(person).includes('admin'))
+const canHelp = (person: User) => isSupport.value && (isAdmin.value || !rolesOf(person).includes('admin'))
+const rolesFor = ref<User | null>(null)
+const rolesDraft = ref<Role[]>([])
+function openRoles(person: User) {
+  rolesFor.value = person
+  rolesDraft.value = [...rolesOf(person)]
+}
+function toggleRole(role: Role) {
+  rolesDraft.value = rolesDraft.value.includes(role) ? rolesDraft.value.filter((r) => r !== role) : [...rolesDraft.value, role]
+}
+async function saveRoles() {
+  if (!rolesFor.value) return
+  await updatePerson(rolesFor.value, { roles: rolesDraft.value })
+  rolesFor.value = null
+}
 const addOpen = ref(false)
 const saving = ref(false)
 const newPerson = reactive({
@@ -40,7 +59,7 @@ const newPerson = reactive({
   email: '',
   department: '',
   job_title: '',
-  role: 'employee' as Role,
+  roles: [] as Role[],
   language: 'de',
   password: '',
   phone: '',
@@ -95,7 +114,7 @@ const peopleSort = useSort(
     name: (p) => `${p.last_name} ${p.first_name}`,
     department: (p) => p.department,
     manager: (p) => people.value.find((m) => m.id === p.manager_id)?.full_name ?? '',
-    role: (p) => p.role,
+    role: (p) => roleNames(p),
     status: (p) => (p.is_active ? 0 : 1),
   },
   'name',
@@ -124,7 +143,8 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const [s, p] = await Promise.all([api.get<Stats>('/api/admin/stats'), api.get<User[]>('/api/admin/users')])
+    // Company-wide numbers only for managers and HR
+    const [s, p] = await Promise.all([isOverseer.value ? api.get<Stats>('/api/admin/stats') : null, api.get<User[]>('/api/admin/users')])
     stats.value = s
     people.value = p
   } catch (e) {
@@ -134,7 +154,7 @@ async function load() {
   }
 }
 
-async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'is_active' | 'manager_id' | 'e2ee_required'>>) {
+async function updatePerson(person: User, change: Partial<Pick<User, 'roles' | 'is_active' | 'manager_id' | 'e2ee_required'>>) {
   try {
     const updated = await api.patch<User>(`/api/admin/users/${person.id}`, change)
     people.value = people.value.map((p) => (p.id === updated.id ? updated : p))
@@ -146,7 +166,7 @@ async function updatePerson(person: User, change: Partial<Pick<User, 'role' | 'i
 }
 
 function openAdd() {
-  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', role: 'employee', language: 'de', password: '', phone: '', manager_id: '', start_onboarding: true, start_date: '', vacation_days: 25 })
+  Object.assign(newPerson, { first_name: '', last_name: '', email: '', department: '', job_title: '', roles: [], language: 'de', password: '', phone: '', manager_id: '', start_onboarding: true, start_date: '', vacation_days: 25 })
   Object.assign(newErrors, { first_name: '', last_name: '', email: '', password: '' })
   addError.value = ''
   addOpen.value = true
@@ -202,7 +222,7 @@ onMounted(load)
     <PageHeader :title="t('admin.title')" :subtitle="t('admin.subtitle')" />
 
     <LoadState :loading="loading" :error="error" @retry="load">
-      <section v-if="stats" aria-labelledby="stats-title" class="stack">
+      <section v-if="stats && isOverseer" aria-labelledby="stats-title" class="stack">
         <h2 id="stats-title">{{ t('admin.stats') }}</h2>
         <div class="tiles">
           <component :is="tile.to ? 'RouterLink' : 'div'" v-for="tile in tiles" :key="tile.label" :to="tile.to" class="card tile" :class="{ link: tile.to }">
@@ -222,7 +242,7 @@ onMounted(load)
         </div>
       </section>
 
-      <section class="card stack" aria-labelledby="export-title">
+      <section v-if="isOverseer" class="card stack" aria-labelledby="export-title">
         <div>
           <h2 id="export-title">{{ t('admin.export') }}</h2>
           <p class="muted small">{{ t('admin.exportHint') }}</p>
@@ -250,7 +270,7 @@ onMounted(load)
       <details class="disclosure">
         <summary>{{ t('admin.people') }} ({{ people.length }})</summary>
         <div class="disclosure-body stack">
-          <div v-if="isAdmin"><button type="button" class="btn btn-secondary" @click="openAdd"><AppIcon name="plus" />{{ t('admin.addPerson') }}</button></div>
+          <div v-if="isHr"><button type="button" class="btn btn-secondary" @click="openAdd"><AppIcon name="plus" />{{ t('admin.addPerson') }}</button></div>
           <div class="table-wrap table-scroll">
             <table class="table table-sticky">
               <thead>
@@ -265,14 +285,14 @@ onMounted(load)
                   <td>
                     <span class="person-name">{{ person.full_name }}</span><br />
                     <span class="muted small">{{ person.email }}</span><br />
-                    <button v-if="isAdmin" type="button" class="btn btn-ghost work-btn" @click="openWork(person)">
+                    <button v-if="canEdit(person)" type="button" class="btn btn-ghost work-btn" @click="openWork(person)">
                       {{ t('admin.workDetails') }}
                     </button>
                   </td>
                   <td>{{ person.department }}<br /><span v-if="person.phone" class="muted small">{{ person.phone }}</span></td>
                   <td>
                     <select
-                      v-if="isAdmin"
+                      v-if="canEdit(person)"
                       class="select role-select"
                       :value="person.manager_id ?? ''"
                       :aria-label="`${t('admin.manager')}: ${person.full_name}`"
@@ -284,20 +304,20 @@ onMounted(load)
                     <span v-else>{{ people.find((p) => p.id === person.manager_id)?.full_name ?? '–' }}</span>
                   </td>
                   <td>
-                    <select
-                      v-if="isAdmin && person.id !== currentUser?.id"
-                      class="select role-select"
-                      :value="person.role"
+                    <span>{{ roleNames(person) }}</span><br />
+                    <button
+                      v-if="canEdit(person) && person.id !== currentUser?.id"
+                      type="button"
+                      class="btn btn-ghost work-btn"
                       :aria-label="t('admin.changeRole', { name: person.full_name })"
-                      @change="updatePerson(person, { role: ($event.target as HTMLSelectElement).value as Role })"
+                      @click="openRoles(person)"
                     >
-                      <option v-for="role in ROLES" :key="role" :value="role">{{ t(`roles.${role}`) }}</option>
-                    </select>
-                    <span v-else>{{ t(`roles.${person.role}`) }}</span>
+                      {{ t('admin.changeRoles') }}
+                    </button>
                   </td>
                   <td>
                     <button
-                      v-if="isAdmin && person.id !== currentUser?.id"
+                      v-if="canEdit(person) && person.id !== currentUser?.id"
                       type="button"
                       class="btn btn-ghost"
                       @click="updatePerson(person, { is_active: !person.is_active })"
@@ -305,8 +325,8 @@ onMounted(load)
                       {{ person.is_active ? t('admin.deactivate') : t('admin.activate') }}
                     </button>
                     <span :class="person.is_active ? 'active' : 'muted'">{{ person.is_active ? t('admin.active') : t('admin.inactive') }}</span>
-                    <button v-if="isAdmin && person.id !== currentUser?.id" type="button" class="btn btn-ghost" @click="openReset(person)">{{ t('admin.resetPassword') }}</button>
-                    <label v-if="isAdmin" class="e2ee-toggle small" :title="t('admin.e2eeRequiredHint')">
+                    <button v-if="canHelp(person) && person.id !== currentUser?.id" type="button" class="btn btn-ghost" @click="openReset(person)">{{ t('admin.resetPassword') }}</button>
+                    <label v-if="canEdit(person)" class="e2ee-toggle small" :title="t('admin.e2eeRequiredHint')">
                       <input type="checkbox" :checked="!!person.e2ee_required" @change="updatePerson(person, { e2ee_required: ($event.target as HTMLInputElement).checked })" />
                       {{ t('admin.e2eeRequired') }}
                     </label>
@@ -318,14 +338,18 @@ onMounted(load)
         </div>
       </details>
 
+      <details v-if="isHr" class="disclosure">
+        <summary>{{ t('admin.links') }}</summary>
+        <div class="disclosure-body"><QuickLinksPanel /></div>
+      </details>
+      <details v-if="isHr" class="disclosure">
+        <summary>{{ t('admin.holidays') }}</summary>
+        <div class="disclosure-body"><HolidaysPanel /></div>
+      </details>
       <template v-if="isAdmin">
         <details class="disclosure">
           <summary>{{ t('admin.portal') }}</summary>
           <div class="disclosure-body"><PortalSettingsPanel :people="people" /></div>
-        </details>
-        <details class="disclosure">
-          <summary>{{ t('admin.links') }}</summary>
-          <div class="disclosure-body"><QuickLinksPanel /></div>
         </details>
         <details class="disclosure">
           <summary>{{ t('admin.rooms') }}</summary>
@@ -334,10 +358,6 @@ onMounted(load)
         <details class="disclosure">
           <summary>{{ t('admin.branding') }}</summary>
           <div class="disclosure-body"><BrandingPanel /></div>
-        </details>
-        <details class="disclosure">
-          <summary>{{ t('admin.holidays') }}</summary>
-          <div class="disclosure-body"><HolidaysPanel /></div>
         </details>
         <details class="disclosure">
           <summary>{{ t('admin.security') }}</summary>
@@ -374,13 +394,13 @@ onMounted(load)
           <FormField id="np-department" :label="t('profile.department')" optional>
             <template #default="{ attrs }"><input v-bind="attrs" v-model="newPerson.department" class="input" maxlength="80" /></template>
           </FormField>
-          <FormField id="np-role" :label="t('profile.role')">
-            <template #default="{ attrs }">
-              <select v-bind="attrs" v-model="newPerson.role" class="select">
-                <option v-for="role in ROLES" :key="role" :value="role">{{ t(`roles.${role}`) }}</option>
-              </select>
-            </template>
-          </FormField>
+          <fieldset class="roles-pick">
+            <legend class="label">{{ t('admin.roles') }}</legend>
+            <label v-for="role in grantable" :key="role" class="checkbox">
+              <input v-model="newPerson.roles" type="checkbox" :value="role" />
+              <span>{{ t(`roles.${role}`) }} <span class="muted small">– {{ t(`roleHints.${role}`) }}</span></span>
+            </label>
+          </fieldset>
           <FormField id="np-language" :label="t('profile.language')">
             <template #default="{ attrs }">
               <select v-bind="attrs" v-model="newPerson.language" class="select">
@@ -451,6 +471,23 @@ onMounted(load)
           <template #default="{ attrs }"><input v-bind="attrs" v-model="resetPasswordValue" class="input" type="text" autocomplete="off" /></template>
         </FormField>
       </form>
+    </BaseModal>
+
+    <BaseModal
+      :open="rolesFor !== null"
+      :title="t('admin.rolesTitle', { name: rolesFor?.full_name ?? '' })"
+      :description="t('admin.rolesText')"
+      :confirm-label="t('app.save')"
+      @close="rolesFor = null"
+      @confirm="saveRoles"
+    >
+      <fieldset class="roles-pick">
+        <legend class="visually-hidden">{{ t('admin.roles') }}</legend>
+        <label v-for="role in grantable" :key="role" class="checkbox">
+          <input type="checkbox" :checked="rolesDraft.includes(role)" @change="toggleRole(role)" />
+          <span>{{ t(`roles.${role}`) }} <span class="muted small">– {{ t(`roleHints.${role}`) }}</span></span>
+        </label>
+      </fieldset>
     </BaseModal>
   </div>
 </template>
@@ -543,6 +580,14 @@ onMounted(load)
 
 .person-name {
   font-weight: 600;
+}
+
+.roles-pick {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .role-select {

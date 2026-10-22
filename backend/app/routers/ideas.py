@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, StringConstraints
 from sqlalchemy import func, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Idea, IdeaVote, User
 from ..schemas import UserBrief, UtcDateTime
@@ -47,7 +47,7 @@ def _out(db, idea: Idea, user: User) -> IdeaOut:
     return IdeaOut(
         id=idea.id, title=idea.title, body=idea.body, author=UserBrief.model_validate(idea.author), status=idea.status,
         response=idea.response, votes=votes, voted=db.get(IdeaVote, (idea.id, user.id)) is not None,
-        can_delete=user.is_admin or (idea.author_id == user.id and idea.status == "new"),
+        can_delete=user.is_hr or (idea.author_id == user.id and idea.status == "new"),
         created_at=idea.created_at, updated_at=idea.updated_at,
     )
 
@@ -92,7 +92,7 @@ def toggle_vote(idea_id: int, user: CurrentUser, db: DB) -> IdeaOut:
 
 
 @router.put("/{idea_id}/status", response_model=IdeaOut)
-def set_status(idea_id: int, body: IdeaStatusIn, user: Admin, db: DB) -> IdeaOut:
+def set_status(idea_id: int, body: IdeaStatusIn, user: HR, db: DB) -> IdeaOut:
     idea = db.get(Idea, idea_id)
     if idea is None:
         raise not_found("Idea")

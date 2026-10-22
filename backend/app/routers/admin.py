@@ -10,8 +10,8 @@ from fastapi.responses import Response
 from sqlalchemy import delete, func, select
 
 from ..config import settings
-from ..deps import DB, Admin, Approver
-from ..errors import ApiError, not_found
+from ..deps import DB, HR, Admin, Overseer, Staff, Support
+from ..errors import ApiError, forbidden, not_found
 from ..models import PENDING_STATUSES, REQUEST_TYPES, AuditEvent, AuthSession, Request, User, utcnow
 from ..schemas import PasswordReset, UserAdminUpdate, UserCreate, UserOut, UtcDateTime
 from ..security import hash_password
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/stats")
-def stats(user: Approver, db: DB) -> dict:
+def stats(user: Overseer, db: DB) -> dict:
     by_status = dict(
         db.execute(select(Request.status, func.count()).where(Request.status != "draft").group_by(Request.status)).all()
     )
@@ -66,7 +66,7 @@ def _csv_cell(value) -> str:
 
 @router.get("/requests/export.csv")
 def export_requests(
-    user: Approver,
+    user: Overseer,
     db: DB,
     type: str | None = None,
     date_from: date | None = None,
@@ -108,18 +108,45 @@ def export_requests(
     )
 
 
+def _check_role_change(actor: User, before: list[str], after: list[str]) -> None:
+    """HR gives every role except administrator; only an administrator makes or removes administrators."""
+    if ("admin" in before) != ("admin" in after) and not actor.is_admin:
+        raise forbidden("Only an administrator can give or take away the administrator role.")
+
+
+def _keeps_own_access(actor: User, roles: list[str]) -> bool:
+    """Nobody takes away their own administrator or HR access by mistake."""
+    if actor.is_admin:
+        return "admin" in roles
+    return "hr" in roles
+
+
+def _supported(db, actor: User, user_id: int) -> User:
+    """HR and the service desk help everyone with passwords and two-factor, except administrators (only an
+    administrator may, so nobody can take over an administrator account)."""
+    target = db.get(User, user_id)
+    if target is None:
+        raise not_found("Person")
+    if target.is_admin and not actor.is_admin:
+        raise forbidden("Only an administrator can do this for an administrator.")
+    return target
+
+
 @router.get("/users", response_model=list[UserOut])
-def list_users(user: Approver, db: DB) -> list[User]:
+def list_users(user: Staff, db: DB) -> list[User]:
     return list(db.scalars(select(User).order_by(User.last_name, User.first_name)))
 
 
 @router.post("/users", response_model=UserOut, status_code=201)
-def create_user(body: UserCreate, user: Admin, db: DB) -> User:
+def create_user(body: UserCreate, user: HR, db: DB) -> User:
     if db.scalar(select(User).where(User.email == body.email)):
         raise ApiError(409, "email_taken", "A person with this email address already exists.")
     check_manager(db, None, body.manager_id)
-    data = body.model_dump(exclude={"password", "start_onboarding"})
+    roles = body.roles if body.roles is not None else [body.role]
+    _check_role_change(user, [], roles)
+    data = body.model_dump(exclude={"password", "start_onboarding", "role", "roles"})
     new_user = User(**data, password_hash=hash_password(body.password))
+    new_user.set_roles(roles)
     db.add(new_user)
     db.flush()
     if body.start_onboarding:
@@ -130,19 +157,29 @@ def create_user(body: UserCreate, user: Admin, db: DB) -> User:
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)
-def update_user(user_id: int, body: UserAdminUpdate, user: Admin, db: DB) -> User:
+def update_user(user_id: int, body: UserAdminUpdate, user: HR, db: DB) -> User:
     target = db.get(User, user_id)
     if target is None:
         raise not_found("Person")
-    if target.id == user.id and (body.role not in (None, "admin") or body.is_active is False):
-        raise ApiError(409, "self_lockout", "You cannot remove your own administrator access.")
     changes = body.model_dump(exclude_unset=True)
+    roles = changes.pop("roles", None)
+    role = changes.pop("role", None)
+    if roles is None and role is not None:
+        roles = [role]
+    if target.is_admin and not user.is_admin:
+        raise forbidden("Only an administrator can change an administrator's account.")
+    if target.id == user.id and ((roles is not None and not _keeps_own_access(user, roles)) or body.is_active is False):
+        raise ApiError(409, "self_lockout", "You cannot remove your own administrator access.")
+    if roles is not None:
+        _check_role_change(user, target.roles, roles)
+        target.set_roles(roles)
+        changes["roles"] = ",".join(target.roles) or "employee"
     if "manager_id" in changes:
         if changes["manager_id"] == target.id:
             raise ApiError(422, "manager_cycle", "A person cannot be their own manager.")
         check_manager(db, target, changes["manager_id"])
     for field, value in changes.items():
-        if value is None and field not in ("manager_id", "start_date"):
+        if field == "roles" or (value is None and field not in ("manager_id", "start_date")):
             continue
         setattr(target, field, value)
     if changes.get("is_active") is False:
@@ -153,10 +190,8 @@ def update_user(user_id: int, body: UserAdminUpdate, user: Admin, db: DB) -> Use
 
 
 @router.post("/users/{user_id}/password", status_code=204)
-def reset_password(user_id: int, body: PasswordReset, user: Admin, db: DB) -> None:
-    target = db.get(User, user_id)
-    if target is None:
-        raise not_found("Person")
+def reset_password(user_id: int, body: PasswordReset, user: Support, db: DB) -> None:
+    target = _supported(db, user, user_id)
     if target.id == user.id:
         raise ApiError(409, "use_profile", "Please change your own password under Profile.")
     target.password_hash = hash_password(body.password)
@@ -167,11 +202,9 @@ def reset_password(user_id: int, body: PasswordReset, user: Admin, db: DB) -> No
 
 
 @router.post("/users/{user_id}/2fa/reset", status_code=204)
-def reset_two_factor(user_id: int, user: Admin, db: DB) -> None:
+def reset_two_factor(user_id: int, user: Support, db: DB) -> None:
     """For a lost phone: the person signs in with the password only and can set it up again."""
-    target = db.get(User, user_id)
-    if target is None:
-        raise not_found("Person")
+    target = _supported(db, user, user_id)
     target.totp_enabled, target.totp_secret, target.recovery_codes = False, None, "[]"
     db.execute(delete(AuthSession).where(AuthSession.user_id == target.id))
     audit(db, user, "two_factor_reset", target.full_name)

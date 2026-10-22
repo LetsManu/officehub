@@ -49,5 +49,35 @@ def require_admin(user: CurrentUser) -> User:
     return user
 
 
+def require_overseer(user: CurrentUser) -> User:
+    """Decides for everyone (manager, HR, admin): company-wide reports and statistics."""
+    if not user.approves_everyone:
+        raise forbidden()
+    return user
+
+
+def require_staff(user: CurrentUser) -> User:
+    """Anyone with more than the employee role: they see the list of people with roles and status."""
+    if not (user.is_approver or user.is_support):
+        raise forbidden()
+    return user
+
+
+def require_hr(user: CurrentUser) -> User:
+    if not user.is_hr:
+        raise forbidden()
+    return user
+
+
+def require_support(user: CurrentUser) -> User:
+    if not user.is_support:
+        raise forbidden()
+    return user
+
+
 Approver = Annotated[User, Depends(require_approver)]
 Admin = Annotated[User, Depends(require_admin)]
+HR = Annotated[User, Depends(require_hr)]
+Support = Annotated[User, Depends(require_support)]
+Overseer = Annotated[User, Depends(require_overseer)]
+Staff = Annotated[User, Depends(require_staff)]

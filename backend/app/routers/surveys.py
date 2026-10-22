@@ -14,7 +14,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 from sqlalchemy import func, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, not_found
 from ..models import Survey, SurveyParticipation, SurveyResponse, User
 from ..services import notifications
@@ -105,13 +105,13 @@ def _out(db, survey: Survey, user: User) -> SurveyOut:
         status=status, closes_on=survey.closes_on, results_public=survey.results_public,
         answered=db.get(SurveyParticipation, (survey.id, user.id)) is not None,
         responses=_count(db, survey),
-        can_see_results=user.is_admin or (survey.results_public and status == "closed"),
+        can_see_results=user.is_hr or (survey.results_public and status == "closed"),
     )
 
 
 def _load(db, survey_id: int, user: User) -> Survey:
     survey = db.get(Survey, survey_id)
-    if survey is None or (survey.status == "draft" and not user.is_admin):
+    if survey is None or (survey.status == "draft" and not user.is_hr):
         raise not_found("Survey")
     return survey
 
@@ -119,13 +119,13 @@ def _load(db, survey_id: int, user: User) -> Survey:
 @router.get("", response_model=list[SurveyOut])
 def list_surveys(user: CurrentUser, db: DB) -> list[SurveyOut]:
     query = select(Survey).order_by(Survey.created_at.desc())
-    if not user.is_admin:
+    if not user.is_hr:
         query = query.where(Survey.status != "draft")
     return [_out(db, s, user) for s in db.scalars(query)]
 
 
 @router.post("", response_model=SurveyOut, status_code=201)
-def create_survey(body: SurveyIn, user: Admin, db: DB) -> SurveyOut:
+def create_survey(body: SurveyIn, user: HR, db: DB) -> SurveyOut:
     survey = Survey(
         title=body.title, intro=body.intro, questions=json.dumps([q.model_dump() for q in body.questions]),
         closes_on=body.closes_on, results_public=body.results_public, created_by_id=user.id,
@@ -137,7 +137,7 @@ def create_survey(body: SurveyIn, user: Admin, db: DB) -> SurveyOut:
 
 
 @router.patch("/{survey_id}", response_model=SurveyOut)
-def update_survey(survey_id: int, body: SurveyUpdate, user: Admin, db: DB) -> SurveyOut:
+def update_survey(survey_id: int, body: SurveyUpdate, user: HR, db: DB) -> SurveyOut:
     survey = _load(db, survey_id, user)
     changes = body.model_dump(exclude_unset=True)
     if changes.get("status") == "open" and survey.status == "draft":

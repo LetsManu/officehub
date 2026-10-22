@@ -8,7 +8,7 @@ from pydantic import BaseModel, StringConstraints
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, CurrentUser, Support
 from ..errors import ApiError, not_found
 from ..models import Asset, AssetEvent, User
 from ..schemas import UserBrief, UtcDateTime
@@ -100,7 +100,7 @@ def mine(user: CurrentUser, db: DB) -> list[AssetOut]:
 
 @router.get("", response_model=list[AssetOut])
 def list_assets(
-    user: Admin, db: DB, q: str | None = Query(None, max_length=100), status: Status | None = None, person_id: int | None = None
+    user: Support, db: DB, q: str | None = Query(None, max_length=100), status: Status | None = None, person_id: int | None = None
 ) -> list[AssetOut]:
     query = select(Asset)
     if status:
@@ -114,7 +114,7 @@ def list_assets(
 
 
 @router.post("", response_model=AssetOut, status_code=201)
-def create_asset(body: AssetIn, user: Admin, db: DB) -> AssetOut:
+def create_asset(body: AssetIn, user: Support, db: DB) -> AssetOut:
     asset = Asset(**body.model_dump())
     db.add(asset)
     db.flush()
@@ -125,12 +125,12 @@ def create_asset(body: AssetIn, user: Admin, db: DB) -> AssetOut:
 
 
 @router.get("/{asset_id}", response_model=AssetOut)
-def get_asset(asset_id: int, user: Admin, db: DB) -> AssetOut:
+def get_asset(asset_id: int, user: Support, db: DB) -> AssetOut:
     return _out(db, _get(db, asset_id), True)
 
 
 @router.put("/{asset_id}", response_model=AssetOut)
-def update_asset(asset_id: int, body: AssetUpdate, user: Admin, db: DB) -> AssetOut:
+def update_asset(asset_id: int, body: AssetUpdate, user: Support, db: DB) -> AssetOut:
     asset = _get(db, asset_id)
     changes = body.model_dump(exclude_none=True)
     new_status = changes.pop("status", None)
@@ -147,7 +147,7 @@ def update_asset(asset_id: int, body: AssetUpdate, user: Admin, db: DB) -> Asset
 
 
 @router.post("/{asset_id}/assign", response_model=AssetOut)
-def assign(asset_id: int, body: AssignIn, user: Admin, db: DB) -> AssetOut:
+def assign(asset_id: int, body: AssignIn, user: Support, db: DB) -> AssetOut:
     asset = _get(db, asset_id)
     if asset.status not in ("in_stock", "assigned"):
         raise ApiError(409, "asset_unavailable", "This item is in repair or retired.")
@@ -165,7 +165,7 @@ def assign(asset_id: int, body: AssignIn, user: Admin, db: DB) -> AssetOut:
 
 
 @router.post("/{asset_id}/return", response_model=AssetOut)
-def give_back(asset_id: int, body: ReturnIn, user: Admin, db: DB) -> AssetOut:
+def give_back(asset_id: int, body: ReturnIn, user: Support, db: DB) -> AssetOut:
     asset = _get(db, asset_id)
     if asset.status != "assigned":
         raise ApiError(409, "asset_not_assigned", "This item is not handed out.")

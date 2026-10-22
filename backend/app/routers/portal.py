@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, Admin, CurrentUser
 from ..errors import not_found
 from ..models import QuickLink, User
 from ..schemas import DEFAULT_TILES, TileKey
@@ -52,7 +52,7 @@ class PortalSettingsIn(BaseModel):
     dashboard_tiles: Annotated[list[TileKey], Field(min_length=1, max_length=8)] | None = None
     # section -> person id (None removes the contact)
     section_contacts: dict[str, int | None] | None = None
-    require_2fa_roles: list[Literal["employee", "manager", "admin"]] | None = None
+    require_2fa_roles: list[Literal["employee", "teamlead", "manager", "hr", "servicedesk", "admin"]] | None = None
 
 
 _get = get_setting
@@ -101,7 +101,7 @@ def update_settings(body: PortalSettingsIn, user: Admin, db: DB) -> PortalSettin
 @router.get("/links", response_model=list[LinkOut])
 def list_links(user: CurrentUser, db: DB, include_inactive: bool = False) -> list[QuickLink]:
     query = select(QuickLink)
-    if not (include_inactive and user.is_admin):
+    if not (include_inactive and user.is_hr):
         query = query.where(QuickLink.active.is_(True))
     return list(db.scalars(query.order_by(QuickLink.sort_order, QuickLink.title)))
 
@@ -111,7 +111,7 @@ def _clean_icon(icon: str) -> str:
 
 
 @router.post("/links", response_model=LinkOut, status_code=201)
-def create_link(body: LinkIn, user: Admin, db: DB) -> QuickLink:
+def create_link(body: LinkIn, user: HR, db: DB) -> QuickLink:
     link = QuickLink(**body.model_dump() | {"icon": _clean_icon(body.icon)})
     db.add(link)
     db.commit()
@@ -119,7 +119,7 @@ def create_link(body: LinkIn, user: Admin, db: DB) -> QuickLink:
 
 
 @router.patch("/links/{link_id}", response_model=LinkOut)
-def update_link(link_id: int, body: LinkIn, user: Admin, db: DB) -> QuickLink:
+def update_link(link_id: int, body: LinkIn, user: HR, db: DB) -> QuickLink:
     link = db.get(QuickLink, link_id)
     if link is None:
         raise not_found("Link")
@@ -130,7 +130,7 @@ def update_link(link_id: int, body: LinkIn, user: Admin, db: DB) -> QuickLink:
 
 
 @router.delete("/links/{link_id}", status_code=204)
-def delete_link(link_id: int, user: Admin, db: DB) -> None:
+def delete_link(link_id: int, user: HR, db: DB) -> None:
     link = db.get(QuickLink, link_id)
     if link is None:
         raise not_found("Link")

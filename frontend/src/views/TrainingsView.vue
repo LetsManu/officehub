@@ -11,7 +11,7 @@ import SortHeader from '@/components/SortHeader.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { api } from '@/lib/api'
 import { errorText, formatDate, t } from '@/lib/i18n'
-import { isAdmin } from '@/lib/session'
+import { isHr } from '@/lib/session'
 import { useSort } from '@/lib/sort'
 import { refreshSummary } from '@/lib/summary'
 import { showToast } from '@/lib/toast'
@@ -20,7 +20,7 @@ import { todayIso } from '@/lib/workdays'
 
 const route = useRoute()
 const router = useRouter()
-const tab = ref<'mine' | 'manage'>(route.query.tab === 'manage' && isAdmin.value ? 'manage' : 'mine')
+const tab = ref<'mine' | 'manage'>(route.query.tab === 'manage' && isHr.value ? 'manage' : 'mine')
 
 const mine = ref<TrainingStatus[]>([])
 const trainings = ref<Training[]>([])
@@ -164,19 +164,19 @@ watch(tab, (value) => {
 
 onMounted(async () => {
   load()
-  if (isAdmin.value) departments.value = await api.get<string[]>('/api/directory/departments').catch(() => [])
+  if (isHr.value) departments.value = await api.get<string[]>('/api/directory/departments').catch(() => [])
 })
 </script>
 
 <template>
   <div class="page">
     <PageHeader :title="t('trainings.title')" :subtitle="t('trainings.subtitle')">
-      <template v-if="isAdmin && tab === 'manage'" #actions>
+      <template v-if="isHr && tab === 'manage'" #actions>
         <button type="button" class="btn btn-primary" @click="openEditor(null)"><AppIcon name="plus" />{{ t('trainings.new') }}</button>
       </template>
     </PageHeader>
 
-    <div v-if="isAdmin" class="segmented" role="group" :aria-label="t('trainings.title')">
+    <div v-if="isHr" class="segmented" role="group" :aria-label="t('trainings.title')">
       <button type="button" :aria-pressed="tab === 'mine'" @click="tab = 'mine'">{{ t('trainings.tabMine') }}</button>
       <button type="button" :aria-pressed="tab === 'manage'" @click="tab = 'manage'">{{ t('trainings.tabManage') }}</button>
     </div>

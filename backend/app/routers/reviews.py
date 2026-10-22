@@ -13,7 +13,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import or_, select
 
-from ..deps import DB, Admin, CurrentUser
+from ..deps import DB, HR, CurrentUser
 from ..errors import ApiError, forbidden, not_found
 from ..models import Review, User, utcnow
 from ..schemas import UserBrief, UtcDateTime
@@ -68,7 +68,7 @@ def _side(review: Review, user: User) -> Literal["employee", "reviewer", "hr"] |
         return "employee"
     if review.reviewer_id == user.id:
         return "reviewer"
-    return "hr" if user.is_admin else None
+    return "hr" if user.is_hr else None
 
 
 def _out(review: Review, user: User) -> ReviewOut:
@@ -106,14 +106,14 @@ def _load(db, review_id: int, user: User) -> Review:
 @router.get("", response_model=list[ReviewOut])
 def list_reviews(user: CurrentUser, db: DB) -> list[ReviewOut]:
     query = select(Review)
-    if not user.is_admin:
+    if not user.is_hr:
         query = query.where(or_(Review.employee_id == user.id, Review.reviewer_id == user.id))
     rows = db.scalars(query.order_by(Review.year.desc(), Review.id.desc()))
     return [_out(r, user) for r in rows]
 
 
 @router.post("", response_model=ReviewOut, status_code=201)
-def create_review(body: ReviewCreate, user: Admin, db: DB) -> ReviewOut:
+def create_review(body: ReviewCreate, user: HR, db: DB) -> ReviewOut:
     employee, reviewer = db.get(User, body.employee_id), db.get(User, body.reviewer_id)
     if employee is None or reviewer is None or not employee.is_active or not reviewer.is_active:
         raise ApiError(422, "person_invalid", "Please choose active people.")
