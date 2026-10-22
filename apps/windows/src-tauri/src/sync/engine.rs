@@ -86,7 +86,10 @@ impl<S: Store> Engine<S> {
     fn dirty(&self, rel: &Path, entry: &Entry) -> bool {
         let path = self.store.abs(rel);
         match std::fs::metadata(&path) {
-            Ok(meta) if meta.is_file() => meta.len() != entry.size || mtime(&path) != Some(entry.mtime),
+            Ok(meta) if meta.is_file() => match self.store.changed(rel, entry) {
+                Some(changed) => changed,
+                None => meta.len() != entry.size || mtime(&path) != Some(entry.mtime),
+            },
             _ => false,
         }
     }
@@ -248,6 +251,7 @@ impl<S: Store> Engine<S> {
             size: item.size,
             mtime: 0,
             read_only: item.read_only,
+            hash: 0,
         };
         let path = self.store.abs(&rel);
         match kind {
@@ -266,7 +270,10 @@ impl<S: Store> Engine<S> {
                     }
                 }
                 match self.store.put_file(&rel, item) {
-                    Ok(t) => entry.mtime = t,
+                    Ok(t) => {
+                        entry.mtime = t;
+                        entry.hash = self.store.fingerprint(&rel);
+                    }
                     Err(_) => return,
                 }
                 if item.read_only {
@@ -325,6 +332,7 @@ impl<S: Store> Engine<S> {
                 current.version = item.version;
                 current.size = item.size;
                 current.mtime = t;
+                current.hash = self.store.fingerprint(&rel);
             }
         }
         if current.read_only != item.read_only {
@@ -575,6 +583,7 @@ impl<S: Store> Engine<S> {
                         size: data.len() as u64,
                         mtime: time,
                         read_only: false,
+                        hash: self.store.fingerprint(rel),
                     },
                 );
             }
@@ -594,10 +603,12 @@ impl<S: Store> Engine<S> {
         match self.api.save(id, entry.version, &data) {
             Ok(item) => {
                 let time = self.store.mark_uploaded(rel, &item).unwrap_or(time);
+                let hash = self.store.fingerprint(rel);
                 if let Some(e) = self.state.files.get_mut(&id) {
                     e.version = item.version;
                     e.size = data.len() as u64;
                     e.mtime = time;
+                    e.hash = hash;
                 }
             }
             Err(ApiError::Status(409, code)) if code == "sync_conflict" => {
@@ -641,10 +652,12 @@ impl<S: Store> Engine<S> {
             read_only: entry.read_only,
         };
         if let Ok(time) = self.store.write_synced(rel, &item, &data) {
+            let hash = self.store.fingerprint(rel);
             if let Some(e) = self.state.files.get_mut(&id) {
                 e.version = version;
                 e.size = data.len() as u64;
                 e.mtime = time;
+                e.hash = hash;
             }
         }
     }
@@ -726,8 +739,10 @@ impl<S: Store> Engine<S> {
                 read_only: entry.read_only,
             };
             if let Ok(time) = self.store.put_file(&rel, &item) {
+                let hash = self.store.fingerprint(&rel);
                 if let Some(e) = self.state.files.get_mut(&id) {
                     e.mtime = time;
+                    e.hash = hash;
                 }
             }
         }
