@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use cloud_filter::error::{CResult, CloudErrorKind};
 use cloud_filter::filter::{info, ticket, Request, SyncFilter};
 use cloud_filter::metadata::Metadata;
-use cloud_filter::placeholder::{ConvertOptions, PinState, Placeholder, UpdateOptions};
+use cloud_filter::placeholder::{ConvertOptions, PinOptions, PinState, Placeholder, UpdateOptions};
 use cloud_filter::placeholder_file::PlaceholderFile;
 use cloud_filter::root::{
     Connection, HydrationType, PopulationType, ProtectionMode, SecurityId, Session, SyncRootId, SyncRootIdBuilder,
@@ -149,28 +149,30 @@ impl Store for CloudStore {
     }
 
     fn replace_file(&self, rel: &Path, item: &Item) -> io::Result<i128> {
+        // A fresh placeholder for the new version: updating one in place keeps the old size on some systems
+        // (seen on Windows Server: the new identity but the old length). A file open in a program cannot be
+        // removed: then this fails and the new version comes at the next round.
         let path = self.abs(rel);
+        let pinned = open(&path)
+            .ok()
+            .and_then(|p| p.info().ok().flatten())
+            .is_some_and(|i| i.pin_state() == PinState::Pinned);
         self.set_read_only(rel, false);
-        let data = blob(item.id, item.version);
-        let updated = open(&path).and_then(|mut p| {
-            let pinned = p.info().ok().flatten().is_some_and(|i| i.pin_state() == PinState::Pinned);
-            p.update(
-                UpdateOptions::default().metadata(metadata(item)).blob(&data).dehydrate().mark_in_sync(),
-                None,
-            )
-            .map_err(other)?;
-            if pinned {
-                // "Always keep on this device": fetch the new version right away
-                let _ = p.hydrate(..);
+        std::fs::remove_file(&path)?;
+        let time = self.create_placeholder(rel, item)?;
+        if pinned {
+            // "Always keep on this device" stays, and the new version comes right away
+            if let Ok(mut p) = open(&path) {
+                let _ = p.mark_pin(PinState::Pinned, PinOptions::default());
             }
-            Ok(())
-        });
-        if updated.is_err() {
-            // Not a placeholder (or in use): put a fresh one in its place
-            std::fs::remove_file(&path)?;
-            return self.create_placeholder(rel, item);
+            let path = path.clone();
+            std::thread::spawn(move || {
+                if let Ok(mut p) = open(&path) {
+                    let _ = p.hydrate(..);
+                }
+            });
         }
-        mtime(&path).ok_or_else(|| other("no modification time"))
+        Ok(time)
     }
 
     fn write_synced(&self, rel: &Path, item: &Item, data: &[u8]) -> io::Result<i128> {
@@ -241,8 +243,11 @@ impl SyncFilter for Filter {
                 Ok(())
             }
             Err(Failure::Server(why)) => {
+                // Reporting the failure through cloud-filter can fail itself ("The cloud operation is invalid"),
+                // which the crate turns into an abort of the whole app. So nothing is reported: Windows gives up
+                // after its own timeout and shows the file as not available, and the app keeps running.
                 eprintln!("OfficeHub: download of {} ({range:?}) failed: {why}", request.path().display());
-                Err(CloudErrorKind::Unsuccessful)
+                Ok(())
             }
         }
     }
