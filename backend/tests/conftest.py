@@ -66,3 +66,17 @@ def pytest_sessionfinish(session, exitstatus):
 @pytest.fixture
 def sara():
     return make_client("sara.novak@example.com")
+
+
+def working_day(days_ahead: int):
+    """A weekday at least `days_ahead` from today that is no public holiday (a vacation there has working days)."""
+    from datetime import date, timedelta
+
+    from app.services.holidays import holiday_dates
+
+    day = date.today() + timedelta(days=days_ahead)
+    with SessionLocal() as db:
+        holidays = holiday_dates(db, day, day + timedelta(days=30))
+    while day.weekday() >= 5 or day in holidays:
+        day += timedelta(days=1)
+    return day

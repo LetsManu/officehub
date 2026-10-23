@@ -1,12 +1,10 @@
 from datetime import date, timedelta
 
-from conftest import make_client
+from conftest import make_client, working_day
 
 
 def _vacation(client, submit=True):
-    start = date.today() + timedelta(days=40)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+    start = working_day(40)
     response = client.post(
         "/api/requests",
         json={"type": "vacation", "title": "Summer", "start_date": start.isoformat(), "end_date": start.isoformat(), "submit": submit},
