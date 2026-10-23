@@ -1,6 +1,8 @@
-"""WordCraft and DeckCraft (https://github.com/storytold): open-source word processor and presentation program.
+"""WordCraft, DeckCraft and GridCraft (https://github.com/storytold): open-source word processor, presentation
+program and spreadsheet.
 
-- In the browser: an optional container serves their web versions under /wordcraft/ and /deckcraft/. OfficeHub
+- In the browser: an optional container serves their web versions under /wordcraft/, /deckcraft/
+  and /gridcraft/. OfficeHub
   notices it by itself and opens a file there with a short-lived ticket; Save sends the file back as a new version.
 - On the computer: the desktop programs open files of the portal through the network drive (WebDAV, /dav/).
 """
@@ -18,6 +20,7 @@ from .settings import get_setting
 APPS = {
     "wordcraft": {"docx"},
     "deckcraft": {"pptx", "deckcraft"},
+    "gridcraft": {"xlsx"},
 }
 
 
@@ -29,7 +32,7 @@ def available() -> list[str]:
 
 
 def preferred(db: Session) -> bool:
-    """Open Word and PowerPoint files in WordCraft / DeckCraft (instead of the office server)? Yes while they run,
+    """Open Word, PowerPoint and Excel files in WordCraft / DeckCraft / GridCraft (instead of the office server)? Yes while they run,
     unless HR chose the office editor under Administration → Office editing."""
     return bool(available()) and get_setting(db, "office", {}).get("prefer_craft", True) is not False
 

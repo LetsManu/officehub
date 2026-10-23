@@ -12,7 +12,7 @@ equipment. Everything runs in one Docker Compose stack on your server: no outsid
 | --- | --- |
 | **Everyday work** | Chat with threads and reactions, team spaces with files, tasks and wiki, calendar, video meetings and calls |
 | **Paperwork** | Guided requests (vacation, expenses, equipment, IT access …), approvals, time tracking, planning, documents |
-| **Your own infrastructure** | Collabora / ONLYOFFICE, Jitsi and a TURN relay in the same stack, set up by themselves |
+| **Your own infrastructure** | WordCraft / DeckCraft / GridCraft (ONLYOFFICE optional), Jitsi and a TURN relay in the same stack, set up by themselves |
 | **Privacy** | End-to-end encrypted meetings (MLS + SFrame), device keys, company login with your own OpenID Connect server |
 | **Everywhere** | Browser (installable app), Windows app with an Explorer folder like OneDrive, Android app |
 
@@ -61,7 +61,8 @@ _Screenshots show the fictional demo data (German interface; English is built in
   the month for the manager's approval
 - **Team spaces** for teams and projects, each with:
   - **Files** with folders, versions, a 30-day trash and preview; Word, Excel and PowerPoint files are edited together
-    in the browser with **Collabora Online** (runs in the same stack and switches itself on; **ONLYOFFICE** optional)
+    in the browser with **WordCraft**, **DeckCraft** and **GridCraft** (open source, run in the same stack and switch
+    themselves on; **ONLYOFFICE** optional)
   - a **task board** (Kanban) with assignees, due dates, labels and comments, plus "My tasks" across all spaces
   - **chat** channels with @mentions and file sharing, and direct messages between two people – with threads,
     reactions, pins, formatting, polls, voice messages, "/" commands and notification settings per conversation
@@ -82,9 +83,10 @@ _Screenshots show the fictional demo data (German interface; English is built in
   if the company wants, keeps out) anyone who is not confirmed
 - **Files on the computer and open-source office programs**: spaces as a **network drive** (WebDAV, sign-in with app
   passwords) for Explorer, Finder and desktop programs; **check out / check in** like SharePoint; optional browser
-  versions of **WordCraft** (documents) and **DeckCraft** (presentations) that open a file and save it back as a new
-  version; several people can edit the same WordCraft document or DeckCraft presentation **together live**, and
-  automatic saves go into one shared version
+  versions of **WordCraft** (documents), **GridCraft** (spreadsheets) and **DeckCraft** (presentations) that open a
+  file and save it back as a new version; several people can edit the same document, workbook or presentation
+  **together live** (in GridCraft cell by cell, with everyone's selected cells shown), and automatic saves go into one
+  shared version
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
@@ -150,9 +152,8 @@ flowchart LR
         VOL[("officehub-data<br/>SQLite + files")]
         BAK[("backups<br/>nightly .tar.gz")]
         SH[("shared<br/>generated secrets,<br/>server addresses")]
-        COOL["collabora"]
         OO["onlyoffice<br/>optional"]
-        CRAFT["craft<br/>WordCraft / DeckCraft"]
+        CRAFT["craft<br/>WordCraft / DeckCraft / GridCraft"]
         JITSI["jitsi-web · prosody<br/>jicofo · jvb"]
         TURN["turn<br/>coturn relay"]
         HIP["hostip<br/>runs once"]
@@ -161,12 +162,11 @@ flowchart LR
     UI & WIN & ANDR -- "HTTPS" --> NGINX
     DRIVE -- "WebDAV" --> NGINX
     WIN -- "/api/sync" --> NGINX
-    NGINX --> API & CRAFT & COOL & OO & JITSI
+    NGINX --> API & CRAFT & OO & JITSI
     API --> VOL & BAK
     API -- "writes" --> SH
     HIP -- "LAN address" --> SH
     SH -. "read on start" .-> JITSI & TURN & OO
-    COOL -- "WOPI" --> API
     OO -- "callbacks" --> API
     UI -. "UDP 10000" .-> JITSI
     UI -. "UDP/TCP 3478" .-> TURN
@@ -181,7 +181,7 @@ flowchart LR
 | Files | Local filesystem | Space files and every version in the data volume; nightly backups |
 | Sign-in | Password (bcrypt) + two-factor, OpenID Connect, app passwords | HttpOnly session cookies stored server-side; app passwords for WebDAV and sync |
 | Live updates | Long polling and a 30-second heartbeat | No WebSocket server, no outside push service |
-| Office editing | Collabora Online (default), ONLYOFFICE (optional), WordCraft / DeckCraft (Rust → WebAssembly) | Detected by themselves (`services/probe.py`) |
+| Office editing | WordCraft / DeckCraft / GridCraft (Rust → WebAssembly, default), ONLYOFFICE (optional) | Detected by themselves (`services/probe.py`) |
 | Meetings | Jitsi (lib-jitsi-meet) by default, built-in WebRTC without it, coturn relay | OfficeHub's own interface in both cases |
 | End-to-end encryption | MLS (ts-mls) + SFrame in the browser, ECDSA device keys | The server only stores public keys and passes on encrypted messages |
 | Apps | Tauri 2 (Rust) for Windows, Kotlin for Android | Load your portal; native notifications, calls, tray, Explorer folder |
@@ -204,7 +204,7 @@ officehub/
 │       ├── components/     AppLayout (app bar), MeetingRoom, VideoTile, ChatMessageItem, BaseModal …
 │       ├── lib/            api, session, router helpers, rail, address, meeting, rtc, e2ee/, pwa, native …
 │       └── locales/        de.ts (source of truth) and en.ts
-├── craft/                  WordCraft / DeckCraft web build (from the LetsManu forks)
+├── craft/                  WordCraft / DeckCraft / GridCraft web build (from the LetsManu forks)
 ├── apps/windows/           Tauri 2 app, Explorer sync (Cloud Files API), sign-release.ps1
 ├── apps/android/           Kotlin app (WebView, bottom bar, feed service)
 ├── deploy/portainer/       stack file and stack.env attached to every release
@@ -251,7 +251,7 @@ reads. Backups are a nightly `.tar.gz` of the database and the files.
 | --- | --- |
 | Unread counts, presence, meeting reminders, "new version" | `GET /api/me/summary` every 30 seconds (heartbeat) |
 | Meeting signalling (built in), breakout rooms, MLS messages | Long polling on `/api/rtc` |
-| Live editing in WordCraft / DeckCraft | Yjs updates relayed per file by long polling (`/api/craft/collab/<file>`) |
+| Live editing in WordCraft / DeckCraft / GridCraft | Yjs updates relayed per file by long polling (`/api/craft/collab/<file>`) |
 | Android app notifications and ringing calls | One kept-open request, `GET /api/me/feed` (no Google push) |
 | Windows Explorer folder | `GET /api/sync/changes?since=N&wait=25` |
 
@@ -310,12 +310,12 @@ anything – it only stores public keys – so a new or changed device shows up 
 
 ### Office files: edited together, saved as versions
 
-- **Collabora / ONLYOFFICE** open files over WOPI / callbacks that only exist inside the stack (`/wopi/*`,
-  `/office-hooks/*` are not proxied by nginx). Every save is a new version.
-- **WordCraft and DeckCraft** (Rust, compiled to WebAssembly) open `?src=` and save to `?save=` with a short-lived file
-  ticket. Several people edit together live: `services/collab.py` relays Yjs updates per file, and automatic saves go
-  into one shared "together" version.
-- **Check-out** (`ensure_can_change`) applies to every way of saving: portal, WebDAV, office servers, craft and sync.
+- **WordCraft, DeckCraft and GridCraft** (Rust, compiled to WebAssembly) open `?src=` and save to `?save=` with a
+  short-lived file ticket. Several people edit together live: `services/collab.py` relays Yjs updates per file, and
+  automatic saves go into one shared "together" version.
+- **ONLYOFFICE** (optional) opens files over callbacks that only exist inside the stack (`/office-hooks/*` is not
+  proxied by nginx). Every save is a new version.
+- **Check-out** (`ensure_can_change`) applies to every way of saving: portal, WebDAV, ONLYOFFICE, craft and sync.
 
 ### Files on the computer
 
@@ -361,7 +361,7 @@ WebMessageListener). App sign-ins last `APP_SESSION_DAYS`.
 
 ### Optional servers and secrets
 
-Nothing needs manual setup. `services/probe.py` checks whether Collabora, ONLYOFFICE, Jitsi or the craft container
+Nothing needs manual setup. `services/probe.py` checks whether the craft container, ONLYOFFICE or Jitsi
 answer and switches features on and off by itself. Shared passwords (ONLYOFFICE JWT, Jitsi, the relay) are made
 on the first start by `config._shared_secret` and kept in the `shared` volume, which the other containers mount
 read-only.

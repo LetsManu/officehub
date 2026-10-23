@@ -4,9 +4,9 @@ const CACHE = 'officehub-shell-v2'
 const SHELL = ['/', '/index.html', '/offline.html', '/offline.css', '/favicon.svg', '/icon-192.png', '/theme-init.js']
 // Files and text shared from other apps wait here until the person chooses where they go (see /share).
 const SHARE = 'officehub-share'
-// WordCraft's and DeckCraft's large program files (names carry a hash): kept until a new version replaces them.
+// WordCraft's, DeckCraft's and GridCraft's large program files (names carry a hash): kept until a new version replaces them.
 const CRAFT = 'officehub-craft'
-const CRAFT_FILE = /^\/(wordcraft|deckcraft)\/[^/]+\.(wasm|js)$/
+const CRAFT_FILE = /^\/(wordcraft|deckcraft|gridcraft)\/[^/]+\.(wasm|js)$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()))

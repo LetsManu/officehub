@@ -114,8 +114,7 @@ class Settings:
     smtp_security: str  # "starttls", "ssl" or "none"
     portal_url: str  # used for links in e-mails
     timezone: str  # local time zone for time tracking
-    # Office editing (optional): your own Collabora Online and/or ONLYOFFICE Docs server in the same stack
-    collabora_url: str | None  # how the backend reaches Collabora, e.g. http://collabora:9980
+    # Office editing (optional): your own ONLYOFFICE Docs server in the same stack (the craft apps need no setting)
     onlyoffice_url: str | None  # how the backend reaches ONLYOFFICE, e.g. http://onlyoffice
     onlyoffice_jwt_secret: str | None
     backend_internal_url: str  # how the office servers reach the backend, e.g. http://backend:8000
@@ -134,7 +133,7 @@ class Settings:
     turn_secret: str | None
     turn_port: int
     public_address: str | None
-    # WordCraft / DeckCraft in the browser (optional container): how the backend checks that it runs
+    # WordCraft / DeckCraft / GridCraft in the browser (optional container): how the backend checks that it runs
     craft_internal_url: str | None
 
     @property
@@ -172,7 +171,6 @@ def load_settings() -> Settings:
         smtp_security=(os.getenv("SMTP_SECURITY", "starttls").strip().lower()),
         portal_url=os.getenv("PORTAL_URL", "http://localhost:8080").rstrip("/"),
         timezone=os.getenv("TIMEZONE", "Europe/Vienna"),
-        collabora_url=(os.getenv("COLLABORA_URL") or "").rstrip("/") or None,
         onlyoffice_url=(os.getenv("ONLYOFFICE_URL") or "").rstrip("/") or None,
         onlyoffice_jwt_secret=os.getenv("ONLYOFFICE_JWT_SECRET") or _shared_secret("onlyoffice_jwt_secret"),
         backend_internal_url=os.getenv("BACKEND_INTERNAL_URL", "http://backend:8000").rstrip("/"),

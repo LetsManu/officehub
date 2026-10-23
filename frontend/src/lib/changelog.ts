@@ -9,6 +9,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.9.0',
+    date: '2026-10-23',
+    de: [
+      'Excel-Dateien öffnen jetzt in GridCraft, direkt im Browser: Formeln, Formatierung und mehrere Tabellenblätter, gespeichert wird als neue Version.',
+      'Mehrere Personen bearbeiten eine Tabelle gleichzeitig: Jede Zelle kommt sofort bei allen an, Formeln rechnen überall mit, und du siehst, wo die anderen gerade sind. Gespeichert wird automatisch.',
+      'Der bisherige Office-Server (Collabora) fällt weg – Word, Excel und PowerPoint laufen jetzt alle in den Open-Source-Programmen im eigenen Stack.',
+    ],
+    en: [
+      'Excel files now open in GridCraft, right in the browser: formulas, formatting and several sheets, saved as a new version.',
+      'Several people edit a workbook at the same time: every cell reaches everyone at once, formulas recalculate everywhere, and you see where the others are. Saving happens automatically.',
+      'The old office server (Collabora) is gone – Word, Excel and PowerPoint now all run in the open-source programs in your own stack.',
+    ],
+  },
+  {
     version: '3.8.4',
     date: '2026-10-23',
     de: [

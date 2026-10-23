@@ -1,6 +1,6 @@
 """Open a file of a space in WordCraft or DeckCraft (browser version) and take Save back as a new version.
 
-The app gets two same-site URLs with a ticket for this one file and person (like the office editors' WOPI token):
+The app gets two same-site URLs with a ticket for this one file and person (like the office editor's file token):
 one to read the file and one to save it. Check-out, editor locks, file type and size are checked as for uploads.
 
 While someone has a file open with saving allowed, it carries a short lock that the page renews every minute; it
@@ -11,7 +11,7 @@ ends when the page closes, or two minutes after the last renewal (closed laptop,
 - Older builds lock the file for one person ("craft:<user>:<token>"); everyone else opens it read-only and sees who
   is editing.
 
-The office editors ("Edit together" in Collabora/ONLYOFFICE) and the network drive wait while either lock is held.
+The office editor ("Edit together" in ONLYOFFICE) and the network drive wait while either lock is held.
 """
 
 import base64

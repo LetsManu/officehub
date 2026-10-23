@@ -1,28 +1,25 @@
-"""Opening files in Collabora Online or ONLYOFFICE, and the endpoints those servers call back.
+"""Opening files in ONLYOFFICE (optional office server), and the endpoints it calls back.
 
-/wopi/... and /office-hooks/... are only reachable inside the Docker network (the frontend web server
-forwards /api/ only). Every call carries a signed token that names the file, the person and whether they
-may save.
+/office-hooks/... is only reachable inside the Docker network (the frontend web server forwards /api/ only).
+Every call carries a signed token that names the file, the person and whether they may save.
 """
 
 import urllib.request
-from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Header, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel, StringConstraints
 
 from ..config import settings
 from ..deps import DB, Admin, CurrentUser
 from ..errors import ApiError, not_found
-from ..models import Space, SpaceFile, User, utcnow
+from ..models import Space, SpaceFile, User
 from ..services.audit import audit
 from ..services.office import (
     EDITABLE,
     ONLYOFFICE_KIND,
     available,
-    collabora_action,
     default_engine,
     jwt_decode,
     jwt_encode,
@@ -35,17 +32,14 @@ from ..services.settings import get_setting, set_setting
 from ..services.spaces import add_version, checked_out_by_other, current_path, get_file, lock_owner_id, role_in
 
 router = APIRouter(prefix="/api/office", tags=["office"])
-wopi = APIRouter(prefix="/wopi", tags=["office (internal)"])
 hooks = APIRouter(prefix="/office-hooks", tags=["office (internal)"])
-
-LOCK_MINUTES = 30
 
 
 class OfficeConfig(BaseModel):
     engines: list[str]
     default: str | None
     editable: dict[str, list[str]]
-    craft: list[str] = []  # WordCraft / DeckCraft in the browser, when they run
+    craft: list[str] = []  # WordCraft / DeckCraft / GridCraft in the browser, when they run
     prefer_craft: bool = False  # Word and PowerPoint files open there instead of the office server
 
 
@@ -65,10 +59,6 @@ class OpenOut(BaseModel):
     file_name: str
     # Who has it open in WordCraft/DeckCraft or on the network drive, when that is why it opened read-only
     editing_by: str | None = None
-    # Collabora: the page is loaded by posting the token to action_url inside an iframe
-    action_url: str | None = None
-    access_token: str | None = None
-    access_token_ttl: int | None = None
     # ONLYOFFICE: load the script, then start the editor with this configuration
     script: str | None = None
     config: dict | None = None
@@ -112,12 +102,7 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
     if can_write and owner is not None and owner != user.id:
         person = db.get(User, owner)
         can_write, editing_by = False, person.full_name if person else ""
-    token, expires = make_token(db, item.id, user.id, can_write, body.origin)
-    if engine == "collabora":
-        return OpenOut(engine=engine, can_write=can_write, file_name=item.name, editing_by=editing_by,
-                       action_url=collabora_action(item.file_type, can_write) + f"lang={user.language}&WOPISrc="
-                       + urllib.request.quote(f"{settings.backend_internal_url}/wopi/files/{item.id}", safe=""),
-                       access_token=token, access_token_ttl=expires)
+    token, _expires = make_token(db, item.id, user.id, can_write, body.origin)
     kind = ONLYOFFICE_KIND.get(item.file_type)
     if kind is None:
         raise ApiError(409, "office_type", "This file type cannot be opened in the office editor.")
@@ -147,124 +132,6 @@ def open_file(file_id: int, body: OpenIn, user: CurrentUser, db: DB) -> OpenOut:
         config["token"] = jwt_encode(config, settings.onlyoffice_jwt_secret)
     return OpenOut(engine=engine, can_write=can_write, file_name=item.name, editing_by=editing_by,
                    script="/onlyoffice/web-apps/apps/api/documents/api.js", config=config)
-
-
-# ---------- WOPI (Collabora) ----------
-
-
-def _wopi_file(db: DB, file_id: int, access_token: str) -> tuple[SpaceFile, User, dict]:
-    data = read_token(db, access_token, file_id)
-    item = db.get(SpaceFile, file_id)
-    user = db.get(User, data["u"])
-    if item is None or item.deleted_at is not None or user is None or not user.is_active:
-        raise not_found("File")
-    return item, user, data
-
-
-def _lock_active(item: SpaceFile) -> bool:
-    return bool(item.lock_id and item.lock_expires and item.lock_expires > utcnow())
-
-
-def _conflict(item: SpaceFile) -> Response:
-    return Response(status_code=409, headers={"X-WOPI-Lock": item.lock_id or ""})
-
-
-@wopi.get("/files/{file_id}")
-def check_file_info(file_id: int, db: DB, access_token: str = Query(...)) -> dict:
-    item, user, data = _wopi_file(db, file_id, access_token)
-    return {
-        "BaseFileName": item.name,
-        "Size": item.size,
-        "Version": str(item.version),
-        "OwnerId": str(item.created_by_id or 0),
-        "UserId": str(user.id),
-        "UserFriendlyName": user.full_name,
-        "UserCanWrite": bool(data.get("w")),
-        "UserCanNotWriteRelative": True,
-        "SupportsLocks": True,
-        "SupportsGetLock": True,
-        "SupportsUpdate": True,
-        "SupportsRename": bool(data.get("w")),
-        "UserCanRename": bool(data.get("w")),
-        "LastModifiedTime": item.updated_at.isoformat() + "Z",
-        "PostMessageOrigin": data.get("o") or "",
-        "HidePrintOption": False,
-        "HideSaveOption": False,
-        "DisableExport": False,
-        "EnableOwnerTermination": False,
-    }
-
-
-@wopi.get("/files/{file_id}/contents")
-def get_file_contents(file_id: int, db: DB, access_token: str = Query(...)) -> Response:
-    item, _user, _data = _wopi_file(db, file_id, access_token)
-    return Response(current_path(item).read_bytes(), media_type="application/octet-stream",
-                    headers={"X-WOPI-ItemVersion": str(item.version)})
-
-
-@wopi.post("/files/{file_id}/contents")
-async def put_file(file_id: int, request: Request, db: DB, access_token: str = Query(...),
-                   x_wopi_lock: str | None = Header(None), x_cool_wopi_timestamp: str | None = Header(None)) -> Response:
-    item, user, data = _wopi_file(db, file_id, access_token)
-    if not data.get("w") or checked_out_by_other(item, user):
-        return Response(status_code=401)
-    if _lock_active(item) and item.lock_id != x_wopi_lock:
-        return _conflict(item)
-    if x_cool_wopi_timestamp and x_cool_wopi_timestamp != item.updated_at.isoformat() + "Z":
-        # Someone saved a newer version (e.g. uploaded one) while this editor was open
-        return JSONResponse({"COOLStatusCode": 1010}, status_code=409)
-    body = await request.body()
-    if len(body) > settings.max_upload_bytes * 4:
-        return Response(status_code=413)
-    add_version(db, item, body, user, "editor")
-    db.commit()
-    return Response(status_code=200, headers={"X-WOPI-ItemVersion": str(item.version)})
-
-
-@wopi.post("/files/{file_id}")
-def lock_operations(
-    file_id: int, db: DB, access_token: str = Query(...),
-    x_wopi_override: str = Header(""), x_wopi_lock: str | None = Header(None), x_wopi_oldlock: str | None = Header(None),
-    x_wopi_requestedname: str | None = Header(None),
-) -> Response:
-    item, _user, data = _wopi_file(db, file_id, access_token)
-    action = x_wopi_override.upper()
-    now = utcnow()
-    if action == "GET_LOCK":
-        return Response(status_code=200, headers={"X-WOPI-Lock": item.lock_id if _lock_active(item) else ""})
-    if action in ("LOCK", "REFRESH_LOCK", "UNLOCK") and not x_wopi_lock:
-        return Response(status_code=400)
-    if action == "LOCK" and x_wopi_oldlock:  # unlock and relock
-        if not _lock_active(item) or item.lock_id != x_wopi_oldlock:
-            return _conflict(item)
-        item.lock_id, item.lock_expires = x_wopi_lock, now + timedelta(minutes=LOCK_MINUTES)
-    elif action == "LOCK":
-        if _lock_active(item) and item.lock_id != x_wopi_lock:
-            return _conflict(item)
-        item.lock_id, item.lock_expires = x_wopi_lock, now + timedelta(minutes=LOCK_MINUTES)
-    elif action == "REFRESH_LOCK":
-        if not _lock_active(item) or item.lock_id != x_wopi_lock:
-            return _conflict(item)
-        item.lock_expires = now + timedelta(minutes=LOCK_MINUTES)
-    elif action == "UNLOCK":
-        if not _lock_active(item) or item.lock_id != x_wopi_lock:
-            return _conflict(item)
-        item.lock_id, item.lock_expires = None, None
-    elif action == "RENAME_FILE" and data.get("w") and x_wopi_requestedname:
-        from ..files import safe_display_name
-        from ..services.spaces import unique_name
-
-        if _lock_active(item) and x_wopi_lock and item.lock_id != x_wopi_lock:
-            return _conflict(item)
-        name = unique_name(db, item.space_id, item.folder_id,
-                           f"{safe_display_name(x_wopi_requestedname)}.{item.file_type}", ignore_id=item.id)
-        item.name = name
-        db.commit()
-        return JSONResponse({"Name": name.rsplit(".", 1)[0]})
-    else:
-        return Response(status_code=501)
-    db.commit()
-    return Response(status_code=200, headers={"X-WOPI-ItemVersion": str(item.version)})
 
 
 # ---------- ONLYOFFICE ----------

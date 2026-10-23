@@ -1,5 +1,5 @@
-# WordCraft and DeckCraft in the browser (both MIT OR Apache-2.0, https://github.com/storytold), built from the
-# OfficeHub forks (branch "officehub"): a document opens from the portal, Save puts it back, and everyone edits
+# WordCraft, DeckCraft and GridCraft in the browser (all MIT OR Apache-2.0, https://github.com/storytold), built from
+# the OfficeHub forks (branch "officehub"): a document opens from the portal, Save puts it back, and everyone edits
 # together live through OfficeHub.
 # The result is a few static files served by nginx: nothing runs on the server and nothing calls outside services.
 
@@ -29,11 +29,17 @@ RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 "$DECKCRAFT_REP
     && git -C deckcraft checkout -q FETCH_HEAD \
     && cd deckcraft/apps/deckcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/deckcraft \
     && echo '{"together": true}' > /out/deckcraft/collab.json
+ARG GRIDCRAFT_REPO=https://github.com/LetsManu/gridcraft
+ARG GRIDCRAFT_COMMIT=a4cc1dbfe4892778d04c5e38cf269757234bbbd9
+RUN git init -q gridcraft && git -C gridcraft fetch -q --depth 1 "$GRIDCRAFT_REPO" "$GRIDCRAFT_COMMIT" \
+    && git -C gridcraft checkout -q FETCH_HEAD \
+    && cd gridcraft/apps/gridcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/gridcraft \
+    && echo '{"together": true}' > /out/gridcraft/collab.json
 # Their licences travel with the files
-RUN for app in wordcraft deckcraft; do cp $app/LICENSE-MIT $app/LICENSE-APACHE $app/NOTICE /out/$app/; done
+RUN for app in wordcraft deckcraft gridcraft; do cp $app/LICENSE-MIT $app/LICENSE-APACHE $app/NOTICE /out/$app/; done
 # Compressed ahead of time (Brotli about a fifth of the WebAssembly's size, gzip for older browsers), and a list of
 # the large files, so the portal can fetch them ahead of time and opening a document is quick.
-RUN cd /out && for app in wordcraft deckcraft; do \
+RUN cd /out && for app in wordcraft deckcraft gridcraft; do \
       for f in $app/*.wasm $app/*.js; do brotli -q 11 -w 24 -k "$f" && gzip -9 -k "$f"; done; \
       (cd $app && printf '{"files": [%s]}\n' "$(ls *.wasm *.js | sed 's/.*/"&"/' | paste -sd, -)" > assets.json); \
     done

@@ -194,7 +194,6 @@ for router in (
     meetings.router,
     rtc.router,
     office.router,
-    office.wopi,
     office.hooks,
     webdav.router,
     craft.router,

@@ -871,7 +871,7 @@ class SpaceFile(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
     sync_seq: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"), index=True)
-    # Lock held by an office editor (WOPI) while someone edits the file
+    # Lock held while someone edits the file (WordCraft/DeckCraft "craft:…", network drive "dav:…")
     lock_id: Mapped[str | None] = mapped_column(String(1024))
     lock_expires: Mapped[datetime | None] = mapped_column(DateTime)
     # Checked out like in SharePoint: only this person can save new versions until they check it in again

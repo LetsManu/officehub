@@ -366,9 +366,9 @@ with **New space** (you become its manager). Each space has these tabs:
 ### Editing Word, Excel and PowerPoint files
 
 Click a document (or the pencil) to edit it right in the browser.
-Several people can work in the same file at once; every save becomes a new version. If both Collabora and
-ONLYOFFICE are available, you can switch between them at the top. Without an office server, files can still be
-downloaded and uploaded again.
+Word files open in WordCraft, PowerPoint files in DeckCraft and Excel files in GridCraft. Several people can work in
+the same file at once; every save becomes a new version. If your company also runs ONLYOFFICE, **Edit together** at
+the top opens the file there. Without an editor, files can still be downloaded and uploaded again.
 
 ---
 
@@ -588,7 +588,7 @@ Under **Administration**:
 
 - **Branding**: company name, logo and accent colour (OfficeHub checks that text stays readable).
 - **Public holidays**: choose the country and region, and add company holidays such as a closing day.
-- **Office editing**: which office server opens documents when both Collabora and ONLYOFFICE are set up.
+- **Office editing**: whether documents open in WordCraft, DeckCraft and GridCraft or in ONLYOFFICE (when it is set up).
 - **Security**: require two-step sign-in for managers or HR, reset it for a person, send a test e-mail.
 - **Audit log** (menu): who changed what and when (sign-ins, roles, decisions, settings); download as CSV.
 - **Equipment** (menu): hand out laptops, phones or keys and see who has what.
