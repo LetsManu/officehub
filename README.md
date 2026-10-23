@@ -3,7 +3,7 @@
 **A self-hosted employee portal that feels like Microsoft Teams – for requests, chat, meetings, files and the
 everyday paperwork of a small or medium-sized company. It runs on your own server and uses no cloud service.**
 
-Employees request time off, chat in team spaces, meet by video, edit Word and Excel files together, track their
+Employees request time off, chat in team spaces, meet by video, edit Word, Excel and PowerPoint files together, track their
 time and find company documents – in one calm interface that works for people who do not work with technology all
 day. Managers and HR approve requests, plan people and projects, publish news and manage the company's people and
 equipment. Everything runs in one Docker Compose stack on your server: no outside services, no telemetry, no AI.
@@ -43,6 +43,8 @@ equipment. Everything runs in one Docker Compose stack on your server: no outsid
 | ![Approvals](docs/screenshots/approvals.png) | ![People](docs/screenshots/people.png) |
 | **Search everything (Ctrl+K)** | **Meeting lobby with device test** |
 | ![Search](docs/screenshots/search.png) | ![Meeting lobby](docs/screenshots/meeting.png) |
+| **Excel files in GridCraft, edited together live** | |
+| ![GridCraft](docs/screenshots/gridcraft.png) | |
 | **Dark mode** | **Phone: tab bar at the bottom** |
 | ![Dark mode](docs/screenshots/dark.png) | ![Mobile](docs/screenshots/mobile.png) |
 
@@ -404,9 +406,14 @@ To reset the demo, remove the data volume: `docker compose down -v && docker com
 
 ### Deploying with Portainer
 
-Every release publishes ready-built images (`ghcr.io/letsmanu/officehub-backend` / `-frontend`, amd64 + arm64)
+Every release publishes ready-built images (`ghcr.io/letsmanu/officehub-backend` / `-frontend` / `-craft`, amd64 + arm64)
 and a Portainer stack file. See **[docs/deployment-portainer.md](docs/deployment-portainer.md)** and the
 [latest release](https://github.com/LetsManu/officehub/releases/latest).
+
+**Updating from 3.8 or older:** Collabora is no longer part of the stack – Word, Excel and PowerPoint files open in
+WordCraft, GridCraft and DeckCraft (the `craft` container). Take the new `docker-compose.yml` (or the Portainer stack
+file of the release) and remove the old container with `docker compose up -d --remove-orphans` (Portainer: tick
+**Prune services** when updating the stack). Nothing else changes: files, versions and settings stay.
 
 To publish a new release: `git tag v1.1.0 && git push origin v1.1.0` (or Actions → Release → Run workflow). The
 version must be new and higher than every earlier release, so `:latest` always is the newest code; add its "What's new"

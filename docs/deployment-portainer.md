@@ -140,6 +140,11 @@ too to end open sessions at once.
 2. Click **Update the stack** and enable **Re-pull image and redeploy**.
 
 Your data stays in the `officehub_officehub-data` volume during updates.
+
+**From 3.8 or older to 3.9:** the stack no longer has a `collabora` service (Word, Excel and PowerPoint files open in
+the `craft` container: WordCraft, GridCraft and DeckCraft). Replace the stack's compose text with the new
+`docker-compose.yml` of the release and tick **Prune services** when you update, so the old Collabora container goes
+away. Files, versions and settings stay.
 Read the release notes first, and make a backup before larger updates.
 
 ## 5. Backup
