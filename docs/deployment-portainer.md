@@ -95,7 +95,10 @@ versions of WordCraft and DeckCraft, LibreOffice or Microsoft Office then open a
 every save is a new version, and a file checked out by someone else cannot be overwritten. Windows needs HTTPS for this.
 
 **People outside the office (home office, mobile data):** open the ports above. If `PORTAL_URL`'s name resolves to an
-internal address only, set `PUBLIC_IP`. `ICE_SERVERS` (with `ICE_USERNAME`, `ICE_PASSWORD`) replaces the relay with a
+internal address only, set `PUBLIC_IP`. Behind **Cloudflare** (orange cloud) or a similar proxy the name resolves to
+the proxy, which does not pass audio and video: OfficeHub notices that by itself (it asks its own portal address who
+it is) and gives the meeting servers the office's real public address – nothing to set up, ports above still needed.
+`ICE_SERVERS` (with `ICE_USERNAME`, `ICE_PASSWORD`) replaces the relay with a
 STUN/TURN server of your own.
 
 **Windows and Android apps:** every release has `OfficeHub-Setup.exe` and `OfficeHub.apk` attached; people find
@@ -173,7 +176,7 @@ To restore on a new server: deploy the stack, copy an archive into the backup fo
 | --- | --- |
 | "The office server cannot be reached" | The ONLYOFFICE container is not running or still starting (about a minute after a redeploy). Look at its log in Portainer. |
 | Camera and microphone cannot be chosen | The portal is opened over plain `http://`. Use HTTPS. |
-| Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). |
+| Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). Behind Cloudflare: update to 3.9.1 or newer, which finds the real address by itself. |
 | "Could not connect to the meeting" | With Jitsi: the reverse proxy does not pass WebSockets (Nginx Proxy Manager: *Websockets Support*). |
 | The editor stays empty | Your reverse proxy must pass WebSockets and send `X-Forwarded-Proto` (all common ones do). |
 | `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |

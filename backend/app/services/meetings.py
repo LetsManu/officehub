@@ -40,6 +40,7 @@ from . import keys
 from .probe import reachable
 from .recurrence import occurrences, rrule, skipped_days
 from .settings import get_setting, set_setting
+from . import address
 
 TOKEN_HOURS = 6
 REMINDER_MINUTES = 10
@@ -140,7 +141,7 @@ def note_host() -> None:
     """Without PUBLIC_IP or PORTAL_URL: learn the server's address from the name people open the portal with, for the
     meeting servers' next start (they read /shared/public_ip)."""
     host = portal_host()
-    if settings.public_address or not host or host in _noted:
+    if settings.public_address or address.learned() or not host or host in _noted:
         return
     _noted.add(host)
     share_public_address(_resolve(host))
@@ -155,7 +156,8 @@ def ice_servers(who: str = "") -> list[dict]:
         if settings.ice_username:
             server.update(username=settings.ice_username, credential=settings.ice_password or "")
         return [server]
-    host = portal_host()
+    # Behind a proxy (Cloudflare) the portal's name does not reach the relay: use the office's public address.
+    host = address.learned() or portal_host()
     if not settings.turn_secret or not host:
         return []
     username = f"{int(time.time()) + TURN_HOURS * 3600}:{who or 'officehub'}"
