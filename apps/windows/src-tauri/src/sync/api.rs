@@ -110,10 +110,15 @@ fn q(value: &str) -> String {
 impl Api {
     pub fn new(server: &str, login: &str, password: &str) -> Self {
         use base64_engine::encode;
-        let agent = ureq::AgentBuilder::new()
+        let mut builder = ureq::AgentBuilder::new()
             .timeout_connect(Duration::from_secs(10))
-            .timeout_read(Duration::from_secs(60))
-            .build();
+            .timeout_read(Duration::from_secs(60));
+        // HTTPS through the system's TLS (Schannel on Windows: company certificates from the Windows store are
+        // trusted as in Edge). Without it every https:// request fails ("no TLS backend is configured").
+        if let Ok(tls) = native_tls::TlsConnector::new() {
+            builder = builder.tls_connector(std::sync::Arc::new(tls));
+        }
+        let agent = builder.build();
         Api {
             base: server.trim_end_matches('/').to_string(),
             auth: format!("Basic {}", encode(format!("{login}:{password}").as_bytes())),
@@ -270,5 +275,19 @@ mod tests {
     fn query_values_are_escaped() {
         assert_eq!(super::q("Plan Q1 & Q2.docx"), "Plan%20Q1%20%26%20Q2.docx");
         assert_eq!(super::q("Grüße.txt"), "Gr%C3%BC%C3%9Fe.txt");
+    }
+
+    /// Real portals use https://: the client must have TLS (it had none, so every request failed in the field).
+    #[test]
+    fn https_is_supported() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            // Accept and hang up: the TLS handshake fails, which only happens when TLS is there at all
+            let _ = listener.accept();
+        });
+        let api = super::Api::new(&format!("https://127.0.0.1:{port}"), "a", "b");
+        let error = api.changes(0, 0, None).err().map(|e| format!("{e:?}")).unwrap_or_default();
+        assert!(!error.contains("no TLS backend"), "{error}");
     }
 }

@@ -1311,6 +1311,7 @@ const en: Messages = {
     resume: 'Continue',
     setUp: 'Set up the folder',
     problemsTitle: 'Not uploaded',
+    errorDetails: 'Details for IT',
     status: {
       off: 'Not set up yet – one click and "OfficeHub" appears in Explorer.',
       starting: 'Starting …',

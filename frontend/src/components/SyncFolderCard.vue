@@ -51,6 +51,11 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <details v-if="sync.error && sync.status !== 'upToDate'" class="error">
+      <summary class="small">{{ t('syncFolder.errorDetails') }}</summary>
+      <code class="path">{{ sync.error }}</code>
+    </details>
+
     <p class="where">
       <span class="muted small">{{ t('syncFolder.where') }}</span>
       <code class="path">{{ sync.folder }}</code>
@@ -145,6 +150,16 @@ onBeforeUnmount(() => {
 
 .how {
   margin: 0;
+}
+
+.error summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.error code {
+  display: block;
+  margin-top: var(--space-2);
 }
 
 .problems-title {

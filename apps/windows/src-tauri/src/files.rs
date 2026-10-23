@@ -219,6 +219,7 @@ pub fn status_json(app: &AppHandle, server: Option<&str>) -> Value {
         "paused": is_paused(app),
         "status": if set_up { status } else { "off" },
         "problems": problems,
+        "error": sync::LAST_ERROR.lock().unwrap_or_else(|e| e.into_inner()).clone(),
     })
 }
 
