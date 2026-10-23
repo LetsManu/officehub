@@ -1309,6 +1309,7 @@ const de = {
     resume: 'Fortsetzen',
     setUp: 'Ordner einrichten',
     problemsTitle: 'Nicht hochgeladen',
+    errorDetails: 'Details für die IT',
     status: {
       off: 'Noch nicht eingerichtet – mit einem Klick erscheint „OfficeHub“ im Explorer.',
       starting: 'Wird gestartet …',

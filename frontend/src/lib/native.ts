@@ -133,6 +133,8 @@ export interface SyncStatus {
   paused: boolean
   status: 'off' | 'starting' | 'syncing' | 'upToDate' | 'offline' | 'signIn' | 'paused'
   problems: SyncProblem[]
+  /** Why the last talk with the server failed (technical, for IT) */
+  error?: string | null
 }
 
 /** Windows: ask for the folder's status, open it, sync now, pause / continue, or set it up. */

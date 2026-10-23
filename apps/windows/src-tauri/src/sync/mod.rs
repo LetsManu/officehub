@@ -54,6 +54,13 @@ pub enum Status {
 
 pub type Report = Arc<dyn Fn(Option<Status>, Option<Event>) + Send + Sync>;
 
+/// Why the last talk with the server failed (shown under "Files" in the app), None while it works.
+pub static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+fn note_error(error: Option<String>) {
+    *LAST_ERROR.lock().unwrap_or_else(|e| e.into_inner()) = error;
+}
+
 /// A running sync; stops when dropped.
 pub struct Running {
     stop: Arc<AtomicBool>,
@@ -161,6 +168,7 @@ pub fn start(config: Config, report: Report) -> std::io::Result<Running> {
                 match api.changes(cursor, if first { 0 } else { LONG_POLL }, None) {
                     Ok(changes) => {
                         backoff = 5;
+                        note_error(None);
                         let busy = !changes.items.is_empty() || !changes.removed.is_empty();
                         if busy {
                             report(Some(Status::Syncing), None);
@@ -182,11 +190,16 @@ pub fn start(config: Config, report: Report) -> std::io::Result<Running> {
                             report(Some(Status::UpToDate), None);
                         }
                     }
-                    Err(ApiError::Status(401, _)) => {
+                    Err(ApiError::Status(401, code)) => {
+                        note_error(Some(format!("401 {code}")));
                         report(Some(Status::SignInNeeded), None);
                         sleep_unless(&stop, Duration::from_secs(60));
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        note_error(Some(match &e {
+                            ApiError::Status(status, code) => format!("{status} {code}"),
+                            ApiError::Offline(message) => message.clone(),
+                        }));
                         report(Some(Status::Offline), None);
                         sleep_unless(&stop, Duration::from_secs(backoff));
                         backoff = (backoff * 2).min(120);

@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.8.4',
+    date: '2026-10-23',
+    de: [
+      'Windows-App: Der OfficeHub-Ordner gleicht jetzt auch mit Portalen über HTTPS ab – die Bereiche erscheinen im Explorer und Dateien werden hochgeladen. Klappt die Verbindung nicht, steht unter „Dateien“ der Grund für die IT.',
+    ],
+    en: [
+      'Windows app: the OfficeHub folder now syncs with portals on HTTPS too – the spaces appear in Explorer and files upload. If the connection fails, "Files" shows the reason for IT.',
+    ],
+  },
+  {
     version: '3.8.3',
     date: '2026-10-23',
     de: [
