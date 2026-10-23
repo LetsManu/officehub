@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from app import totp
 from app.holidays import easter_sunday, public_holidays
 from app.workdays import count_working_days
-from conftest import make_client
+from conftest import make_client, working_day
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -114,9 +114,7 @@ def test_deputy_receives_and_decides(tom, anna, lukas):
     tomorrow = str(date.today() + timedelta(days=1))
     assert tom.put("/api/profile/deputy", json={"deputy_id": lukas_id, "until": tomorrow}).json()["deputy_id"] == lukas_id
 
-    start = date.today() + timedelta(days=60)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+    start = working_day(60)
     body = {"type": "vacation", "title": "Kurz", "start_date": str(start), "end_date": str(start), "submit": True}
     req = anna.post("/api/requests", json=body).json()
     assert lukas.get("/api/notifications").json()["items"][0]["kind"] == "request_submitted"
@@ -196,9 +194,7 @@ def test_mail_is_queued_only_when_enabled(anna, tom, monkeypatch):
     sent: list = []
     monkeypatch.setattr(type(settings), "mail_enabled", property(lambda self: True))
     monkeypatch.setattr(mailer, "_send_in_background", lambda messages: sent.extend(messages))
-    start = date.today() + timedelta(days=70)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+    start = working_day(70)
     anna.post("/api/requests", json={"type": "vacation", "title": "Mail", "start_date": str(start), "end_date": str(start), "submit": True})
     assert any(m["To"] == "tom.huber@example.com" for m in sent)
     # People can switch it off
