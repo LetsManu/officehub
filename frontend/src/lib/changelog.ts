@@ -9,6 +9,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.9.1',
+    date: '2026-10-23',
+    de: [
+      'Meetings und Anrufe mit Leuten außerhalb des Büros zeigen jetzt Bild und Ton, auch wenn das Portal hinter Cloudflare liegt: OfficeHub findet die echte Adresse des Büros selbst.',
+    ],
+    en: [
+      'Meetings and calls with people outside the office now show picture and sound, also when the portal is behind Cloudflare: OfficeHub finds the office\'s real address by itself.',
+    ],
+  },
+  {
     version: '3.9.0',
     date: '2026-10-23',
     de: [

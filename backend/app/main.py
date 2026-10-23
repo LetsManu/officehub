@@ -15,7 +15,7 @@ from .config import settings
 from .db import Base, SessionLocal, add_missing_columns, engine
 from .errors import ApiError
 from .services import sso as sso_service
-from .services import backup
+from .services import address, backup
 from .services import meetings as meetings_service
 from .routers import (
     admin,
@@ -75,6 +75,7 @@ async def lifespan(_app: FastAPI):
     add_missing_columns()
     with SessionLocal() as db:
         seed.ensure_initial_data(db)
+    address.start()
     nightly = asyncio.create_task(backup.nightly())
     yield
     nightly.cancel()
@@ -135,6 +136,13 @@ def health() -> dict:
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+@app.get("/api/address", tags=["system"])
+def seen_address(request: Request) -> dict:
+    """The public address this request came from, as the proxies in front report it. OfficeHub asks itself through its
+    portal address to find the office's public address for meetings (services/address.py)."""
+    return {"address": address.seen(request)}
 
 
 @app.get("/api/config", tags=["system"])

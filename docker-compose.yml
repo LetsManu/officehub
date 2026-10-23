@@ -115,6 +115,7 @@ services:
       - /bin/sh
       - -c
       - >-
+        i=0; while [ ! -f /shared/address_ready ] && [ $$i -lt 90 ]; do sleep 2; i=$$((i+1)); done;
         IP="$${PUBLIC_IP:-$$(cat /shared/public_ip 2>/dev/null)}"; IP="$${IP:-$$(cat /shared/host_ip 2>/dev/null)}";
         exec turnserver -n --listening-port=3478 --min-port=49160 --max-port=49200
         --use-auth-secret --static-auth-secret="$$(cat /shared/turn_secret)" --realm=officehub
@@ -185,12 +186,13 @@ services:
       - /bin/sh
       - -c
       - >-
+        i=0; while [ ! -f /shared/address_ready ] && [ $$i -lt 90 ]; do sleep 2; i=$$((i+1)); done;
         H="$${PUBLIC_URL#*://}"; H="$${H%%/*}"; H="$${H%%:*}";
         export JWT_APP_SECRET="$${JWT_APP_SECRET:-$$(cat /shared/jitsi_app_secret)}"
         JICOFO_AUTH_PASSWORD="$${JICOFO_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
         JVB_AUTH_PASSWORD="$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
         JVB_ADVERTISE_IPS="$$(echo "$${JVB_ADVERTISE_IPS:-$$(cat /shared/public_ip 2>/dev/null)},$$(cat /shared/host_ip 2>/dev/null)" | tr ',' '\n' | grep . | sort -u | paste -sd, -)"
-        TURN_CREDENTIALS="$$(cat /shared/turn_secret 2>/dev/null)" TURN_HOST="$$H";
+        TURN_CREDENTIALS="$$(cat /shared/turn_secret 2>/dev/null)" TURN_HOST="$$(cat /shared/turn_host 2>/dev/null || echo "$$H")";
         exec /init
     volumes:
       - shared:/shared:ro

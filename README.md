@@ -279,6 +279,9 @@ flowchart TB
   for built-in meetings) that expires after six hours. Guests get one only after someone lets them in.
 - **Addresses without setup:** the one-shot `hostip` container reads the server's office-network address from its
   routing table; the public address comes from `PUBLIC_IP`, `PORTAL_URL` or the name people open the portal with.
+  When that name points at a proxy such as Cloudflare (which does not pass audio and video), the backend asks its
+  own portal address who it is (`/api/address`, CF-Connecting-IP / X-Forwarded-For) and uses the office's real
+  public address instead; the meeting servers wait for that check on start (`services/address.py`).
   Both go to `/shared`, where the videobridge and the relay read them – no outside STUN server is ever asked.
 - **Relay passwords** follow coturn's `use-auth-secret` scheme: `username = expiry:user`,
   `password = base64(HMAC-SHA1(secret, username))`, valid for 12 hours, made from a secret generated on the first start.
