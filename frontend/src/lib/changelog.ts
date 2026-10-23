@@ -15,11 +15,13 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Excel-Dateien öffnen jetzt in GridCraft, direkt im Browser: Formeln, Formatierung und mehrere Tabellenblätter, gespeichert wird als neue Version.',
       'Mehrere Personen bearbeiten eine Tabelle gleichzeitig: Jede Zelle kommt sofort bei allen an, Formeln rechnen überall mit, und du siehst, wo die anderen gerade sind. Gespeichert wird automatisch.',
       'Der bisherige Office-Server (Collabora) fällt weg – Word, Excel und PowerPoint laufen jetzt alle in den Open-Source-Programmen im eigenen Stack.',
+      'Schnelles Tippen mit Tab und Enter landet in GridCraft immer in der richtigen Zelle, auch auf langsamen Geräten.',
     ],
     en: [
       'Excel files now open in GridCraft, right in the browser: formulas, formatting and several sheets, saved as a new version.',
       'Several people edit a workbook at the same time: every cell reaches everyone at once, formulas recalculate everywhere, and you see where the others are. Saving happens automatically.',
       'The old office server (Collabora) is gone – Word, Excel and PowerPoint now all run in the open-source programs in your own stack.',
+      'Typing fast with Tab and Enter always lands in the right cell in GridCraft, on slow devices too.',
     ],
   },
   {
