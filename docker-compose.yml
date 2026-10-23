@@ -29,7 +29,6 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Office editing and the meeting server switch on by themselves when their containers run.
       # Passwords between them and OfficeHub are made on the first start (in the "shared" volume).
-      COLLABORA_URL: ${COLLABORA_URL:-http://collabora:9980}
       ONLYOFFICE_URL: ${ONLYOFFICE_URL:-http://onlyoffice}
       ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
@@ -61,22 +60,9 @@ services:
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
 
-  # ---- Edit Word, Excel and PowerPoint files in the browser (Collabora runs by default) ----
-  # It only talks to OfficeHub inside this stack. Remove this service if you do not want it (needs ~1 GB RAM).
-  collabora:
-    image: collabora/code:26.04.4.2.1
-    restart: unless-stopped
-    cap_add:
-      - MKNOD
-    environment:
-      aliasgroup1: http://backend:8000
-      dictionaries: de_DE de_AT de_CH en_GB en_US
-      extra_params: >-
-        --o:ssl.enable=false --o:ssl.termination=false
-        --o:net.service_root=/collabora --o:net.frame_ancestors='self'
-        --o:net.proto=IPv4 --o:admin_console.enable=false --o:welcome.enable=false
-
-  # Optional second editor: start with COMPOSE_PROFILES=onlyoffice (needs 2–4 GB RAM).
+  # ---- Optional second office editor: ONLYOFFICE ----
+  # Word, Excel and PowerPoint files open in the craft apps below by default. Start ONLYOFFICE as well with
+  # COMPOSE_PROFILES=onlyoffice (needs 2–4 GB RAM); HR picks which one opens files under Administration -> Office editing.
   onlyoffice:
     image: onlyoffice/documentserver:9.2.1
     profiles: ["onlyoffice"]
@@ -94,10 +80,10 @@ services:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - shared:/shared:ro
 
-  # ---- WordCraft and DeckCraft in the browser ----
-  # Open-source word processor and presentation program (built from source, static files only, a few MB of RAM).
-  # Word and PowerPoint files open there by themselves; HR can switch back to the office editor under
-  # Administration -> Office editing. Remove this service if you do not want it.
+  # ---- Edit Word, Excel and PowerPoint files in the browser: WordCraft, DeckCraft and GridCraft (on by default) ----
+  # Open-source word processor, presentation program and spreadsheet (built from source, static files only, a few MB
+  # of RAM). Office files open there by themselves; with ONLYOFFICE running, HR can switch to it under
+  # Administration -> Office editing.
   craft:
     image: ghcr.io/letsmanu/officehub-craft:${OFFICEHUB_VERSION:-latest}
     build: ./craft

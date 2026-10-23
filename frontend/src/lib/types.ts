@@ -694,7 +694,7 @@ export interface SpaceFile {
 export interface FileVersion {
   number: number
   size: number
-  source: 'upload' | 'editor' | 'restore' | 'new' | 'drive' | 'wordcraft' | 'deckcraft'
+  source: 'upload' | 'editor' | 'restore' | 'new' | 'drive' | 'wordcraft' | 'deckcraft' | 'gridcraft'
   created_by: string | null
   created_at: string
 }
@@ -728,22 +728,19 @@ export interface SpaceOverview {
 }
 
 export interface OfficeConfig {
-  engines: ('collabora' | 'onlyoffice')[]
-  default: 'collabora' | 'onlyoffice' | null
+  engines: 'onlyoffice'[]
+  default: 'onlyoffice' | null
   editable: Record<string, string[]>
-  craft?: ('wordcraft' | 'deckcraft')[]
+  craft?: ('wordcraft' | 'deckcraft' | 'gridcraft')[]
   prefer_craft?: boolean
 }
 
 export interface OfficeOpen {
-  engine: 'collabora' | 'onlyoffice'
+  engine: 'onlyoffice'
   can_write: boolean
   file_name: string
   /** Who has it open in WordCraft/DeckCraft or on the network drive ("" = someone), when that is why it is read-only */
   editing_by: string | null
-  action_url: string | null
-  access_token: string | null
-  access_token_ttl: number | null
   script: string | null
   config: Record<string, unknown> | null
 }

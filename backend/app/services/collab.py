@@ -1,4 +1,4 @@
-"""Live co-editing in WordCraft and DeckCraft: OfficeHub passes the changes between the people in a file.
+"""Live co-editing in WordCraft, DeckCraft and GridCraft: OfficeHub passes the changes between the people in a file.
 
 Everyone who opens a file in WordCraft or DeckCraft joins its room. The programs keep the document as a
 shared (CRDT) document and send each change as a small binary update; OfficeHub hands every update to the

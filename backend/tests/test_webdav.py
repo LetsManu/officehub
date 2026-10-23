@@ -138,7 +138,7 @@ def test_open_in_wordcraft_and_save_back(anna, lukas, monkeypatch):
 
     monkeypatch.setattr(craft, "settings", dataclasses.replace(config.settings, craft_internal_url="http://craft:8080"))
     monkeypatch.setattr(craft, "reachable", lambda url: True)  # the container runs
-    assert anna.get("/api/craft/config").json()["apps"] == ["wordcraft", "deckcraft"]
+    assert anna.get("/api/craft/config").json()["apps"] == ["wordcraft", "deckcraft", "gridcraft"]
 
     space = _space(anna, "Texte")
     upload = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("Brief.docx", _docx())})
@@ -164,14 +164,18 @@ def test_open_in_wordcraft_and_save_back(anna, lukas, monkeypatch):
     assert plain.put(query["save"][0], content=_docx()).status_code == 423
     assert anna.post(f"/api/craft/open/{item['id']}").json()["can_write"] is False
 
-    # a .deckcraft presentation can be stored and opens in DeckCraft; other types have no program
+    # a .deckcraft presentation can be stored and opens in DeckCraft, a workbook in GridCraft;
+    # other types have no program
     deck = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("Pitch.deckcraft", _docx())}).json()
     assert anna.post(f"/api/craft/open/{deck['id']}").json()["app"] == "deckcraft"
+    book = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("Zahlen.xlsx", _docx())}).json()
+    sheet = anna.post(f"/api/craft/open/{book['id']}").json()
+    assert sheet["app"] == "gridcraft" and sheet["url"].startswith("/gridcraft/?src=")
     note = anna.post(f"/api/spaces/{space['id']}/files", files={"file": ("a.txt", b"hallo")}).json()
     assert anna.post(f"/api/craft/open/{note['id']}").json()["code"] == "craft_unavailable"
 
 
-def test_word_and_powerpoint_open_in_craft_by_default(anna, monkeypatch):
+def test_word_excel_and_powerpoint_open_in_craft_by_default(anna, monkeypatch):
     import dataclasses
 
     from app import config
@@ -183,7 +187,7 @@ def test_word_and_powerpoint_open_in_craft_by_default(anna, monkeypatch):
     monkeypatch.setattr(craft, "settings", dataclasses.replace(config.settings, craft_internal_url="http://craft:8080"))
     monkeypatch.setattr(craft, "reachable", lambda url: True)
     data = anna.get("/api/office/config").json()
-    assert data["craft"] == ["wordcraft", "deckcraft"] and data["prefer_craft"] is True
+    assert data["craft"] == ["wordcraft", "deckcraft", "gridcraft"] and data["prefer_craft"] is True
 
     # HR can choose the office editor again (and back)
     hr = make_client("julia.weber@example.com")

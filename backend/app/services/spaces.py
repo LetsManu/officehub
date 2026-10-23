@@ -112,7 +112,8 @@ def checked_out_by_other(item: SpaceFile, user: User | None) -> bool:
 
 def lock_owner_id(item: SpaceFile) -> int | None:
     """Who holds the editing lock: "dav:<user>:<token>" (network drive) and "craft:<user>:<token>" (WordCraft,
-    DeckCraft) name the person; the office servers' own locks do not (None). Also None without an active lock."""
+    DeckCraft) name the person; any other lock (e.g. left over from a removed office server) does not (None).
+    Also None without an active lock."""
     if not (item.lock_id and item.lock_expires and item.lock_expires > utcnow()):
         return None
     kind, _, rest = item.lock_id.partition(":")
@@ -121,7 +122,7 @@ def lock_owner_id(item: SpaceFile) -> int | None:
 
 
 def locked_by_other(item: SpaceFile, user: User | None) -> bool:
-    """Someone else (or an office server) has the file open for editing right now."""
+    """Someone else has the file open for editing right now."""
     if not (item.lock_id and item.lock_expires and item.lock_expires > utcnow()):
         return False
     return user is None or lock_owner_id(item) != user.id

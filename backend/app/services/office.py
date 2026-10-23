@@ -1,11 +1,12 @@
-"""Editing office files in the browser with your own Collabora Online or ONLYOFFICE Docs server.
+"""Editing office files in the browser with your own ONLYOFFICE Docs server (optional).
 
-Both servers run next to OfficeHub (same Docker network) and are reached in the browser through the
-frontend's web server under /collabora/ and /onlyoffice/, so the portal never talks to an outside service.
+Word, Excel and PowerPoint files open in the craft apps by default (`services/craft.py`). ONLYOFFICE, when it
+runs, is the second engine: it runs next to OfficeHub (same Docker network) and is reached in the browser through
+the frontend's web server under /onlyoffice/, so the portal never talks to an outside service.
 
-- Collabora uses WOPI: it fetches and saves the file through /wopi/files/<id> on the backend.
-- ONLYOFFICE downloads the file from /office-hooks/onlyoffice/file/<id> and reports changes to
-  /office-hooks/onlyoffice/callback/<id>. Requests in both directions are signed with JWT.
+ONLYOFFICE downloads the file from /office-hooks/onlyoffice/file/<id> and reports changes to
+/office-hooks/onlyoffice/callback/<id>. Requests in both directions are signed with JWT.
+The signed file tokens (`make_token` / `read_token`) are also used by the craft apps.
 """
 
 import base64
@@ -15,9 +16,6 @@ import json
 import re
 import secrets
 import time
-import urllib.request
-from functools import lru_cache
-from xml.etree import ElementTree
 
 from sqlalchemy.orm import Session
 
@@ -26,12 +24,11 @@ from ..errors import ApiError
 from .probe import reachable
 from .settings import get_setting, set_setting
 
-ENGINES = ("collabora", "onlyoffice")
+ENGINES = ("onlyoffice",)
 TOKEN_HOURS = 10
 
 # File types each editor can change (others open read-only or not at all)
 EDITABLE = {
-    "collabora": {"docx", "xlsx", "pptx", "odt", "ods", "odp", "doc", "xls", "ppt", "rtf", "csv"},
     "onlyoffice": {"docx", "xlsx", "pptx", "odt", "ods", "odp", "csv", "rtf", "doc", "xls", "ppt"},
 }
 ONLYOFFICE_KIND = {
@@ -44,8 +41,6 @@ ONLYOFFICE_KIND = {
 def available() -> list[str]:
     """Office servers that are set up and running right now (they switch on by themselves when started)."""
     engines = []
-    if settings.collabora_url and reachable(f"{settings.collabora_url}/collabora/hosting/discovery"):
-        engines.append("collabora")
     if settings.onlyoffice_url and reachable(f"{settings.onlyoffice_url}/healthcheck"):
         engines.append("onlyoffice")
     return engines
@@ -55,7 +50,7 @@ def default_engine(db: Session) -> str | None:
     engines = available()
     if not engines:
         return None
-    chosen = get_setting(db, "office", {}).get("engine")
+    chosen = get_setting(db, "office", {}).get("engine")  # may still name an engine that was removed
     return chosen if chosen in engines else engines[0]
 
 
@@ -125,43 +120,7 @@ def jwt_decode(token: str, secret: str) -> dict:
     return data
 
 
-# ---------- Collabora discovery ----------
-
-
-@lru_cache(maxsize=4)
-def _discovery(url: str, _bucket: int) -> dict[str, dict[str, str]]:
-    """{extension: {action: urlsrc}} from Collabora's discovery file (cached for an hour)."""
-    # Collabora runs with net.service_root=/collabora so that it can share the portal's address
-    try:
-        with urllib.request.urlopen(f"{url}/collabora/hosting/discovery", timeout=10) as response:  # noqa: S310 - own server
-            root = ElementTree.fromstring(response.read())
-    except OSError:
-        with urllib.request.urlopen(f"{url}/hosting/discovery", timeout=10) as response:  # noqa: S310
-            root = ElementTree.fromstring(response.read())
-    actions: dict[str, dict[str, str]] = {}
-    for action in root.iter("action"):
-        ext, name, urlsrc = action.get("ext"), action.get("name"), action.get("urlsrc")
-        if ext and name and urlsrc:
-            actions.setdefault(ext, {})[name] = urlsrc
-    return actions
-
-
-def collabora_action(file_type: str, can_write: bool) -> str:
-    """Path (with query) of the editor page for this file type, as seen from the browser."""
-    if not settings.collabora_url:
-        raise ApiError(409, "office_unavailable", "Office editing is not set up.")
-    try:
-        actions = _discovery(settings.collabora_url, int(time.time() // 3600)).get(file_type, {})
-    except OSError:
-        raise ApiError(503, "office_unreachable", "The office server cannot be reached right now.") from None
-    urlsrc = actions.get("edit" if can_write else "view") or actions.get("view") or actions.get("edit")
-    if not urlsrc:
-        raise ApiError(409, "office_type", "This file type cannot be opened in the office editor.")
-    # Keep only path and query: the browser reaches Collabora through the portal (/collabora/...).
-    path = re.sub(r"^[a-z]+://[^/]+", "", urlsrc)
-    if not path.startswith("/collabora/"):
-        path = "/collabora" + path
-    return path
+# ---------- ONLYOFFICE ----------
 
 
 def onlyoffice_download_url(url: str) -> str:

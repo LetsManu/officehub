@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
- * Edit a Word, Excel or PowerPoint file in the browser with the company's own Collabora Online or
- * ONLYOFFICE server. Both are reached through the portal's own address, so the page never loads
- * anything from outside. While WordCraft / DeckCraft run (and HR did not choose otherwise), Word and
- * PowerPoint files go there instead.
+ * Edit a Word, Excel or PowerPoint file in the browser with the company's own ONLYOFFICE server
+ * (optional). It is reached through the portal's own address, so the page never loads anything from
+ * outside. While the craft apps run (and HR did not choose otherwise), office files go there instead.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
@@ -31,17 +30,16 @@ const together = route.query.together === '1'
 
 const file = ref<SpaceFileDetail | null>(null)
 const office = ref<OfficeConfig>({ engines: [], default: null, editable: {} })
-const engine = ref<'collabora' | 'onlyoffice' | null>(null)
+const engine = ref<'onlyoffice' | null>(null)
 const session = ref<OfficeOpen | null>(null)
 const error = ref<string | null>(null)
 const loading = ref(true)
-const form = ref<HTMLFormElement | null>(null)
 let editor: { destroyEditor: () => void } | null = null
 
 // ---------- WordCraft / DeckCraft, shown inside the portal (with this bar and its way back) ----------
 
 interface CraftOpen {
-  app: 'wordcraft' | 'deckcraft'
+  app: 'wordcraft' | 'deckcraft' | 'gridcraft'
   url: string
   can_write: boolean
   /** While we may save: the lock that keeps others read-only. Renewed every minute, given back on leaving. */
@@ -136,17 +134,6 @@ function close() {
   router.push(backTo.value)
 }
 
-function onMessage(event: MessageEvent) {
-  if (event.origin !== window.location.origin || typeof event.data !== 'string') return
-  try {
-    const message = JSON.parse(event.data) as { MessageId?: string; Values?: { Status?: string } }
-    if (message.MessageId === 'App_LoadingStatus' && message.Values?.Status === 'Document_Loaded') loading.value = false
-    if (message.MessageId === 'UI_Close') close()
-  } catch {
-    /* not a message from the editor */
-  }
-}
-
 async function start() {
   editor?.destroyEditor()
   editor = null
@@ -156,35 +143,29 @@ async function start() {
   try {
     session.value = await api.post<OfficeOpen>(`/api/office/open/${props.id}`, { engine: engine.value, origin: window.location.origin })
     await nextTick()
-    if (session.value.engine === 'collabora') {
-      form.value?.submit()
-      window.setTimeout(() => (loading.value = false), 8000) // older servers do not report when they are ready
-    } else {
-      await loadScript(session.value.script!)
-      if (!window.DocsAPI) throw new Error('script')
-      editor = new window.DocsAPI.DocEditor('office-onlyoffice', {
-        ...session.value.config,
-        events: {
-          onDocumentReady: () => (loading.value = false),
-          onRequestClose: close,
-        },
-      })
-      window.setTimeout(() => (loading.value = false), 8000)
-    }
+    await loadScript(session.value.script!)
+    if (!window.DocsAPI) throw new Error('script')
+    editor = new window.DocsAPI.DocEditor('office-onlyoffice', {
+      ...session.value.config,
+      events: {
+        onDocumentReady: () => (loading.value = false),
+        onRequestClose: close,
+      },
+    })
+    window.setTimeout(() => (loading.value = false), 8000)
   } catch (e) {
     loading.value = false
     error.value = e instanceof Error && e.message === 'script' ? t('office.unreachable') : errorText(e)
   }
 }
 
-async function switchEngine(value: 'collabora' | 'onlyoffice') {
+async function switchEngine(value: 'onlyoffice') {
   if (engine.value === value) return
   engine.value = value
   await start()
 }
 
 onMounted(async () => {
-  window.addEventListener('message', onMessage)
   try {
     ;[file.value, office.value] = await Promise.all([api.get<SpaceFileDetail>(`/api/spaces/files/${props.id}`), loadOfficeConfig()])
     if (!together && office.value.prefer_craft && craftApp(await loadCraftConfig(), file.value.file_type)) {
@@ -218,7 +199,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('message', onMessage)
   window.removeEventListener('pagehide', releaseLock)
   releaseLock()
   editor?.destroyEditor()
@@ -255,14 +235,7 @@ onBeforeUnmount(() => {
           <AppIcon name="edit" :size="18" />{{ editingBy ? t('office.editingBy', { name: editingBy }) : t('office.editingBySomeone') }}
         </div>
         <div v-if="loading" class="loading" role="status"><span class="spinner" aria-hidden="true" />{{ t('office.loading') }}</div>
-        <template v-if="session?.engine === 'collabora'">
-          <form ref="form" :action="session.action_url ?? ''" method="post" target="office-frame" class="visually-hidden">
-            <input type="hidden" name="access_token" :value="session.access_token ?? ''" />
-            <input type="hidden" name="access_token_ttl" :value="String(session.access_token_ttl ?? 0)" />
-          </form>
-          <iframe name="office-frame" class="frame" :title="file?.name ?? t('office.editor')" allow="clipboard-read *; clipboard-write *; fullscreen" allowfullscreen />
-        </template>
-        <div v-else-if="session?.engine === 'onlyoffice'" class="frame"><div id="office-onlyoffice" /></div>
+        <div v-if="session?.engine === 'onlyoffice'" class="frame"><div id="office-onlyoffice" /></div>
         <iframe v-else-if="craft" ref="craftFrame" class="frame" :src="craft.url" :title="file?.name ?? t('office.editor')" allow="clipboard-read; clipboard-write; fullscreen; local-fonts" allowfullscreen />
       </template>
     </div>

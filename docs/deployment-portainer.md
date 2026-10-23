@@ -66,9 +66,10 @@ Changing `ADMIN_EMAIL` / `ADMIN_PASSWORD` later has no effect – use **Profile 
 
 ## Office editing and meetings – nothing to set up
 
-- **Word, Excel and PowerPoint in the browser**: the stack starts **Collabora Online** with the portal, and OfficeHub
-  finds it by itself. It is reached through the portal's own address (`/collabora/`), works with HTTP and HTTPS, and
-  needs about 1 GB of RAM. Don't want it? Remove the `collabora` service from the stack.
+- **Word, Excel and PowerPoint in the browser**: the `craft` container starts with the portal, and OfficeHub finds
+  it by itself. Word files open in **WordCraft**, PowerPoint files in **DeckCraft** and Excel files in **GridCraft**
+  (open-source programs in the browser, a few MB of RAM); Save puts them back as a new version, and several people can
+  edit the same file together live.
 - **Video meetings and calls** run on the stack's own **Jitsi Meet** server (`jitsi-*` containers, about 1–2 GB of
   RAM). The `turn` container is a relay of your own for people on other networks (home office, mobile data). The
   short-lived `hostip` container finds the server's address in the office network (from its routing table) and
@@ -85,12 +86,7 @@ these servers are made on the first start – there is nothing to type in.
 
 | Profile | What it adds |
 | --- | --- |
-| `onlyoffice` | **ONLYOFFICE Docs** as a second editor (2–4 GB of RAM, first start takes a few minutes). HR chooses the default under **Administration → Office editing**. |
-
-**WordCraft and DeckCraft:** the `craft` container runs by default. Word files then open in WordCraft and PowerPoint
-files in DeckCraft (open-source programs in the browser); Save puts them back as a new version. Excel files stay in
-Collabora/ONLYOFFICE. HR can open Word and PowerPoint in the office editor again under **Administration → Office
-editing**.
+| `onlyoffice` | **ONLYOFFICE Docs** as a second editor (2–4 GB of RAM, first start takes a few minutes). HR chooses which one opens office files under **Administration → Office editing**. |
 
 **Network drive and desktop programs (WebDAV):** always on, nothing to install on the server. Everyone creates an
 **app password** under **Profile → Programs and network drive** and connects `https://<portal>/dav/` in Windows
@@ -170,11 +166,10 @@ To restore on a new server: deploy the stack, copy an archive into the backup fo
 
 | Problem | Cause and fix |
 | --- | --- |
-| "The office server cannot be reached" | The Collabora/ONLYOFFICE container is not running or still starting (about a minute after a redeploy). Look at its log in Portainer. |
+| "The office server cannot be reached" | The ONLYOFFICE container is not running or still starting (about a minute after a redeploy). Look at its log in Portainer. |
 | Camera and microphone cannot be chosen | The portal is opened over plain `http://`. Use HTTPS. |
 | Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). |
 | "Could not connect to the meeting" | With Jitsi: the reverse proxy does not pass WebSockets (Nginx Proxy Manager: *Websockets Support*). |
-| Collabora stops right after starting with "Failed to listen" | The host has no IPv6. The compose file already sets `net.proto=IPv4`; keep that line if you copy the service. |
 | The editor stays empty | Your reverse proxy must pass WebSockets and send `X-Forwarded-Proto` (all common ones do). |
 | `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |
 | `pull access denied` / `unauthorized` | Images are private and Portainer has no registry login → step 1 |

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-/** Which office server opens Word, Excel and PowerPoint files (Collabora Online or ONLYOFFICE), and whether Word and
- * PowerPoint files open in WordCraft / DeckCraft instead. */
+/** Whether office files open in the craft apps (WordCraft, DeckCraft, GridCraft) or in the office server
+ * (ONLYOFFICE, optional). */
 import { onMounted, ref } from 'vue'
 import { api } from '@/lib/api'
 import { errorText, t } from '@/lib/i18n'

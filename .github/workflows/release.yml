@@ -213,7 +213,7 @@ jobs:
           Images:
           - \`ghcr.io/${OWNER}/officehub-backend:${VERSION#v}\`
           - \`ghcr.io/${OWNER}/officehub-frontend:${VERSION#v}\`
-          - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (WordCraft and DeckCraft in the browser)
+          - \`ghcr.io/${OWNER}/officehub-craft:${VERSION#v}\` (WordCraft, DeckCraft and GridCraft in the browser)
 
           ## Apps
 

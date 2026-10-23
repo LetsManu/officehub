@@ -49,14 +49,16 @@ export function loadOfficeConfig(force = false): Promise<OfficeConfig> {
   return officeConfig
 }
 
+export type CraftAppName = 'wordcraft' | 'deckcraft' | 'gridcraft'
+
 export interface CraftConfig {
-  apps: ('wordcraft' | 'deckcraft')[]
+  apps: CraftAppName[]
   types: Record<string, string[]>
 }
 
 let craftConfig: Promise<CraftConfig> | null = null
 
-/** WordCraft / DeckCraft in the browser: which run in the stack and which file types they edit. */
+/** WordCraft / DeckCraft / GridCraft in the browser: which run in the stack and which file types they edit. */
 export function loadCraftConfig(): Promise<CraftConfig> {
   craftConfig ??= api.get<CraftConfig>('/api/craft/config').catch(() => ({ apps: [], types: {} }))
   return craftConfig
@@ -65,11 +67,11 @@ export function loadCraftConfig(): Promise<CraftConfig> {
 const warmed = new Set<string>()
 
 /**
- * Fetch WordCraft's / DeckCraft's large program files in the background while someone looks at files, so opening a
+ * Fetch the craft programs' large program files in the background while someone looks at files, so opening a
  * document is quick. Once per version: the service worker keeps them. Skipped when the connection is slow or the
  * person asked to save data.
  */
-export function warmCraft(apps: ('wordcraft' | 'deckcraft')[]): void {
+export function warmCraft(apps: CraftAppName[]): void {
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
   if (connection?.saveData || /2g/.test(connection?.effectiveType ?? '') || !navigator.serviceWorker?.controller) return
   for (const app of apps) {
@@ -86,8 +88,8 @@ export function warmCraft(apps: ('wordcraft' | 'deckcraft')[]): void {
   }
 }
 
-/** The browser program for a file, if it runs: "wordcraft" or "deckcraft". */
-export function craftApp(config: CraftConfig, type: string): 'wordcraft' | 'deckcraft' | null {
+/** The browser program for a file, if it runs: "wordcraft", "deckcraft" or "gridcraft". */
+export function craftApp(config: CraftConfig, type: string): CraftAppName | null {
   return config.apps.find((app) => config.types[app]?.includes(type)) ?? null
 }
 
