@@ -512,6 +512,13 @@ const en: Messages = {
     newXlsx: 'Spreadsheet (Excel)',
     newPptx: 'Presentation (PowerPoint)',
     newMd: 'Note',
+    sheetTemplates: {
+      title: 'Template',
+      blank: { label: 'Blank spreadsheet', about: 'Start with an empty sheet.' },
+      budget: { label: 'Budget', name: 'Budget', about: 'Items with planned and actual amounts; difference and totals calculate themselves.' },
+      todo: { label: 'To-do list', name: 'Tasks', about: 'Task, who is responsible, due date, done and a note.' },
+      week: { label: 'Weekly plan', name: 'Weekly plan', about: 'Monday to Friday from 8 am to 5 pm in half hours.' },
+    },
     newTitle: { folder: 'New folder', docx: 'New text document', xlsx: 'New spreadsheet', pptx: 'New presentation', md: 'New note' },
     create: 'Create',
     created: 'File created',

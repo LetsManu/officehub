@@ -510,6 +510,13 @@ const de = {
     newXlsx: 'Tabelle (Excel)',
     newPptx: 'Präsentation (PowerPoint)',
     newMd: 'Notiz',
+    sheetTemplates: {
+      title: 'Vorlage',
+      blank: { label: 'Leere Tabelle', about: 'Ohne Inhalt beginnen.' },
+      budget: { label: 'Budget', name: 'Budget', about: 'Posten mit geplanten und tatsächlichen Beträgen, Differenz und Summe rechnen sich selbst.' },
+      todo: { label: 'Aufgabenliste', name: 'Aufgaben', about: 'Aufgabe, wer zuständig ist, Fälligkeit, erledigt und Notiz.' },
+      week: { label: 'Wochenplan', name: 'Wochenplan', about: 'Montag bis Freitag von 8 bis 17 Uhr in halben Stunden.' },
+    },
     newTitle: { folder: 'Neuer Ordner', docx: 'Neues Textdokument', xlsx: 'Neue Tabelle', pptx: 'Neue Präsentation', md: 'Neue Notiz' },
     create: 'Anlegen',
     created: 'Datei angelegt',
