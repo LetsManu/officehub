@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { escapeHtml, renderChat, renderMarkdown } from '../src/lib/markdown'
 import { parseSlash, slashMatches } from '../src/lib/slash'
 import { countWorkingDays } from '../src/lib/workdays'
+import { relayUrls } from '../src/lib/relayTest'
+
+describe('relayUrls', () => {
+  it('splits the relay addresses into the normal and the fallback way, without STUN', () => {
+    const groups = relayUrls([
+      { urls: ['stun:office.example:3478', 'turn:office.example:3478?transport=udp', 'turn:office.example:3478?transport=tcp'], username: 'u', credential: 'c' },
+      { urls: 'turns:relay.example:443' },
+    ])
+    expect(groups.udp).toEqual([{ urls: 'turn:office.example:3478?transport=udp', username: 'u', credential: 'c' }])
+    expect(groups.tcp.map((s) => s.urls)).toEqual(['turn:office.example:3478?transport=tcp', 'turns:relay.example:443'])
+    expect(relayUrls([])).toEqual({ udp: [], tcp: [] })
+  })
+})
 
 describe('countWorkingDays', () => {
   it('counts Monday to Friday', () => {

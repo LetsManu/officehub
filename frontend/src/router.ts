@@ -72,6 +72,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/trainings', component: () => import('./views/TrainingsView.vue'), meta: { title: 'nav.trainings' } },
   { path: '/equipment', component: () => import('./views/EquipmentView.vue'), meta: { support: true, title: 'nav.equipment' } },
   { path: '/admin/audit', component: () => import('./views/AuditView.vue'), meta: { admin: true, title: 'nav.audit' } },
+  { path: '/admin/system', component: () => import('./views/SystemView.vue'), meta: { admin: true, title: 'nav.system' } },
   { path: '/calendar', component: () => import('./views/CalendarView.vue'), meta: { title: 'nav.calendar', wide: true } },
   { path: '/activity', component: () => import('./views/ActivityView.vue'), meta: { title: 'nav.activity' } },
   { path: '/files', component: () => import('./views/FilesView.vue'), meta: { title: 'nav.files' } },

@@ -187,11 +187,17 @@ To restore on a new server: deploy the stack, copy an archive into the backup fo
 
 ## Troubleshooting
 
+First look at **Administration → System** in the portal: it shows which parts of the stack run, the address
+meetings use (and where it came from), free disk space and the last backup, and it warns about leftovers of an older
+stack file (a Collabora container that is no longer used since 3.9, a missing `hostip` or `craft` service). Its
+**Test the connection** button checks from the browser whether the relay is reachable – open it on a phone with
+mobile data to test from outside the office.
+
 | Problem | Cause and fix |
 | --- | --- |
 | "The office server cannot be reached" | The ONLYOFFICE container is not running or still starting (about a minute after a redeploy). Look at its log in Portainer. |
 | Camera and microphone cannot be chosen | The portal is opened over plain `http://`. Use HTTPS. |
-| Meeting opens, but nobody sees or hears the others | Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). Behind Cloudflare: update to 3.9.1 or newer, which finds the real address by itself. |
+| Meeting opens, but nobody sees or hears the others | Run **Administration → System → Test the connection** from a phone on mobile data. Built in: the people are in different networks – see "People outside the office". Or: the ports for meetings (UDP 10000, 3478, 49160–49200) are not open to the server, or `PORTAL_URL` does not resolve to its public address (set `PUBLIC_IP`). Behind Cloudflare: update to 3.9.1 or newer, which finds the real address by itself. |
 | "Could not connect to the meeting" | With Jitsi: the reverse proxy does not pass WebSockets (Nginx Proxy Manager: *Websockets Support*). |
 | The editor stays empty | Your reverse proxy must pass WebSockets and send `X-Forwarded-Proto` (all common ones do). |
 | `No such image: officehub-backend:latest` | The stack uses an old copy of the repository's root `docker-compose.yml` that only builds from source. Use `deploy/portainer/docker-compose.yml` (or the release asset), or update to the latest root file, which now points to the published images |

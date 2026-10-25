@@ -57,6 +57,7 @@ from .routers import (
     trainings,
     visitors,
     sync,
+    system,
     webdav,
     wiki,
 )
@@ -210,5 +211,6 @@ for router in (
     keys.router,
     apps.router,
     sync.router,
+    system.router,
 ):
     app.include_router(router)
