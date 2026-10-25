@@ -214,12 +214,27 @@ async function resetPassword() {
   }
 }
 
+// Something in the stack needs attention (old Collabora container, missing parts): a small hint for administrators
+const systemNotices = ref<string[]>([])
+onMounted(async () => {
+  if (!isAdmin.value) return
+  systemNotices.value = (await api.get<{ notices: string[] }>('/api/admin/system/notices').catch(() => ({ notices: [] }))).notices
+})
+
 onMounted(load)
 </script>
 
 <template>
   <div class="page">
     <PageHeader :title="t('admin.title')" :subtitle="t('admin.subtitle')" />
+
+    <div v-if="systemNotices.length" class="notice notice-warning" role="status">
+      <AppIcon name="alert" />
+      <p>
+        {{ t('admin.systemNotice') }}
+        <RouterLink to="/admin/system">{{ t('admin.systemNoticeLink') }}</RouterLink>
+      </p>
+    </div>
 
     <LoadState :loading="loading" :error="error" @retry="load">
       <section v-if="stats && isOverseer" aria-labelledby="stats-title" class="stack">

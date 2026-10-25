@@ -112,6 +112,9 @@ _Screenshots show the fictional demo data (German interface; English is built in
 - Help & FAQ, contact person per section, "What's new" page
 - **Company login** (single sign-on) with your own OpenID Connect server such as Authentik or Keycloak, set up in
   Administration; signing in with a password always stays possible
+- **System** page for administrators (Administration → System): is everything running? Version, office editing,
+  meeting server and relay, free disk space, last backup and database size; the address meetings use with a
+  browser test of the relay (best from a phone on mobile data) and hints when the stack file is outdated
 - Profile with photo, two-factor sign-in (authenticator app + recovery codes), e-mail settings, deputy (managers)
   and the list of equipment you have
 - German and English, light and dark theme, installable as an app, works on desktop, tablet and phone
