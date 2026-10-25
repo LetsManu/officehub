@@ -9,6 +9,30 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '3.10.0',
+    date: '2026-10-25',
+    de: [
+      'Neue Seite „System“ für Admins: Läuft alles? Version, Office-Programme, Meetings, Speicherplatz und letzte Sicherung auf einen Blick – mit einem Test, ob Meetings von außerhalb des Büros klappen, und einem Hinweis, wenn die Stack-Datei veraltet ist.',
+      'Meetings von außerhalb laufen weiter, auch wenn sich die Internet-Adresse des Büros ändert – die Meeting-Server stellen sich selbst darauf ein.',
+      'Sicherungen können zusätzlich auf eurem eigenen NAS landen (Windows-Freigabe oder SFTP), mit Test-Knopf.',
+      'Im Profil siehst du, wann dein OfficeHub-Ordner auf dem PC zuletzt abgeglichen hat und ob Dateien hängen; die IT sieht alle PCs auf einen Blick.',
+      'Neue Tabellen können mit einer Vorlage starten: Budget, Aufgabenliste oder Wochenplan.',
+      'GridCraft am Handy: Zelle noch einmal antippen zum Schreiben, mit zwei Fingern zoomen, größere Bearbeitungszeile.',
+      'Gemeinsam in GridCraft: Diagramme, Bilder, Notizen, Spalten- und Zeilenformate und neue Blätter kommen jetzt bei allen an.',
+      'Die Sperre nach falschen Anmeldeversuchen zählt jetzt pro Person und Ort, auch hinter Cloudflare.',
+    ],
+    en: [
+      'New "System" page for admins: is everything running? Version, office programs, meetings, disk space and the last backup at a glance – with a test whether meetings from outside the office work, and a hint when the stack file is outdated.',
+      'Meetings from outside keep working when the office\'s internet address changes – the meeting servers adjust by themselves.',
+      'Backups can also go to your own NAS (Windows share or SFTP), with a test button.',
+      'Your profile shows when your OfficeHub folder on the PC last synced and whether files are stuck; IT sees all PCs at a glance.',
+      'New spreadsheets can start from a template: budget, to-do list or weekly plan.',
+      'GridCraft on the phone: tap a cell again to type, zoom with two fingers, a bigger editing bar.',
+      'Together in GridCraft: charts, pictures, notes, column and row formats and new sheets now reach everyone.',
+      'The lock after wrong sign-in attempts now counts per person and place, also behind Cloudflare.',
+    ],
+  },
+  {
     version: '3.9.1',
     date: '2026-10-23',
     de: [
