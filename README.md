@@ -88,7 +88,7 @@ _Screenshots show the fictional demo data (German interface; English is built in
   versions of **WordCraft** (documents), **GridCraft** (spreadsheets) and **DeckCraft** (presentations) that open a
   file and save it back as a new version; several people can edit the same document, workbook or presentation
   **together live** (in GridCraft cell by cell, with everyone's selected cells shown), and automatic saves go into one
-  shared version
+  shared version; new spreadsheets can start from a template (budget, to-do list, weekly plan)
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
