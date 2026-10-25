@@ -6,3 +6,6 @@ python-multipart==0.0.20
 pypdf==5.4.0
 segno==1.6.6
 tzdata==2026.5
+# Second backup copy on the company's NAS (pure Python; cryptography/pynacl come as wheels)
+smbprotocol==1.17.0
+paramiko==5.1.0

@@ -161,6 +161,21 @@ The archives go to their own volume `officehub_officehub-backups`. To keep them 
 the Docker host and set `BACKUP_PATH` in the stack, e.g. `BACKUP_PATH=/mnt/nas/officehub-backups`. The folder must
 be writable for user ID 1000 (`chown 1000 /mnt/nas/officehub-backups`).
 
+Easier, without mounting anything on the host: let OfficeHub copy every backup to the NAS itself. Under
+**Administration → Backups → Second copy on the NAS** choose
+
+- **Windows share** (Synology, QNAP, Windows server): the share as `\\nas\backup\officehub` or
+  `smb://nas/backup/officehub` (another port: `smb://nas:4455/backup`), a user with write access and its password.
+  The share must exist; subfolders are created. SMB 2 or 3 must be switched on (the default on current NAS systems).
+- **SFTP**: address, port (22), user, password and folder (e.g. `/volume1/backup/officehub`; empty = home folder).
+
+**Test connection** writes and deletes a small test file. After that, every nightly backup and every "Back up now"
+is copied there; the panel shows the last copy (green) or the reason it failed (red). The backup in the volume is
+made first and stays even if the NAS is off. On the NAS the newest copies are kept (as many as locally unless you set
+another number). The backend container must reach the NAS on port 445 (SMB) or 22 (SFTP); the default Docker
+network does that for addresses in the company network. Use the NAS's IP address if its name does not resolve
+inside the container.
+
 To restore on a new server: deploy the stack, copy an archive into the backup folder and choose it under
 **Administration → Backups**.
 
