@@ -1,7 +1,7 @@
 """Automatic backups: every night the database and all uploaded files go into one archive in the backup folder.
 
-The folder is `BACKUP_DIR` (the stack mounts its own volume there; point it at a NAS share to keep copies off the
-server). Archives are plain `.tar.gz` files: `officehub.db` (a consistent copy made with SQLite's backup function, so
+The folder is `BACKUP_DIR` (the stack mounts its own volume there). After each backup a second copy can go to the
+company's own NAS (SMB share or SFTP, set up in Administration → Backups, see `nas.py`). Archives are plain `.tar.gz` files: `officehub.db` (a consistent copy made with SQLite's backup function, so
 nobody has to stop working), `uploads/` and `manifest.json`. The newest `keep` archives stay, older ones are removed.
 
 Restoring first makes one more archive of the current state, then swaps in the database and the files of the chosen
@@ -136,7 +136,8 @@ def _record(ok: bool, entry: dict | None = None, error: str | None = None) -> No
         db.commit()
 
 
-def run_now(reason: str = "manual") -> dict:
+def run_now(reason: str = "manual", copy: bool = True) -> dict:
+    """Back up now and record the result; with `copy` the archive then also goes to the NAS (see `nas.py`)."""
     try:
         entry = create(reason)
     except ApiError:
@@ -146,6 +147,10 @@ def run_now(reason: str = "manual") -> dict:
         _record(False, error=str(e) or e.__class__.__name__)
         raise ApiError(500, "backup_failed", f"The backup could not be written: {e}") from None
     _record(True, entry)
+    if copy:
+        from . import nas
+
+        nas.copy(entry["name"])  # never raises: a failed copy is recorded and shown, the local backup stays
     return entry
 
 
@@ -206,7 +211,7 @@ def restore(name: str) -> dict:
             if not new_db.is_file() or not ok:
                 raise ApiError(422, "backup_invalid", "This file is not an OfficeHub backup.")
 
-            safety = run_now("restore")
+            safety = run_now("restore", copy=False)
 
             engine.dispose()
             target = _db_path()

@@ -87,6 +87,7 @@ export const navGroups = computed<NavGroup[]>(() => {
   }
   if (isSupport.value) manage.push({ to: '/equipment', label: t('nav.equipment'), icon: 'box' })
   if (isAdmin.value) manage.push({ to: '/admin/audit', label: t('nav.audit'), icon: 'history' })
+  if (isAdmin.value) manage.push({ to: '/admin/system', label: t('nav.system'), icon: 'shield' })
   if (isStaff.value) manage.push({ to: '/admin', label: t('nav.administration'), short: t('nav.short.administration'), icon: 'settings' })
   if (manage.length) groups.push({ key: 'manage', label: t('nav.manage'), items: manage, collapsible: true })
   return groups

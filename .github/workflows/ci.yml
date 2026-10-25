@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build and start the stack
-        # The WordCraft/DeckCraft image (Rust/WebAssembly) is built in the release only; it takes long
+        # The craft image (Rust/WebAssembly) is built by craft.yml when it changes; it takes long
         run: docker compose up -d --build --wait backend frontend
       - name: Smoke test
         run: |

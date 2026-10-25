@@ -7,8 +7,10 @@ import { onMounted, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import BaseModal from './BaseModal.vue'
 import FormField from './FormField.vue'
+import SyncStatusBadge from './SyncStatusBadge.vue'
 import { api } from '@/lib/api'
-import { errorText, formatDateTime, t } from '@/lib/i18n'
+import { errorText, formatDateTime, locale, t } from '@/lib/i18n'
+import { problemText, syncedText } from '@/lib/syncStatus'
 import { showToast } from '@/lib/toast'
 import type { AppPassword } from '@/lib/types'
 
@@ -97,7 +99,15 @@ onMounted(load)
     <ul v-if="items.length" class="list">
       <li v-for="p in items" :key="p.id" class="row">
         <AppIcon name="key" :size="18" />
-        <span class="grow"><strong>{{ p.name }}</strong><span class="muted small block">{{ p.last_used_at ? t('programs.lastUsed', { when: formatDateTime(p.last_used_at) }) : t('programs.neverUsed') }}</span></span>
+        <span class="grow">
+          <strong>{{ p.name }}</strong>
+          <span class="muted small block">{{ p.last_used_at ? t('programs.lastUsed', { when: formatDateTime(p.last_used_at) }) : t('programs.neverUsed') }}</span>
+          <span v-if="p.device" class="sync small block">
+            <SyncStatusBadge :status="p.device.status" />
+            <span>{{ p.device.device_name ? t('syncDevices.folderOn', { device: p.device.device_name }) : t('syncDevices.folder') }}: {{ syncedText(p.device, locale) }}</span>
+          </span>
+          <span v-if="p.device && problemText(p.device)" class="problem small block">{{ problemText(p.device) }}</span>
+        </span>
         <button type="button" class="btn btn-ghost" @click="removing = p">{{ t('programs.remove') }}</button>
       </li>
     </ul>
@@ -193,6 +203,18 @@ code {
 
 .block {
   display: block;
+}
+
+.sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.problem {
+  color: var(--color-warning);
 }
 
 .done {

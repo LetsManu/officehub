@@ -154,11 +154,22 @@ type NewKind = 'folder' | 'docx' | 'xlsx' | 'pptx' | 'md'
 const creating = ref<NewKind | null>(null)
 const newName = ref('')
 const newError = ref('')
+/** Spreadsheets: start from a template (budget, to-do list, weekly plan) or blank. */
+const SHEET_TEMPLATES = ['', 'budget', 'todo', 'week'] as const
+const sheetTemplate = ref<(typeof SHEET_TEMPLATES)[number]>('')
+
+function chooseTemplate(kind: (typeof SHEET_TEMPLATES)[number]) {
+  const named = SHEET_TEMPLATES.some((k) => k && newName.value === t(`files.sheetTemplates.${k}.name`))
+  sheetTemplate.value = kind
+  if (kind && (!newName.value.trim() || named)) newName.value = t(`files.sheetTemplates.${kind}.name`)
+  else if (!kind && named) newName.value = ''
+}
 
 function startNew(kind: NewKind) {
   creating.value = kind
   newName.value = ''
   newError.value = ''
+  sheetTemplate.value = ''
   ;(document.activeElement as HTMLElement | null)?.closest('details')?.removeAttribute('open')
 }
 
@@ -171,7 +182,12 @@ async function createNew() {
       await api.post(`/api/spaces/${space.value!.id}/folders`, { name: newName.value.trim(), parent_id: folderId.value })
       showToast(t('files.folderCreated'))
     } else {
-      const item = await api.post<SpaceFile>(`/api/spaces/${space.value!.id}/files/new`, { kind: creating.value, name: newName.value.trim(), folder_id: folderId.value })
+      const item = await api.post<SpaceFile>(`/api/spaces/${space.value!.id}/files/new`, {
+        kind: creating.value,
+        name: newName.value.trim(),
+        folder_id: folderId.value,
+        template: creating.value === 'xlsx' && sheetTemplate.value ? sheetTemplate.value : undefined,
+      })
       if (creating.value !== 'md' && office.value.engines.length) {
         creating.value = null
         router.push(`/office/${item.id}`)
@@ -448,6 +464,13 @@ onMounted(async () => {
         <FormField id="fl-new" :label="t('files.name')" :error="newError">
           <template #default="{ attrs }"><input v-bind="attrs" v-model="newName" class="input" maxlength="120" /></template>
         </FormField>
+        <fieldset v-if="creating === 'xlsx'" class="sheet-templates">
+          <legend class="label">{{ t('files.sheetTemplates.title') }}</legend>
+          <label v-for="k in SHEET_TEMPLATES" :key="k || 'blank'" class="template-choice">
+            <input type="radio" name="sheet-template" :checked="sheetTemplate === k" @change="chooseTemplate(k)" />
+            <span><strong>{{ t(`files.sheetTemplates.${k || 'blank'}.label`) }}</strong><span class="muted small block">{{ t(`files.sheetTemplates.${k || 'blank'}.about`) }}</span></span>
+          </label>
+        </fieldset>
       </form>
     </BaseModal>
 
@@ -821,5 +844,32 @@ onMounted(async () => {
   .hide-sm {
     display: none;
   }
+}
+.sheet-templates {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.sheet-templates .label {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+.template-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.template-choice input {
+  margin-top: 4px;
+}
+
+.template-choice .block {
+  display: block;
 }
 </style>

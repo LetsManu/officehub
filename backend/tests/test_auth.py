@@ -36,6 +36,29 @@ def test_login_throttle():
     assert response.status_code == 429
 
 
+def test_login_throttle_counts_each_visitor_behind_the_proxy():
+    """Behind the company's proxy every request comes from the same place: one visitor's guessing must not lock out
+    a colleague signing in from elsewhere, and a forged address header must not buy unlimited tries."""
+    guesser = make_client()
+    for _ in range(10):
+        guesser.post("/api/auth/login", json={"email": "anna.mayer@example.com", "password": "wrong"},
+                     headers={"X-Forwarded-For": "81.10.20.30"})
+    blocked = guesser.post("/api/auth/login", json={"email": "anna.mayer@example.com", "password": "demo1234"},
+                           headers={"X-Forwarded-For": "81.10.20.30"})
+    assert blocked.status_code == 429
+    anna = make_client().post("/api/auth/login", json={"email": "anna.mayer@example.com", "password": "demo1234"},
+                              headers={"X-Forwarded-For": "62.40.1.2"})
+    assert anna.status_code == 200
+
+    # A new forged address each time: the limit per account still holds
+    for i in range(50):
+        guesser.post("/api/auth/login", json={"email": "lukas.schmid@example.com", "password": "wrong"},
+                     headers={"X-Forwarded-For": f"81.10.21.{i + 1}"})
+    late = make_client().post("/api/auth/login", json={"email": "lukas.schmid@example.com", "password": "demo1234"},
+                              headers={"X-Forwarded-For": "62.40.1.3"})
+    assert late.status_code == 429
+
+
 def test_profile_cannot_change_role(anna):
     response = anna.patch("/api/profile", json={"job_title": "Team Lead", "role": "admin"})
     assert response.status_code == 200

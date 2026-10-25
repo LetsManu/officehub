@@ -1229,3 +1229,24 @@ class AppPassword(Base):
     secret_hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256 of a long random secret
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class SyncDevice(Base):
+    """How a computer with the OfficeHub folder syncs (one app password = one device): last contact, the last sync
+    round that went through, and the files that did not reach the portal (short reasons from the app).
+    services/sync_status.py."""
+
+    __tablename__ = "sync_devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_password_id: Mapped[int] = mapped_column(ForeignKey("app_passwords.id", ondelete="CASCADE"), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_name: Mapped[str] = mapped_column(String(80), default="", server_default=text("''"))
+    app_version: Mapped[str] = mapped_column(String(40), default="", server_default=text("''"))
+    last_contact_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_report_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # None: an app without reports
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    failed: Mapped[str] = mapped_column(Text, default="[]", server_default=text("'[]'"))  # JSON [{path, reason}]
+    pending_uploads: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    last_error: Mapped[str] = mapped_column(String(200), default="", server_default=text("''"))

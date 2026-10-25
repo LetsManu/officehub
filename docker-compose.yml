@@ -100,6 +100,7 @@ services:
       - shared:/shared
 
   # ---- Relay for meetings and calls across networks (people at home, on mobile data) ----
+  # It and the Jitsi containers restart by themselves when the office's public address changes (dynamic IP).
   # Audio and video go directly between the browsers when they can; otherwise this relay of your own forwards them
   # (no outside service). Its password is made on the first start and its public address comes from PORTAL_URL.
   # People outside the office need ports 3478 (UDP and TCP) and 49160-49200 (UDP) open to this server.
@@ -117,6 +118,8 @@ services:
       - >-
         i=0; while [ ! -f /shared/address_ready ] && [ $$i -lt 90 ]; do sleep 2; i=$$((i+1)); done;
         IP="$${PUBLIC_IP:-$$(cat /shared/public_ip 2>/dev/null)}"; IP="$${IP:-$$(cat /shared/host_ip 2>/dev/null)}";
+        A="$$(cat /shared/public_ip /shared/turn_host 2>/dev/null)";
+        (while sleep 60; do [ "$$(cat /shared/public_ip /shared/turn_host 2>/dev/null)" = "$$A" ] || kill 1; done) &
         exec turnserver -n --listening-port=3478 --min-port=49160 --max-port=49200
         --use-auth-secret --static-auth-secret="$$(cat /shared/turn_secret)" --realm=officehub
         --fingerprint --no-cli --no-tls --no-dtls --no-software-attribute --no-multicast-peers
@@ -193,6 +196,8 @@ services:
         JVB_AUTH_PASSWORD="$${JVB_AUTH_PASSWORD:-$$(cat /shared/jitsi_internal_password)}"
         JVB_ADVERTISE_IPS="$$(echo "$${JVB_ADVERTISE_IPS:-$$(cat /shared/public_ip 2>/dev/null)},$$(cat /shared/host_ip 2>/dev/null)" | tr ',' '\n' | grep . | sort -u | paste -sd, -)"
         TURN_CREDENTIALS="$$(cat /shared/turn_secret 2>/dev/null)" TURN_HOST="$$(cat /shared/turn_host 2>/dev/null || echo "$$H")";
+        A="$$(cat /shared/public_ip /shared/turn_host 2>/dev/null)";
+        (while sleep 60; do [ "$$(cat /shared/public_ip /shared/turn_host 2>/dev/null)" = "$$A" ] || kill 1; done) &
         exec /init
     volumes:
       - shared:/shared:ro

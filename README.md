@@ -88,7 +88,7 @@ _Screenshots show the fictional demo data (German interface; English is built in
   versions of **WordCraft** (documents), **GridCraft** (spreadsheets) and **DeckCraft** (presentations) that open a
   file and save it back as a new version; several people can edit the same document, workbook or presentation
   **together live** (in GridCraft cell by cell, with everyone's selected cells shown), and automatic saves go into one
-  shared version
+  shared version; new spreadsheets can start from a template (budget, to-do list, weekly plan)
 - **Planning**: people × days board with project bars (drag to plan, move and stretch), workload per person with
   vacation and public holidays taken out, projects with budgets and planned vs. booked hours
 - Guided requests with inline validation and a review step: vacation (with remaining days and public holidays),
@@ -112,6 +112,9 @@ _Screenshots show the fictional demo data (German interface; English is built in
 - Help & FAQ, contact person per section, "What's new" page
 - **Company login** (single sign-on) with your own OpenID Connect server such as Authentik or Keycloak, set up in
   Administration; signing in with a password always stays possible
+- **System** page for administrators (Administration → System): is everything running? Version, office editing,
+  meeting server and relay, free disk space, last backup and database size; the address meetings use with a
+  browser test of the relay (best from a phone on mobile data) and hints when the stack file is outdated
 - Profile with photo, two-factor sign-in (authenticator app + recovery codes), e-mail settings, deputy (managers)
   and the list of equipment you have
 - German and English, light and dark theme, installable as an app, works on desktop, tablet and phone
@@ -281,7 +284,9 @@ flowchart TB
   routing table; the public address comes from `PUBLIC_IP`, `PORTAL_URL` or the name people open the portal with.
   When that name points at a proxy such as Cloudflare (which does not pass audio and video), the backend asks its
   own portal address who it is (`/api/address`, CF-Connecting-IP / X-Forwarded-For) and uses the office's real
-  public address instead; the meeting servers wait for that check on start (`services/address.py`).
+  public address instead; the meeting servers wait for that check on start (`services/address.py`). The address is
+  checked again every ten minutes; when it changes (a dynamic IP), the videobridge and the relay restart by
+  themselves. Behind proxies the visitor's own address (not the proxy's) counts for the sign-in limits.
   Both go to `/shared`, where the videobridge and the relay read them – no outside STUN server is ever asked.
 - **Relay passwords** follow coturn's `use-auth-secret` scheme: `username = expiry:user`,
   `password = base64(HMAC-SHA1(secret, username))`, valid for 12 hours, made from a secret generated on the first start.
@@ -343,6 +348,13 @@ sequenceDiagram
     W->>S: PUT /files/{id}?base=V
     S-->>W: new version, or 409 → conflict copy like OneDrive
 ```
+
+- **Sync status per computer:** one app password is one computer. Every `/api/sync` call counts as contact, and after
+  each round the app sends `POST /api/sync/report` (computer name, whether the round went through, up to 20 files that
+  did not upload with a short reason, changes still waiting; `services/sync_status.py`). People see their computers
+  under Profile → Programs ("Last synced 5 minutes ago", "Problems: 3 files not uploaded – …"); service desk, HR and
+  admins get the list of all computers under Administration (green: synced within 24 h without problems, amber:
+  problems or longer ago, grey: never).
 
 ### Apps
 
@@ -536,6 +548,19 @@ in the stack a volume of its own, or a NAS share via `BACKUP_PATH`). The newest 
 Backups** shows the last result and can back up now, download and restore (the current state is backed up first).
 The archive holds `officehub.db`, `uploads/` and `manifest.json`, so it can also be unpacked by hand into the data
 volume while the backend is stopped.
+
+**Second copy on the NAS.** So that one dead disk cannot take everything, OfficeHub can copy every new backup
+(nightly and "Back up now") to the company's own NAS – still no cloud. In **Administration → Backups → Second copy on
+the NAS** choose a **Windows share** (Synology, QNAP, Windows server: `\\nas\backup\officehub` or
+`smb://nas/backup/officehub`, user and password) or **SFTP** (host, port, user, password, folder). **Test
+connection** writes and deletes a small file and says in plain words what is wrong (wrong password, share not found,
+NAS not reachable, no write permission, NAS full). Missing subfolders are created. The panel shows the last copy in
+green or red; a failed copy never touches the local backup. The newest copies are kept on the NAS (by default as many
+as locally, or a number of its own); only files named like OfficeHub backups are ever deleted there. Copies are
+uploaded as a hidden `.part` file and renamed when complete. The password is stored in the settings like the company
+login's client secret and never sent back to the browser. For SFTP the NAS's host key is remembered on the first
+connection; if it changes, copying stops until the settings are saved again. Libraries: `smbprotocol` (SMB 2/3) and
+`paramiko` (SFTP), both pure Python. Note: restoring an archive also brings back the NAS settings of that time.
 
 ## Roadmap
 

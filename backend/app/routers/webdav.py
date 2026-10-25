@@ -24,7 +24,7 @@ from ..config import settings
 from ..db import SessionLocal
 from ..errors import ApiError
 from ..files import MIME_TYPES, SPACE_TYPES, extension, matches_signature, safe_display_name
-from ..models import Folder, Space, SpaceFile, User, utcnow
+from ..models import AppPassword, Folder, Space, SpaceFile, User, utcnow
 from ..services import app_passwords
 from ..services.spaces import add_version, checked_out_by_other, current_path, my_space_ids, unique_name
 
@@ -41,6 +41,12 @@ IGNORED = re.compile(r"^(\._.*|\.DS_Store|desktop\.ini|Thumbs\.db|~\$.*|\.~lock\
 
 
 def _user(request: Request, db) -> User | None:
+    found = app_password_sign_in(request, db)
+    return found[0] if found else None
+
+
+def app_password_sign_in(request: Request, db) -> tuple[User, AppPassword] | None:
+    """The person and the app password from a Basic sign-in header, or None."""
     header = request.headers.get("authorization", "")
     if not header.lower().startswith("basic "):
         return None
@@ -48,7 +54,7 @@ def _user(request: Request, db) -> User | None:
         login, _, secret = base64.b64decode(header[6:]).decode().partition(":")
     except ValueError:
         return None
-    return app_passwords.verify(db, login, secret) if login and secret else None
+    return app_passwords.check(db, login, secret) if login and secret else None
 
 
 def _challenge() -> Response:

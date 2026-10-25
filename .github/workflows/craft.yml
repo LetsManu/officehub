@@ -1,0 +1,49 @@
+name: Craft apps
+
+# Builds the WordCraft / DeckCraft / GridCraft image whenever it changes (a new commit of a fork in craft/Dockerfile,
+# the nginx settings …), so a broken build shows up on the pull request and not only when releasing. Layers are
+# cached between runs; the WebAssembly build itself takes a while.
+
+on:
+  pull_request:
+    paths:
+      - "craft/**"
+      - ".github/workflows/craft.yml"
+  push:
+    branches: [main]
+    paths:
+      - "craft/**"
+      - ".github/workflows/craft.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  craft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: craft
+          load: true
+          tags: officehub-craft:ci
+          cache-from: type=gha,scope=craft
+          cache-to: type=gha,mode=max,scope=craft
+      - name: Smoke test
+        run: |
+          docker run -d --name craft -p 8081:8080 officehub-craft:ci
+          for i in $(seq 30); do curl --silent --fail http://localhost:8081/wordcraft/index.html > /dev/null && break; sleep 1; done
+          for app in wordcraft deckcraft gridcraft; do
+            curl --fail --silent "http://localhost:8081/$app/index.html" | grep -q '<canvas'
+            curl --fail --silent "http://localhost:8081/$app/collab.json" | grep -q together
+            curl --fail --silent "http://localhost:8081/$app/assets.json" | grep -q '.wasm'
+            echo "$app ok"
+          done
+      - name: Logs on failure
+        if: failure()
+        run: docker logs craft || true

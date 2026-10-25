@@ -29,6 +29,7 @@ from ..models import (
     utcnow,
 )
 from ..schemas import UserBrief, UtcDateTime
+from ..services import sheet_templates
 from ..services.audit import audit
 from ..services.notifications import notify
 from ..services.spaces import (
@@ -154,6 +155,7 @@ class NewFileIn(BaseModel):
     kind: str  # docx, xlsx, pptx, md
     name: Name200
     folder_id: int | None = None
+    template: str | None = None  # xlsx: budget, todo, week (services/sheet_templates.py); empty: a blank file
 
 
 class Activity(BaseModel):
@@ -455,12 +457,15 @@ def new_file(space_id: int, body: NewFileIn, user: CurrentUser, db: DB) -> FileO
     get_folder(db, space.id, body.folder_id)
     if body.kind not in ("docx", "xlsx", "pptx", "md"):
         raise _field_error("kind", "invalid_choice", "Please choose a type.")
+    if body.template and (body.kind != "xlsx" or body.template not in sheet_templates.KINDS):
+        raise _field_error("template", "invalid_choice", "Please choose a template.")
     base = safe_display_name(body.name)
     name = base if base.lower().endswith(f".{body.kind}") else f"{base}.{body.kind}"
     item = SpaceFile(space_id=space.id, folder_id=body.folder_id, name=unique_name(db, space.id, body.folder_id, name),
                      file_type=body.kind, created_by_id=user.id)
     db.add(item)
-    add_version(db, item, template_bytes(body.kind) or f"# {base}\n".encode(), user, "new")
+    data = sheet_templates.workbook(body.template, user.language) if body.template else template_bytes(body.kind)
+    add_version(db, item, data or f"# {base}\n".encode(), user, "new")
     db.commit()
     return _file_out(item)
 

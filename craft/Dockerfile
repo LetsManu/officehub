@@ -30,7 +30,7 @@ RUN git init -q deckcraft && git -C deckcraft fetch -q --depth 1 "$DECKCRAFT_REP
     && cd deckcraft/apps/deckcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/deckcraft \
     && echo '{"together": true}' > /out/deckcraft/collab.json
 ARG GRIDCRAFT_REPO=https://github.com/LetsManu/gridcraft
-ARG GRIDCRAFT_COMMIT=11916b0e4673e823992aeee797b23e90cbc0a0cd
+ARG GRIDCRAFT_COMMIT=8530102ecaf7f01e7bc6c086d371a5fc8cb06232
 RUN git init -q gridcraft && git -C gridcraft fetch -q --depth 1 "$GRIDCRAFT_REPO" "$GRIDCRAFT_COMMIT" \
     && git -C gridcraft checkout -q FETCH_HEAD \
     && cd gridcraft/apps/gridcraft-web && trunk build --release && mkdir -p /out && cp -r ../../dist/web /out/gridcraft \

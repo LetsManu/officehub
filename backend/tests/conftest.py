@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import DEMO_PASSWORD, ensure_initial_data  # noqa: E402
-from app.security import login_throttle  # noqa: E402
+from app.security import account_throttle, login_throttle  # noqa: E402
 
 HEADERS = {"X-Requested-With": "OfficeHub"}
 
@@ -28,6 +28,7 @@ def fresh_database():
     with SessionLocal() as db:
         ensure_initial_data(db)
     login_throttle._failures.clear()
+    account_throttle._failures.clear()
     yield
 
 
