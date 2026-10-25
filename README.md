@@ -537,6 +537,19 @@ Backups** shows the last result and can back up now, download and restore (the c
 The archive holds `officehub.db`, `uploads/` and `manifest.json`, so it can also be unpacked by hand into the data
 volume while the backend is stopped.
 
+**Second copy on the NAS.** So that one dead disk cannot take everything, OfficeHub can copy every new backup
+(nightly and "Back up now") to the company's own NAS – still no cloud. In **Administration → Backups → Second copy on
+the NAS** choose a **Windows share** (Synology, QNAP, Windows server: `\\nas\backup\officehub` or
+`smb://nas/backup/officehub`, user and password) or **SFTP** (host, port, user, password, folder). **Test
+connection** writes and deletes a small file and says in plain words what is wrong (wrong password, share not found,
+NAS not reachable, no write permission, NAS full). Missing subfolders are created. The panel shows the last copy in
+green or red; a failed copy never touches the local backup. The newest copies are kept on the NAS (by default as many
+as locally, or a number of its own); only files named like OfficeHub backups are ever deleted there. Copies are
+uploaded as a hidden `.part` file and renamed when complete. The password is stored in the settings like the company
+login's client secret and never sent back to the browser. For SFTP the NAS's host key is remembered on the first
+connection; if it changes, copying stops until the settings are saved again. Libraries: `smbprotocol` (SMB 2/3) and
+`paramiko` (SFTP), both pure Python. Note: restoring an archive also brings back the NAS settings of that time.
+
 ## Roadmap
 
 - Database migrations with Alembic (today new columns are added automatically on startup)
