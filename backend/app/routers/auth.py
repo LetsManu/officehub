@@ -9,7 +9,8 @@ from ..deps import DB, SESSION_COOKIE, CurrentUser
 from ..errors import ApiError
 from ..models import AuthSession, User, utcnow
 from ..schemas import LoginIn, UserOut
-from ..security import DUMMY_HASH, hash_token, login_throttle, new_session_token, verify_password
+from ..security import DUMMY_HASH, account_throttle, hash_token, login_throttle, new_session_token, verify_password
+from ..services import address
 from ..services.security import use_recovery_code
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -17,15 +18,17 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/login", response_model=UserOut)
 def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
-    client = request.client.host if request.client else "unknown"
-    key = f"{client}:{body.email}"
-    if login_throttle.is_blocked(key):
+    # Per visitor and address (the visitor's own address, also behind proxies), plus a wider limit per address alone:
+    # a forged proxy header cannot buy unlimited tries, and nobody can lock a colleague out from elsewhere for long.
+    key = f"{address.client(request)}:{body.email}"
+    if login_throttle.is_blocked(key) or account_throttle.is_blocked(body.email):
         raise ApiError(429, "too_many_attempts", "Too many failed sign-in attempts. Please wait 15 minutes.")
 
     user = db.scalar(select(User).where(User.email == body.email))
     valid = verify_password(body.password, user.password_hash if user else DUMMY_HASH)
     if not user or not valid or not user.is_active:
         login_throttle.fail(key)
+        account_throttle.fail(body.email)
         raise ApiError(401, "invalid_credentials", "The email address or password is not correct.")
     if user.totp_enabled and user.totp_secret:
         # Password was right; ask for the authenticator code without counting a failure.
@@ -34,6 +37,7 @@ def login(body: LoginIn, request: Request, response: Response, db: DB) -> User:
         ok = totp.verify(user.totp_secret, body.code) or use_recovery_code(user, body.code)
         if not ok:
             login_throttle.fail(key)
+            account_throttle.fail(body.email)
             raise ApiError(401, "two_factor_invalid", "The code is not correct.")
     login_throttle.reset(key)
     open_session(db, user, response, request)

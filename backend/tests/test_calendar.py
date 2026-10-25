@@ -74,7 +74,9 @@ def test_weekly_series_skips_cancelled_day_and_shows_in_free_busy(anna, lukas):
     # free/busy shows Lukas busy on the first Monday – without the title
     busy = anna.get(f"/api/calendar/busy?ids={_ids(anna)['Lukas Schmid']}&start={monday}&end={monday}").json()
     blocks = busy[str(_ids(anna)["Lukas Schmid"])]
-    assert [b["kind"] for b in blocks] == ["meeting"] and "title" not in blocks[0]
+    # (the demo data may hold another meeting of Lukas that day, e.g. when the tests run on a Sunday)
+    series = [b for b in blocks if b["start"] == days[0]]
+    assert [b["kind"] for b in series] == ["meeting"] and not any("title" in b for b in blocks)
 
     # the upcoming list shows the series once, with its next meeting
     listed = [m for m in lukas.get("/api/meetings").json() if m["id"] == meeting["id"]]

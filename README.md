@@ -281,7 +281,9 @@ flowchart TB
   routing table; the public address comes from `PUBLIC_IP`, `PORTAL_URL` or the name people open the portal with.
   When that name points at a proxy such as Cloudflare (which does not pass audio and video), the backend asks its
   own portal address who it is (`/api/address`, CF-Connecting-IP / X-Forwarded-For) and uses the office's real
-  public address instead; the meeting servers wait for that check on start (`services/address.py`).
+  public address instead; the meeting servers wait for that check on start (`services/address.py`). The address is
+  checked again every ten minutes; when it changes (a dynamic IP), the videobridge and the relay restart by
+  themselves. Behind proxies the visitor's own address (not the proxy's) counts for the sign-in limits.
   Both go to `/shared`, where the videobridge and the relay read them – no outside STUN server is ever asked.
 - **Relay passwords** follow coturn's `use-auth-secret` scheme: `username = expiry:user`,
   `password = base64(HMAC-SHA1(secret, username))`, valid for 12 hours, made from a secret generated on the first start.
