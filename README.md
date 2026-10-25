@@ -349,6 +349,13 @@ sequenceDiagram
     S-->>W: new version, or 409 → conflict copy like OneDrive
 ```
 
+- **Sync status per computer:** one app password is one computer. Every `/api/sync` call counts as contact, and after
+  each round the app sends `POST /api/sync/report` (computer name, whether the round went through, up to 20 files that
+  did not upload with a short reason, changes still waiting; `services/sync_status.py`). People see their computers
+  under Profile → Programs ("Last synced 5 minutes ago", "Problems: 3 files not uploaded – …"); service desk, HR and
+  admins get the list of all computers under Administration (green: synced within 24 h without problems, amber:
+  problems or longer ago, grey: never).
+
 ### Apps
 
 The Windows (Tauri 2) and Android (Kotlin) apps load your own portal and add what a browser cannot: their own

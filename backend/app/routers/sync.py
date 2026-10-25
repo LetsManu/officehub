@@ -13,6 +13,8 @@ usual rules: check-out, locks while someone edits, allowed file types, the space
     POST   /api/sync/folders                   {"space_id", "parent_id", "name"}
     PATCH  /api/sync/folders/{id}              {"name", "parent_id"}
     DELETE /api/sync/folders/{id}              to the trash
+    POST   /api/sync/report                    how the last sync round went (app password only)
+    GET    /api/sync/devices                   every computer's sync status (service desk, admin)
 """
 
 import asyncio
@@ -25,12 +27,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 
 from ..config import settings
-from ..deps import DB, get_current_user
+from ..deps import DB, Support, get_current_user
 from ..errors import ApiError, not_found
 from ..files import MIME_TYPES, SPACE_TYPES, extension, matches_signature, resolve, safe_display_name
-from ..models import Folder, Space, SpaceFile, SyncTombstone, User, utcnow
+from ..models import Folder, Space, SpaceFile, SyncDevice, SyncTombstone, User, utcnow
+from ..schemas import UtcDateTime
 
-from ..services import sync
+from ..services import sync, sync_status
 from ..services.spaces import (
     add_version,
     ensure_can_change,
@@ -44,7 +47,7 @@ from ..services.spaces import (
     my_space_ids,
     unique_name,
 )
-from .webdav import _user as app_password_user
+from .webdav import app_password_sign_in
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
 
@@ -56,9 +59,13 @@ PAGE = 2000
 def sync_user(request: Request, db: DB) -> User:
     """App password (Basic), as the Windows app signs in; or the portal session."""
     if request.headers.get("authorization", "").lower().startswith("basic "):
-        user = app_password_user(request, db)
-        if user is None:
+        found = app_password_sign_in(request, db)
+        if found is None:
             raise ApiError(401, "unauthorized", "Wrong e-mail address or app password.")
+        user, password = found
+        # Every request counts as contact from this computer, also from app versions that send no reports
+        request.state.app_password = password
+        sync_status.touch(db, password, request.headers.get("user-agent", ""))
         return user
     return get_current_user(request, db)
 
@@ -312,3 +319,84 @@ def delete_folder(folder_id: int, user: SyncUser, db: DB) -> Response:
     folder.deleted_at = utcnow()
     db.commit()
     return Response(status_code=204)
+
+
+# ---------- how the computers sync ----------
+
+
+class FailedFile(BaseModel):
+    path: str = Field("", max_length=1000)
+    reason: str = Field("", max_length=500)
+
+
+class SyncReport(BaseModel):
+    device_name: str = Field("", max_length=200)
+    ok: bool = True  # the round went through (files that were refused are listed in `failed`)
+    failed: list[FailedFile] = Field(default_factory=list, max_length=200)
+    failed_count: int | None = Field(None, ge=0, le=10_000_000)  # when there are more than the list holds
+    pending_uploads: int = Field(0, ge=0, le=10_000_000)
+    error: str = Field("", max_length=500)  # why the round did not go through
+
+
+class SyncDeviceOut(BaseModel):
+    device_name: str
+    app_version: str
+    status: Literal["ok", "problem", "never"]
+    reports: bool  # False: an older app that only shows that it is there
+    last_contact_at: UtcDateTime | None
+    last_sync_at: UtcDateTime | None
+    failed_count: int
+    failed: list[FailedFile]
+    pending_uploads: int
+    last_error: str
+
+
+class SyncDeviceRow(SyncDeviceOut):
+    id: int
+    user_id: int
+    full_name: str
+    password_name: str
+
+
+def device_out(device: SyncDevice) -> SyncDeviceOut:
+    return SyncDeviceOut(
+        device_name=device.device_name,
+        app_version=device.app_version,
+        status=sync_status.status(device),
+        reports=device.last_report_at is not None,
+        last_contact_at=device.last_contact_at,
+        last_sync_at=device.last_sync_at,
+        failed_count=device.failed_count,
+        failed=[FailedFile(path=str(f.get("path", "")), reason=str(f.get("reason", "")))
+                for f in sync_status.failed_list(device)],
+        pending_uploads=device.pending_uploads,
+        last_error=device.last_error,
+    )
+
+
+@router.post("/report", status_code=204)
+def report(body: SyncReport, request: Request, user: SyncUser, db: DB) -> Response:
+    """The Windows app after each sync round: how it went on this computer."""
+    password = getattr(request.state, "app_password", None)
+    if password is None or password.user_id != user.id:
+        raise ApiError(400, "sync_report_app_only", "Only the app on the computer reports its sync.")
+    sync_status.record(
+        db, password,
+        device_name=body.device_name,
+        ok=body.ok,
+        failed=[(f.path, f.reason) for f in body.failed],
+        failed_count=body.failed_count,
+        pending_uploads=body.pending_uploads,
+        error=body.error,
+        user_agent=request.headers.get("user-agent", ""),
+    )
+    return Response(status_code=204)
+
+
+@router.get("/devices", response_model=list[SyncDeviceRow])
+def devices(_user: Support, db: DB) -> list[SyncDeviceRow]:
+    """Every computer with the OfficeHub folder, for the service desk."""
+    return [
+        SyncDeviceRow(**device_out(d).model_dump(), id=d.id, user_id=u.id, full_name=u.full_name, password_name=p.name)
+        for d, p, u in sync_status.everyone(db)
+    ]

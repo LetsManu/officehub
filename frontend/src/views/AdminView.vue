@@ -16,6 +16,7 @@ import OfficePanel from '@/components/admin/OfficePanel.vue'
 import SsoPanel from '@/components/admin/SsoPanel.vue'
 import BackupsPanel from '@/components/admin/BackupsPanel.vue'
 import SecurityPanel from '@/components/admin/SecurityPanel.vue'
+import SyncDevicesPanel from '@/components/admin/SyncDevicesPanel.vue'
 import { api, query } from '@/lib/api'
 import { REQUEST_TYPES } from '@/lib/requestTypes'
 import { currentUser, isAdmin, isHr, isOverseer, isSupport, roleNames, rolesOf } from '@/lib/session'
@@ -360,6 +361,10 @@ onMounted(load)
       <details v-if="isHr" class="disclosure">
         <summary>{{ t('admin.holidays') }}</summary>
         <div class="disclosure-body"><HolidaysPanel /></div>
+      </details>
+      <details v-if="isSupport" class="disclosure">
+        <summary>{{ t('admin.syncDevices') }}</summary>
+        <div class="disclosure-body"><SyncDevicesPanel /></div>
       </details>
       <template v-if="isAdmin">
         <details class="disclosure">

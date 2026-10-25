@@ -52,6 +52,10 @@ pub struct Engine<S: Store> {
     /// Notified once per file and state, not at every scan
     told: HashSet<String>,
     events: Vec<Event>,
+    /// What did not reach the server in the last scan: (path in the folder, reason), for the portal's sync status
+    pub failed: Vec<(String, String)>,
+    /// Changes that wait in the last scan (checked out or being edited by someone)
+    pub waiting: usize,
 }
 
 /// A local deletion of more than this many items, and more than a third of all, needs the portal.
@@ -59,7 +63,17 @@ const MASS_DELETE: usize = 10;
 
 impl<S: Store> Engine<S> {
     pub fn new(api: Api, store: S, state: State, device: String, words: Words) -> Self {
-        Engine { api, store, state, device, words, told: HashSet::new(), events: Vec::new() }
+        Engine {
+            api,
+            store,
+            state,
+            device,
+            words,
+            told: HashSet::new(),
+            events: Vec::new(),
+            failed: Vec::new(),
+            waiting: 0,
+        }
     }
 
     /// Events since the last call.
@@ -354,6 +368,8 @@ impl<S: Store> Engine<S> {
 
     /// Compares the sync folder with what was last in sync and sends the differences to the server.
     pub fn scan(&mut self) {
+        self.failed.clear();
+        self.waiting = 0;
         // Folder renames first (they change the paths of everything inside), then the rest
         for _ in 0..4 {
             if !self.scan_once() {
@@ -547,6 +563,7 @@ impl<S: Store> Engine<S> {
         let Some((space_id, parent)) = dir.parent().and_then(|p| self.place_of(p)) else { return };
         let name = Self::local_name(dir);
         if !self.state.spaces.get(&space_id).is_some_and(|s| s.writable) {
+            self.note_failed(dir, "readOnly");
             self.tell(format!("readonly:{}", key(dir)), Event::ReadOnly { name });
             return;
         }
@@ -573,17 +590,35 @@ impl<S: Store> Engine<S> {
         let k = key(rel);
         match error.status() {
             None => {}
-            Some(413) => self.tell(format!("toolarge:{k}"), Event::TooLarge { name }),
-            Some(415 | 422) => self.tell(format!("unsupported:{k}"), Event::NotSupported { name }),
-            Some(403) => self.tell(format!("readonly:{k}"), Event::ReadOnly { name }),
-            Some(_) => self.tell(format!("failed:{k}"), Event::UploadFailed { name }),
+            Some(413) => {
+                self.note_failed(rel, "tooLarge");
+                self.tell(format!("toolarge:{k}"), Event::TooLarge { name })
+            }
+            Some(415 | 422) => {
+                self.note_failed(rel, "type");
+                self.tell(format!("unsupported:{k}"), Event::NotSupported { name })
+            }
+            Some(403) => {
+                self.note_failed(rel, "readOnly");
+                self.tell(format!("readonly:{k}"), Event::ReadOnly { name })
+            }
+            Some(_) => {
+                self.note_failed(rel, "failed");
+                self.tell(format!("failed:{k}"), Event::UploadFailed { name })
+            }
         }
+    }
+
+    /// A file that did not reach the server in this scan (reasons are the keys of the portal's texts).
+    fn note_failed(&mut self, rel: &Path, reason: &str) {
+        self.failed.push((rel.to_string_lossy().replace('\\', "/"), reason.to_string()));
     }
 
     fn create_file_from(&mut self, rel: &Path) {
         let Some((space_id, folder)) = rel.parent().and_then(|p| self.place_of(p)) else { return };
         let name = Self::local_name(rel);
         if !self.state.spaces.get(&space_id).is_some_and(|s| s.writable) {
+            self.note_failed(rel, "readOnly");
             self.tell(format!("readonly:{}", key(rel)), Event::ReadOnly { name });
             return;
         }
@@ -647,6 +682,7 @@ impl<S: Store> Engine<S> {
                 }
             }
             Err(e) if matches!(e.status(), Some(409 | 423)) => {
+                self.waiting += 1;
                 self.tell(format!("busy:{id}:{}", entry.version), Event::Busy { name: entry.name.clone() });
             }
             Err(e) => self.refused(rel, entry.name.clone(), &e),
@@ -725,6 +761,7 @@ impl<S: Store> Engine<S> {
                 self.create_file_from(rel);
             }
             Err(e) if matches!(e.status(), Some(409 | 423)) => {
+                self.waiting += 1;
                 self.tell(format!("busy:{id}:{}", entry.version), Event::Busy { name: entry.name.clone() });
             }
             Err(_) => {}
