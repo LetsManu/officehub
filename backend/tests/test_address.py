@@ -51,3 +51,35 @@ def test_without_a_proxy_nothing_changes(tmp_path, monkeypatch):
     monkeypatch.setattr(address, "_ask", lambda url: tries.append(url) and None)
     assert address.check("https://office.example.com", tries=3, wait=0) is None
     assert len(tries) == 3 and address.learned() is None
+
+
+def test_a_new_office_address_reaches_the_meeting_servers(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path))
+    monkeypatch.setattr(address, "_learned", None)
+    monkeypatch.setattr(address, "_resolve", lambda host: "104.21.88.146")  # behind the proxy
+    seen = {"now": "81.10.20.30"}
+    monkeypatch.setattr(address, "_ask", lambda url: seen["now"])
+    address.check("https://office.example.com", wait=0)
+    assert not address.recheck("https://office.example.com")  # nothing new
+
+    seen["now"] = "81.10.20.99"  # the internet provider handed out a new address overnight
+    assert address.recheck("https://office.example.com")
+    assert (tmp_path / "public_ip").read_text() == "81.10.20.99"
+    assert (tmp_path / "turn_host").read_text() == "81.10.20.99"
+
+    seen["now"] = None  # the proxy does not answer this time: keep what we know
+    assert not address.recheck("https://office.example.com")
+    assert address.learned() == "81.10.20.99"
+
+
+def test_without_a_proxy_the_name_is_followed(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHARED_DIR", str(tmp_path))
+    monkeypatch.setattr(address, "_learned", None)
+    monkeypatch.setattr(address, "_ask", lambda url: None)
+    monkeypatch.setattr(address, "_resolve", lambda host: "81.10.20.30")
+    address.share_public_address("81.10.20.30")
+    assert not address.recheck("https://office.example.com")
+    monkeypatch.setattr(address, "_resolve", lambda host: "81.10.20.31")  # dynamic DNS moved the name
+    assert address.recheck("https://office.example.com")
+    assert (tmp_path / "public_ip").read_text() == "81.10.20.31"
+    assert not (tmp_path / "turn_host").exists()

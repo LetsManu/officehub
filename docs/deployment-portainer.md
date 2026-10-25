@@ -98,6 +98,8 @@ every save is a new version, and a file checked out by someone else cannot be ov
 internal address only, set `PUBLIC_IP`. Behind **Cloudflare** (orange cloud) or a similar proxy the name resolves to
 the proxy, which does not pass audio and video: OfficeHub notices that by itself (it asks its own portal address who
 it is) and gives the meeting servers the office's real public address – nothing to set up, ports above still needed.
+It looks again every ten minutes: with a changing (dynamic) address from the internet provider, the meeting servers
+restart by themselves a minute after it changes.
 `ICE_SERVERS` (with `ICE_USERNAME`, `ICE_PASSWORD`) replaces the relay with a
 STUN/TURN server of your own.
 

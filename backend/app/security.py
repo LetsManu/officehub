@@ -63,3 +63,5 @@ class LoginThrottle:
 
 
 login_throttle = LoginThrottle()
+# Every address together, per account: generous, so people elsewhere are not locked out by someone guessing.
+account_throttle = LoginThrottle(max_attempts=50)
