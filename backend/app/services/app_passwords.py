@@ -37,6 +37,12 @@ def count(db: Session, user: User) -> int:
 
 def verify(db: Session, login: str, secret: str) -> User | None:
     """The active user for this e-mail address and app password, or None."""
+    found = check(db, login, secret)
+    return found[0] if found else None
+
+
+def check(db: Session, login: str, secret: str) -> tuple[User, AppPassword] | None:
+    """The active user and the app password they signed in with, or None."""
     user = db.scalar(select(User).where(func.lower(User.email) == login.strip().lower()))
     if user is None or not user.is_active:
         _hash(secret)  # same work whether the address exists or not
@@ -48,5 +54,5 @@ def verify(db: Session, login: str, secret: str) -> User | None:
             if row.last_used_at is None or now - row.last_used_at > timedelta(minutes=5):
                 row.last_used_at = now
                 db.commit()
-            return user
+            return user, row
     return None

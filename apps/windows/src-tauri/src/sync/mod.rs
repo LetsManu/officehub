@@ -238,13 +238,68 @@ pub fn start(config: Config, report: Report) -> std::io::Result<Running> {
 }
 
 fn wake_local(engine: &Arc<Mutex<Engine<PlatformStore>>>, report: &Report, state_file: &std::path::Path) -> Option<()> {
-    let mut e = engine.lock().ok()?;
-    e.scan();
-    save(&e, state_file);
-    for event in e.take_events() {
-        report(None, Some(event));
-    }
+    let (api, status) = {
+        let mut e = engine.lock().ok()?;
+        e.scan();
+        save(&e, state_file);
+        for event in e.take_events() {
+            report(None, Some(event));
+        }
+        (e.api.clone(), round_report(&e))
+    };
+    send_report(api, status);
     Some(())
+}
+
+const REPORT_FAILED_KEPT: usize = 20;
+const REPORT_EVERY: Duration = Duration::from_secs(600);
+
+/// How this sync round went, for the portal (POST /api/sync/report).
+fn round_report(e: &Engine<PlatformStore>) -> serde_json::Value {
+    let error = LAST_ERROR.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let failed: Vec<serde_json::Value> = e
+        .failed
+        .iter()
+        .take(REPORT_FAILED_KEPT)
+        .map(|(path, reason)| serde_json::json!({ "path": path, "reason": reason }))
+        .collect();
+    serde_json::json!({
+        "device_name": e.device.chars().take(80).collect::<String>(),
+        "ok": error.is_none(),
+        "failed": failed,
+        "failed_count": e.failed.len(),
+        "pending_uploads": e.waiting,
+        "error": error.unwrap_or_default().chars().take(200).collect::<String>(),
+    })
+}
+
+/// What was sent last and when: the same news goes out again only now and then.
+static LAST_REPORT: Mutex<Option<(serde_json::Value, std::time::Instant)>> = Mutex::new(None);
+static REPORTING: AtomicBool = AtomicBool::new(false);
+
+/// Sends the report on its own thread, so a slow or failed report never holds up syncing.
+fn send_report(api: Api, status: serde_json::Value) {
+    {
+        let last = LAST_REPORT.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((sent, at)) = last.as_ref() {
+            if *sent == status && at.elapsed() < REPORT_EVERY {
+                return;
+            }
+        }
+    }
+    if REPORTING.swap(true, Ordering::SeqCst) {
+        return; // one report at a time; the next round sends the news
+    }
+    let started = std::thread::Builder::new().name("officehub-sync-report".into()).spawn(move || {
+        // A portal without the report endpoint (older version) answers 404: nothing to do, syncing goes on
+        if matches!(api.report(&status), Ok(()) | Err(ApiError::Status(404, _))) {
+            *LAST_REPORT.lock().unwrap_or_else(|e| e.into_inner()) = Some((status, std::time::Instant::now()));
+        }
+        REPORTING.store(false, Ordering::SeqCst);
+    });
+    if started.is_err() {
+        REPORTING.store(false, Ordering::SeqCst);
+    }
 }
 
 fn sleep_unless(stop: &AtomicBool, total: Duration) {

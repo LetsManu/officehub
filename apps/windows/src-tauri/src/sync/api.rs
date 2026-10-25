@@ -236,6 +236,12 @@ impl Api {
     pub fn delete_folder(&self, id: i64) -> Result<()> {
         Self::answer(self.request("DELETE", &format!("/api/sync/folders/{id}")).call()).map(|_| ())
     }
+
+    /// How the last sync round went on this computer (shown in the portal: Profile, and the list for the IT).
+    pub fn report(&self, report: &Value) -> Result<()> {
+        let req = self.request("POST", "/api/sync/report").timeout(Duration::from_secs(15));
+        Self::answer(req.send_json(report)).map(|_| ())
+    }
 }
 
 /// Base64 without another dependency (only for the sign-in header).

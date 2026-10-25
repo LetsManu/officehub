@@ -710,6 +710,31 @@ export interface AppPassword {
   name: string
   created_at: string
   last_used_at: string | null
+  /** The computer that keeps its OfficeHub folder in sync with this password */
+  device?: SyncDevice | null
+}
+
+export type SyncState = 'ok' | 'problem' | 'never'
+
+export interface SyncDevice {
+  device_name: string
+  app_version: string
+  status: SyncState
+  /** False: an older app that only shows that it is there */
+  reports: boolean
+  last_contact_at: string | null
+  last_sync_at: string | null
+  failed_count: number
+  failed: { path: string; reason: string }[]
+  pending_uploads: number
+  last_error: string
+}
+
+export interface SyncDeviceRow extends SyncDevice {
+  id: number
+  user_id: number
+  full_name: string
+  password_name: string
 }
 
 export interface FileListing {
